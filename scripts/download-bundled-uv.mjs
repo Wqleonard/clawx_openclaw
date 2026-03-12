@@ -63,12 +63,9 @@ async function setupTarget(id) {
   await fs.ensureDir(tempDir);
 
   try {
-    // Download
+    // Download (use curl to respect system proxy settings)
     echo`⬇️ Downloading: ${downloadUrl}`;
-    const response = await fetch(downloadUrl);
-    if (!response.ok) throw new Error(`Failed to download: ${response.statusText}`);
-    const buffer = await response.arrayBuffer();
-    await fs.writeFile(archivePath, Buffer.from(buffer));
+    await $`curl -L --retry 3 --connect-timeout 30 -o ${archivePath} ${downloadUrl}`;
 
     // Extract
     echo`📂 Extracting...`;
