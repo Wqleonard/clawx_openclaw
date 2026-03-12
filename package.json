@@ -54,6 +54,7 @@
         "ms": "^2.1.3",
         "node-machine-id": "^1.1.12",
         "posthog-node": "^5.28.0",
+        "radix-ui": "^1.4.3",
         "ws": "^8.19.0"
     },
     "devDependencies": {
