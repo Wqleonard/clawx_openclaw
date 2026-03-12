@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { verifyTicket, getNewbieMission, completeNewbieMissionReq, type GuideTask } from '@/api/users'
 import { getInsiteNotification, type NotificationItem } from '@/api/insite-notification'
-import { openLoginDialog } from '@/components/loginDialog'
 import type {
   UserInfo,
   AvatarData,
@@ -357,14 +356,11 @@ export const useLoginStore = create<LoginStore>((set, get) => {
         loginDialogRequest: s.loginDialogRequest + 1,
       }))
 
-      try {
-        await openLoginDialog()
-        await get().executeInterceptedActions()
-      } catch (error) {
-        console.error('requireLogin 打开登录弹窗失败:', error)
-        get().clearInterceptedActions()
-        return Promise.reject(new Error('需要登录'))
+      // 桌面端：跳转到登录页，登录成功后由 Login 页面执行被拦截的操作
+      if (typeof window !== 'undefined') {
+        window.location.hash = '#/login'
       }
+      return Promise.reject(new Error('需要登录'))
     },
 
     makeRandomAvatar,

@@ -17,8 +17,10 @@ import { Skills } from './pages/Skills';
 import { Cron } from './pages/Cron';
 import { Settings } from './pages/Settings';
 import { Setup } from './pages/Setup';
+import { Login } from './pages/Login';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
+import { useLoginStore } from './stores/loginStore';
 import { applyGatewayTransportPreference } from './lib/api-client';
 
 
@@ -94,6 +96,7 @@ function App() {
   const language = useSettingsStore((state) => state.language);
   const setupComplete = useSettingsStore((state) => state.setupComplete);
   const initGateway = useGatewayStore((state) => state.init);
+  const isLoggedIn = useLoginStore((state) => state.isLoggedIn);
 
   useEffect(() => {
     initSettings();
@@ -111,12 +114,27 @@ function App() {
     initGateway();
   }, [initGateway]);
 
-  // Redirect to setup wizard if not complete
+  // Routing guard: Login → Setup → Main
   useEffect(() => {
-    if (!setupComplete && !location.pathname.startsWith('/setup')) {
-      navigate('/setup');
+    const path = location.pathname;
+
+    // 1. 未登录 → 强制登录页（/login 和 /setup 除外，setup 不应在未登录时访问，但不强制跳走避免死循环）
+    if (!isLoggedIn && !path.startsWith('/login')) {
+      navigate('/login');
+      return;
     }
-  }, [setupComplete, location.pathname, navigate]);
+
+    // 2. 已登录但 setup 未完成 → 强制 setup
+    if (isLoggedIn && !setupComplete && !path.startsWith('/setup')) {
+      navigate('/setup');
+      return;
+    }
+
+    // 3. 已登录且 setup 完成，停留在 /login 或 /setup → 跳主界面
+    if (isLoggedIn && setupComplete && (path.startsWith('/login') || path.startsWith('/setup'))) {
+      navigate('/');
+    }
+  }, [isLoggedIn, setupComplete, location.pathname, navigate]);
 
   // Listen for navigation events from main process
   useEffect(() => {
@@ -161,6 +179,9 @@ function App() {
         <Routes>
           {/* Setup wizard (shown on first launch) */}
           <Route path="/setup/*" element={<Setup />} />
+
+          {/* Login page */}
+          <Route path="/login" element={<Login />} />
 
           {/* Main application routes */}
           <Route element={<MainLayout />}>

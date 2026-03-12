@@ -41,18 +41,8 @@ export interface ApiClientOptions {
 }
 
 function defaultBaseURL() {
-  // Vite：用 import.meta.env（.env.* 里必须是 VITE_ 前缀）
-  const vite = import.meta.env.VITE_API_BASE_URL;
-  console.log(import.meta.env.MODE, import.meta.env.VITE_API_BASE_URL);
-  // 2) 兜底：vite.config.ts 通过 define 注入（loadEnv(mode, ...)）
-  const injected = typeof import.meta.env.VITE_API_BASE_URL === "string" ? import.meta.env.VITE_API_BASE_URL : "";
-
-  const raw =
-    (typeof vite === "string" && vite.trim() ? vite.trim() : "") ||
-    (typeof injected === "string" && injected.trim() ? injected.trim() : "");
-
-  // 去掉末尾 /，避免 baseURL + path 出现双斜杠
-  return raw ? raw.replace(/\/+$/, "") : "";
+  const raw = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? '';
+  return raw.replace(/\/+$/, '');
 }
 
 function defaultGetToken() {
