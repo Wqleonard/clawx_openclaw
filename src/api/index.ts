@@ -4,8 +4,6 @@ import type { AxiosInstance, AxiosRequestConfig } from "axios";
 import { toast } from "sonner";
 import { getOrCreateVisitorId } from "@/utils/visitorId";
 
-export const WRITE_STREAM_URL = "/api/v1/writing/generate-stream";
-export const SUBMIT_URL = "/submit";
 export const STREAM_CHAT_URL = "/api/works/chat";
 
 // =====================
