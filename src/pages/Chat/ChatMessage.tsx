@@ -4,7 +4,7 @@
  * with markdown, thinking sections, images, and tool cards.
  */
 import { useState, useCallback, useEffect, memo } from 'react';
-import { Sparkles, Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sparkles, Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle, ClipboardPaste } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createPortal } from 'react-dom';
@@ -26,6 +26,7 @@ interface ChatMessageProps {
     durationMs?: number;
     summary?: string;
   }>;
+  onImportToEditor?: (text: string) => void;
 }
 
 interface ExtractedImage { url?: string; data?: string; mimeType: string; }
@@ -42,6 +43,7 @@ export const ChatMessage = memo(function ChatMessage({
   showThinking,
   isStreaming = false,
   streamingTools = [],
+  onImportToEditor,
 }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const role = typeof message.role === 'string' ? message.role.toLowerCase() : '';
@@ -223,7 +225,7 @@ export const ChatMessage = memo(function ChatMessage({
 
         {/* Hover row for assistant messages — only when there is real text content */}
         {!isUser && hasText && (
-          <AssistantHoverBar text={text} timestamp={message.timestamp} />
+          <AssistantHoverBar text={text} timestamp={message.timestamp} onImportToEditor={onImportToEditor} />
         )}
       </div>
 
@@ -294,8 +296,9 @@ function ToolStatusBar({
 
 // ── Assistant hover bar (timestamp + copy, shown on group hover) ─
 
-function AssistantHoverBar({ text, timestamp }: { text: string; timestamp?: number }) {
+function AssistantHoverBar({ text, timestamp, onImportToEditor }: { text: string; timestamp?: number; onImportToEditor?: (text: string) => void }) {
   const [copied, setCopied] = useState(false);
+  const [imported, setImported] = useState(false);
 
   const copyContent = useCallback(() => {
     navigator.clipboard.writeText(text);
@@ -303,19 +306,39 @@ function AssistantHoverBar({ text, timestamp }: { text: string; timestamp?: numb
     setTimeout(() => setCopied(false), 2000);
   }, [text]);
 
+  const importToEditor = useCallback(() => {
+    onImportToEditor?.(text);
+    setImported(true);
+    setTimeout(() => setImported(false), 2000);
+  }, [text, onImportToEditor]);
+
   return (
     <div className="flex items-center justify-between w-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 select-none px-1">
       <span className="text-xs text-muted-foreground">
         {timestamp ? formatTimestamp(timestamp) : ''}
       </span>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6"
-        onClick={copyContent}
-      >
-        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-      </Button>
+      <div className="flex items-center gap-0.5">
+        {onImportToEditor && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={importToEditor}
+            title="导入到编辑器"
+          >
+            {imported ? <Check className="h-3 w-3 text-green-500" /> : <ClipboardPaste className="h-3 w-3" />}
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={copyContent}
+          title="复制"
+        >
+          {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+        </Button>
+      </div>
     </div>
   );
 }

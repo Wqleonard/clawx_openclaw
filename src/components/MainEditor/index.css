@@ -1,0 +1,354 @@
+.main-editor {
+  width: 100%;
+  height: 100%;
+}
+
+.main-editor.is-readonly .main-editor-content .ProseMirror {
+  cursor: default;
+  user-select: text;
+}
+
+.main-editor.is-readonly .main-editor-content .ProseMirror:focus {
+  outline: none;
+}
+
+.main-editor .editor-content,
+.main-editor .main-editor-content {
+  width: 100%;
+  height: 100%;
+  padding-bottom: 1rem;
+}
+
+/* editor 页面外层承载滚动：关闭内部滚动，让内容高度自然撑开 */
+.main-editor.editor-outer-scroll-mode .editor-content,
+.main-editor.editor-outer-scroll-mode .main-editor-content {
+  height: auto;
+
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap {
+  --tiptap-prosemirror-font-size: 16px;
+  --tiptap-prosemirror-line-height: 1.8;
+  outline: none;
+  color: #303133;
+  line-height: var(--tiptap-prosemirror-line-height);
+  font-size: var(--tiptap-prosemirror-font-size);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap p {
+  margin: 0.5em 0;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap p:first-child.is-editor-empty.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #adb5bd;
+  pointer-events: none;
+  height: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap h1,
+.main-editor .main-editor-content .ProseMirror.tiptap h2,
+.main-editor .main-editor-content .ProseMirror.tiptap h3,
+.main-editor .main-editor-content .ProseMirror.tiptap h4,
+.main-editor .main-editor-content .ProseMirror.tiptap h5,
+.main-editor .main-editor-content .ProseMirror.tiptap h6 {
+  margin: 0.5em 0;
+  color: #303133;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap h1 { font-size: 1.5em; }
+.main-editor .main-editor-content .ProseMirror.tiptap h2 { font-size: 1.3em; }
+.main-editor .main-editor-content .ProseMirror.tiptap h3 { font-size: 1.15em; }
+
+.main-editor .main-editor-content .ProseMirror.tiptap p {
+  margin: 0.5em 0;
+  line-height: var(--tiptap-prosemirror-line-height);
+  word-break: break-word;
+  text-indent: 0;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap ul,
+.main-editor .main-editor-content .ProseMirror.tiptap ol {
+  margin: 0.5em 0;
+  padding-left: 2em;
+  line-height: 1.8;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap li {
+  margin: 0.25em 0;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap ul {
+  list-style: disc;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap ol {
+  list-style: decimal;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap strong {
+  font-weight: 600;
+  color: #303133;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap em {
+  font-style: italic;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap code {
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'YaHei', 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #e83e8c;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap pre {
+  background: #f5f5f5;
+  /* padding: 12px; */
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 1em 0;
+  border: 1px solid #ebeef5;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap pre code {
+  background: transparent;
+  padding: 0;
+  color: #303133;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap blockquote {
+  border-left: 4px solid #409eff;
+  padding-left: 1em;
+  margin: 1em 0;
+  color: #606266;
+  background: #f0f9ff;
+  padding: 12px 16px;
+  border-radius: 4px;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap hr {
+  border: none;
+  border-top: 1px solid #ebeef5;
+  margin: 1.5em 0;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap th,
+.main-editor .main-editor-content .ProseMirror.tiptap td {
+  border: 1px solid #dcdfe6;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap th {
+  background: #f5f7fa;
+  font-weight: 600;
+}
+
+.main-editor .main-editor-content .ProseMirror.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #adb5bd;
+  pointer-events: none;
+  height: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.main-editor .main-editor-content .ProseMirror .remark-highlight-paragraph {
+  background: rgba(255, 214, 102, 0.28);
+  border-radius: 4px;
+  text-decoration: underline;
+  text-decoration-color: var(--bg-editor-save);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.main-editor .main-editor-content .ProseMirror .streamed-content {
+  background-color: #e6ffe6;
+  color: #666;
+  padding: 0 2px;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.main-editor .main-editor-content .ProseMirror .streamed-content-active {
+  text-decoration: underline;
+  text-decoration-color: #8b4513;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+/* Selection toolbar (align Vue style) */
+.selection-toolbar-popover {
+  border: 1px solid #b4b4b4;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  min-width: 128px;
+}
+
+.selection-toolbar-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.selection-toolbar-action {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #61616f;
+  cursor: pointer;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.selection-toolbar-action:hover {
+  background: #e8e8e8;
+}
+
+.selection-toolbar-action-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #61616f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  margin-right: 6px;
+}
+
+.selection-toolbar-action-label {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.selection-toolbar-panel {
+  width: 420px;
+  padding: 10px 12px 8px;
+}
+
+.selection-toolbar-panel-header {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #61616f;
+}
+
+.selection-toolbar-header-icon {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #61616f;
+  cursor: pointer;
+}
+
+.selection-toolbar-header-icon:hover {
+  background: #e8e8e8;
+}
+
+.selection-toolbar-panel-title {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.selection-toolbar-panel-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.selection-toolbar-textarea {
+  width: 100%;
+  min-height: 56px;
+  border: 1px solid #c4c4c4;
+  border-radius: 8px;
+  padding: 8px;
+  resize: vertical;
+  outline: none;
+  font-size: 14px;
+}
+
+.selection-toolbar-textarea:focus {
+  border-color: #a8a8a8;
+}
+
+.selection-toolbar-result {
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 10px;
+  background: #f5f5f5;
+  color: #303133;
+  padding: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.selection-toolbar-image-preview {
+  width: 150px;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.selection-toolbar-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.selection-toolbar-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  font-size: 12px;
+}
+
+.selection-toolbar-btn.primary {
+  background: #fa9e00;
+}
+
+.selection-toolbar-btn.secondary {
+  background: #b6b6b6;
+}
+
+.selection-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -4,6 +4,8 @@ import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { Bold, Italic, Heading1, Heading2, List, ListOrdered, Code } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useEffect, useRef } from 'react'
+import type { Editor } from '@tiptap/core'
 
 interface TiptapEditorProps {
   content?: string
@@ -12,22 +14,41 @@ interface TiptapEditorProps {
 }
 
 export function TiptapEditor({ content = '', onChange, className }: TiptapEditorProps) {
+  const suppressNextUpdate = useRef(0)
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
+
   const editor = useEditor({
     extensions: [
       StarterKit,
       Markdown,
     ],
     content,
+    contentType: 'markdown',
     editorProps: {
       attributes: {
         class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-full px-4 py-3',
       },
     },
-    onUpdate({ editor }) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onChange?.((editor.storage.markdown as any)?.getMarkdown?.() ?? editor.getText())
+    onUpdate({ editor: e, transaction }) {
+      if (!transaction.docChanged) return
+      if (suppressNextUpdate.current > 0) {
+        suppressNextUpdate.current -= 1
+        return
+      }
+      const md = (e as Editor & { getMarkdown?: () => string }).getMarkdown?.() ?? e.getText()
+      onChangeRef.current?.(md)
     },
   })
+
+  // Sync external content into editor (e.g. import from chat)
+  useEffect(() => {
+    if (!editor || !content) return
+    const current = (editor as Editor & { getMarkdown?: () => string }).getMarkdown?.() ?? ''
+    if (content === current) return
+    suppressNextUpdate.current += 1
+    editor.commands.setContent(content, { contentType: 'markdown' } as Parameters<typeof editor.commands.setContent>[1])
+  }, [content, editor])
 
   if (!editor) return null
 

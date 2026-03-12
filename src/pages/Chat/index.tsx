@@ -4,7 +4,7 @@
  * via gateway:rpc IPC. Session selector, thinking toggle, and refresh
  * are in the toolbar; messages render with markdown + streaming.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Loader2, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -21,11 +21,19 @@ import { useMinLoading } from '@/hooks/use-min-loading';
 
 import { TiptapEditor } from '@/components/editor/TiptapEditor';
 
+const EDITOR_MIN_WIDTH = 260;
+const EDITOR_MAX_WIDTH = 900;
+const EDITOR_DEFAULT_WIDTH = 560;
 
 export function Chat() {
   const { t } = useTranslation('chat');
   const [editorOpen, setEditorOpen] = useState(true);
   const [editorContent, setEditorContent] = useState('');
+  const [editorWidth, setEditorWidth] = useState(EDITOR_DEFAULT_WIDTH);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
 
@@ -94,26 +102,58 @@ export function Chat() {
   const hasAnyStreamContent = hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
 
   const isEmpty = messages.length === 0 && !sending;
+  // Drag-to-resize editor while preserving chat page behavior from main branch.
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = editorWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = ev.clientX - dragStartX.current;
+      const next = Math.min(EDITOR_MAX_WIDTH, Math.max(EDITOR_MIN_WIDTH, dragStartWidth.current + delta));
+      setEditorWidth(next);
+    };
+    const onUp = () => {
+      isDragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [editorWidth]);
 
   return (
-    <div className={cn("flex -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
-      {/* Editor Panel (middle) */}
+    <div ref={containerRef} className={cn("flex -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
+      {/* Editor Panel */}
       {editorOpen && (
-        <div className="flex flex-col w-[380px] shrink-0 border-r border-border overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-            <span className="text-xs font-medium text-muted-foreground">编辑器</span>
-            <button
-              type="button"
-              onClick={() => setEditorOpen(false)}
-              className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              title="关闭编辑器"
-            >
-              <PanelLeftClose className="h-3.5 w-3.5" />
-            </button>
+        <div className="flex shrink-0 overflow-hidden" style={{ width: editorWidth }}>
+          <div className="flex flex-col flex-1 overflow-hidden bg-card border-r border-border">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <span className="text-xs font-medium text-muted-foreground">编辑器</span>
+              <button
+                type="button"
+                onClick={() => setEditorOpen(false)}
+                className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="关闭编辑器"
+              >
+                <PanelLeftClose className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden bg-card">
+              <TiptapEditor content={editorContent} onChange={setEditorContent} className="h-full" />
+            </div>
           </div>
-          <div className="flex-1 overflow-hidden">
-            <TiptapEditor content={editorContent} onChange={setEditorContent} className="h-full" />
-          </div>
+          {/* Drag handle */}
+          <div
+            onMouseDown={onDragStart}
+            className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors bg-border/50"
+            title="拖动调整宽度"
+          />
         </div>
       )}
 
@@ -146,6 +186,7 @@ export function Chat() {
                     key={msg.id || `msg-${idx}`}
                     message={msg}
                     showThinking={showThinking}
+                    onImportToEditor={setEditorContent}
                   />
                 ))}
 
@@ -167,15 +208,16 @@ export function Chat() {
                     showThinking={showThinking}
                     isStreaming
                     streamingTools={streamingTools}
+                    onImportToEditor={setEditorContent}
                   />
                 )}
 
-                {/* Activity indicator: waiting for next AI turn after tool execution */}
+                {/* Activity indicator */}
                 {sending && pendingFinal && !shouldRenderStreaming && (
                   <ActivityIndicator phase="tool_processing" />
                 )}
 
-                {/* Typing indicator when sending but no stream content yet */}
+                {/* Typing indicator */}
                 {sending && !pendingFinal && !hasAnyStreamContent && (
                   <TypingIndicator />
                 )}
@@ -187,7 +229,7 @@ export function Chat() {
         {/* Error bar */}
         {error && (
           <div className="px-4 py-2 bg-destructive/10 border-t border-destructive/20">
-            <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="max-w-2xl mx-auto flex items-center justify-between">
               <p className="text-sm text-destructive flex items-center gap-2">
                 <AlertCircle className="h-4 w-4" />
                 {error}
@@ -210,7 +252,6 @@ export function Chat() {
           sending={sending}
           isEmpty={isEmpty}
         />
-
         {/* Transparent loading overlay */}
         {minLoading && !sending && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/20 backdrop-blur-[1px] rounded-xl pointer-events-auto">
