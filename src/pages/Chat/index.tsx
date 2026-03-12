@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useEffect, useState } from 'react';
-import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, Loader2, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
@@ -19,8 +19,13 @@ import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
 
+import { TiptapEditor } from '@/components/editor/TiptapEditor';
+
+
 export function Chat() {
   const { t } = useTranslation('chat');
+  const [editorOpen, setEditorOpen] = useState(true);
+  const [editorContent, setEditorContent] = useState('');
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
 
@@ -91,97 +96,130 @@ export function Chat() {
   const isEmpty = messages.length === 0 && !sending;
 
   return (
-    <div className={cn("relative flex flex-col -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
-      {/* Toolbar */}
-      <div className="flex shrink-0 items-center justify-end px-4 py-2">
-        <ChatToolbar />
-      </div>
-
-      {/* Messages Area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
-        <div ref={contentRef} className="max-w-4xl mx-auto space-y-4">
-          {isEmpty ? (
-            <WelcomeScreen />
-          ) : (
-            <>
-              {messages.map((msg, idx) => (
-                <ChatMessage
-                  key={msg.id || `msg-${idx}`}
-                  message={msg}
-                  showThinking={showThinking}
-                />
-              ))}
-
-              {/* Streaming message */}
-              {shouldRenderStreaming && (
-                <ChatMessage
-                  message={(streamMsg
-                    ? {
-                        ...(streamMsg as Record<string, unknown>),
-                        role: (typeof streamMsg.role === 'string' ? streamMsg.role : 'assistant') as RawMessage['role'],
-                        content: streamMsg.content ?? streamText,
-                        timestamp: streamMsg.timestamp ?? streamingTimestamp,
-                      }
-                    : {
-                        role: 'assistant',
-                        content: streamText,
-                        timestamp: streamingTimestamp,
-                      }) as RawMessage}
-                  showThinking={showThinking}
-                  isStreaming
-                  streamingTools={streamingTools}
-                />
-              )}
-
-              {/* Activity indicator: waiting for next AI turn after tool execution */}
-              {sending && pendingFinal && !shouldRenderStreaming && (
-                <ActivityIndicator phase="tool_processing" />
-              )}
-
-              {/* Typing indicator when sending but no stream content yet */}
-              {sending && !pendingFinal && !hasAnyStreamContent && (
-                <TypingIndicator />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Error bar */}
-      {error && (
-        <div className="px-4 py-2 bg-destructive/10 border-t border-destructive/20">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <p className="text-sm text-destructive flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              {error}
-            </p>
+    <div className={cn("flex -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
+      {/* Editor Panel (middle) */}
+      {editorOpen && (
+        <div className="flex flex-col w-[380px] shrink-0 border-r border-border overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+            <span className="text-xs font-medium text-muted-foreground">编辑器</span>
             <button
-              onClick={clearError}
-              className="text-xs text-destructive/60 hover:text-destructive underline"
+              type="button"
+              onClick={() => setEditorOpen(false)}
+              className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="关闭编辑器"
             >
-              {t('common:actions.dismiss')}
+              <PanelLeftClose className="h-3.5 w-3.5" />
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Input Area */}
-      <ChatInput
-        onSend={sendMessage}
-        onStop={abortRun}
-        disabled={!isGatewayRunning}
-        sending={sending}
-        isEmpty={isEmpty}
-      />
-
-      {/* Transparent loading overlay */}
-      {minLoading && !sending && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/20 backdrop-blur-[1px] rounded-xl pointer-events-auto">
-          <div className="bg-background shadow-lg rounded-full p-2.5 border border-border">
-            <LoadingSpinner size="md" />
+          <div className="flex-1 overflow-hidden">
+            <TiptapEditor content={editorContent} onChange={setEditorContent} className="h-full" />
           </div>
         </div>
       )}
+
+      {/* Chat Panel (right) */}
+      <div className="relative flex flex-1 flex-col overflow-hidden">
+        {/* Toolbar */}
+        <div className="flex shrink-0 items-center justify-between px-4 py-2">
+          {!editorOpen ? (
+            <button
+              type="button"
+              onClick={() => setEditorOpen(true)}
+              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="打开编辑器"
+            >
+              <PanelLeftOpen className="h-3.5 w-3.5" />
+            </button>
+          ) : <div />}
+          <ChatToolbar />
+        </div>
+
+        {/* Messages Area */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+          <div ref={contentRef} className="max-w-4xl mx-auto space-y-4">
+            {isEmpty ? (
+              <WelcomeScreen />
+            ) : (
+              <>
+                {messages.map((msg, idx) => (
+                  <ChatMessage
+                    key={msg.id || `msg-${idx}`}
+                    message={msg}
+                    showThinking={showThinking}
+                  />
+                ))}
+
+                {/* Streaming message */}
+                {shouldRenderStreaming && (
+                  <ChatMessage
+                    message={(streamMsg
+                      ? {
+                          ...(streamMsg as Record<string, unknown>),
+                          role: (typeof streamMsg.role === 'string' ? streamMsg.role : 'assistant') as RawMessage['role'],
+                          content: streamMsg.content ?? streamText,
+                          timestamp: streamMsg.timestamp ?? streamingTimestamp,
+                        }
+                      : {
+                          role: 'assistant',
+                          content: streamText,
+                          timestamp: streamingTimestamp,
+                        }) as RawMessage}
+                    showThinking={showThinking}
+                    isStreaming
+                    streamingTools={streamingTools}
+                  />
+                )}
+
+                {/* Activity indicator: waiting for next AI turn after tool execution */}
+                {sending && pendingFinal && !shouldRenderStreaming && (
+                  <ActivityIndicator phase="tool_processing" />
+                )}
+
+                {/* Typing indicator when sending but no stream content yet */}
+                {sending && !pendingFinal && !hasAnyStreamContent && (
+                  <TypingIndicator />
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Error bar */}
+        {error && (
+          <div className="px-4 py-2 bg-destructive/10 border-t border-destructive/20">
+            <div className="max-w-4xl mx-auto flex items-center justify-between">
+              <p className="text-sm text-destructive flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {error}
+              </p>
+              <button
+                onClick={clearError}
+                className="text-xs text-destructive/60 hover:text-destructive underline"
+              >
+                {t('common:actions.dismiss')}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Input Area */}
+        <ChatInput
+          onSend={sendMessage}
+          onStop={abortRun}
+          disabled={!isGatewayRunning}
+          sending={sending}
+          isEmpty={isEmpty}
+        />
+
+        {/* Transparent loading overlay */}
+        {minLoading && !sending && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/20 backdrop-blur-[1px] rounded-xl pointer-events-auto">
+            <div className="bg-background shadow-lg rounded-full p-2.5 border border-border">
+              <LoadingSpinner size="md" />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
