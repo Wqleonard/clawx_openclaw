@@ -65,7 +65,7 @@ interface SettingsState {
 }
 
 const defaultSettings = {
-  theme: 'system' as Theme,
+  theme: 'light' as Theme,
   language: (() => {
     const lang = navigator.language.toLowerCase();
     if (lang.startsWith('zh')) return 'zh';
@@ -99,7 +99,9 @@ export const useSettingsStore = create<SettingsState>()(
       init: async () => {
         try {
           const settings = await hostApiFetch<Partial<typeof defaultSettings>>('/api/settings');
-          set((state) => ({ ...state, ...settings }));
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { theme: _theme, ...settingsWithoutTheme } = settings;
+          set((state) => ({ ...state, ...settingsWithoutTheme }));
           if (settings.language) {
             i18n.changeLanguage(settings.language);
           }
@@ -163,6 +165,15 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'clawx-settings',
+      version: 1,
+      migrate: (persistedState, fromVersion) => {
+        const state = persistedState as Partial<typeof defaultSettings>;
+        // v1: force light theme as new default (only when migrating from old version)
+        if (fromVersion < 1 && (!state.theme || state.theme === 'dark' || state.theme === 'system')) {
+          state.theme = 'light';
+        }
+        return state;
+      },
     }
   )
 );

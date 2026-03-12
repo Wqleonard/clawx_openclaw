@@ -45,7 +45,10 @@ export function Login() {
 
   useEffect(() => {
     window.addEventListener('message', handleMessage);
-    setIframeLoadFailed(false);
+    setTimeout(() => {
+      setIframeLoadFailed(false);
+    }, 0)
+
 
     loadTimeoutRef.current = setTimeout(() => {
       const iframe = iframeRef.current;
@@ -93,7 +96,7 @@ export function Login() {
   const features = [
     { icon: Bot, title: 'AI Agent 运行时', desc: '内置 OpenClaw Gateway，支持多模型 Agent 编排' },
     { icon: Terminal, title: '完整终端能力', desc: '原生 PTY 终端，支持复杂命令行工作流' },
-    { icon: Zap, title: '自家模型接入', desc: '无缝切换 OpenClaw 与自家 AI 模型' },
+    { icon: Zap, title: '爆文猫模型接入', desc: '无缝切换 OpenClaw 与爆文猫 AI 模型' },
     { icon: Layers, title: '技能市场', desc: '丰富的技能生态，一键安装扩展能力' },
   ];
 
