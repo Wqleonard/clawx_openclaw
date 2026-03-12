@@ -1,6 +1,11 @@
 {
   "title": "Settings",
   "subtitle": "Configure your BoomClaw experience",
+  "account": {
+    "title": "Account",
+    "guest": "Not logged in",
+    "logout": "Logout"
+  },
   "appearance": {
     "title": "General",
     "description": "Customize the look and feel",

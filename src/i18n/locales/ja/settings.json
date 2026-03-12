@@ -1,6 +1,11 @@
 {
   "title": "設定",
   "subtitle": "BoomClaw の体験をカスタマイズ",
+  "account": {
+    "title": "アカウント",
+    "guest": "未ログイン",
+    "logout": "ログアウト"
+  },
   "appearance": {
     "title": "通用",
     "description": "外観とスタイルをカスタマイズ",

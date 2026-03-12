@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Copy,
   FileText,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -40,6 +41,7 @@ import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
 import { hostApiFetch } from '@/lib/host-api';
 import { cn } from '@/lib/utils';
+import { useLoginStore } from '@/stores/loginStore';
 type ControlUiInfo = {
   url: string;
   token: string;
@@ -80,6 +82,8 @@ export function Settings() {
   } = useSettingsStore();
 
   const { status: gatewayStatus, restart: restartGateway } = useGatewayStore();
+  const userInfo = useLoginStore((state) => state.userInfo);
+  const logout = useLoginStore((state) => state.logout);
   const currentVersion = useUpdateStore((state) => state.currentVersion);
   const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
   const [controlUiInfo, setControlUiInfo] = useState<ControlUiInfo | null>(null);
@@ -1042,6 +1046,34 @@ export function Settings() {
                   }}
                 />
               </div>
+            </div>
+          </div>
+
+          <Separator className="bg-black/5 dark:bg-white/5" />
+
+          {/* Account */}
+          <div>
+            <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+              {t('account.title')}
+            </h2>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-[15px] font-medium text-foreground">
+                  {userInfo?.nickName || userInfo?.phone || t('account.guest')}
+                </Label>
+                {userInfo?.nickName && userInfo?.phone && (
+                  <p className="text-[13px] text-muted-foreground mt-1">{userInfo.phone}</p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={logout}
+                className="flex items-center gap-2 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-red-900 dark:hover:bg-red-950"
+              >
+                <LogOut className="h-4 w-4" />
+                {t('account.logout')}
+              </Button>
             </div>
           </div>
 

@@ -1,6 +1,11 @@
 {
   "title": "设置",
   "subtitle": "配置您的 BoomClaw 体验",
+  "account": {
+    "title": "账户",
+    "guest": "未登录",
+    "logout": "退出登录"
+  },
   "appearance": {
     "title": "通用",
     "description": "自定义外观和风格",
