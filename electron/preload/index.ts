@@ -139,6 +139,8 @@ const electronAPI = {
         'openclaw:getCliCommand',
         // Workspace file system
         'fs:open-folder',
+        'fs:ensure-default-workspace',
+        'fs:set-workspace',
         'fs:get-workspace',
         'fs:read-tree',
         'fs:read-file',
@@ -280,6 +282,8 @@ const electronAPI = {
    */
   fs: {
     openFolder: () => ipcRenderer.invoke('fs:open-folder'),
+    ensureDefaultWorkspace: () => ipcRenderer.invoke('fs:ensure-default-workspace'),
+    setWorkspace: (dirPath: string) => ipcRenderer.invoke('fs:set-workspace', dirPath),
     getWorkspace: () => ipcRenderer.invoke('fs:get-workspace'),
     readTree: (dirPath?: string) => ipcRenderer.invoke('fs:read-tree', dirPath),
     readFile: (filePath: string) => ipcRenderer.invoke('fs:read-file', filePath),

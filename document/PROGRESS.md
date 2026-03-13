@@ -229,3 +229,47 @@ pnpm package:win:qa       # win qa
 - [ ] 右键任意文件 → 添加到上下文后，菜单切为“从上下文移除”
 - [ ] 切换会话 agent 后，文件树上下文高亮随 agent 变化
 - [ ] 移动/重命名已加入上下文的文件，状态保持同步
+
+---
+
+### 8. 会话绑定工作区（首个小步闭环）
+
+> 目标：让“小说工作目录”随会话自动映射，避免用户每次手动选目录。
+
+**本步已实现：**
+- 新增 IPC：`fs:ensure-default-workspace`
+  - 自动创建默认小说目录：
+    - `~/Documents/BoomClaw Workspaces/我的第一部小说`
+  - 自动初始化目录结构与模板文件：
+    - `00_设定/人物设定.md`
+    - `00_设定/世界观.md`
+    - `01_大纲/总纲.md`
+    - `02_正文/第01章.md`
+    - `README.md`
+- `preload` 与 `electron.d.ts` 已补充 `ensureDefaultWorkspace` 暴露
+
+**Store 扩展（`src/stores/filesystem.ts`）：**
+- 新增状态：
+  - `defaultWorkspacePath`
+  - `workspaceBindings: Record<sessionKey, workspacePath>`
+- 新增动作：
+  - `bindWorkspaceToSession(sessionKey, workspacePath)`
+  - `applyWorkspaceForSession(sessionKey)`
+  - `ensureDefaultWorkspaceForSession(sessionKey)`
+- 持久化范围新增：
+  - `defaultWorkspacePath`
+  - `workspaceBindings`
+
+**会话联动（`src/pages/Chat/index.tsx`）：**
+- 监听 `currentSessionKey` 变化，自动调用 `applyWorkspaceForSession(currentSessionKey)`
+  - 已绑定会话：加载绑定目录
+  - 未绑定会话：自动创建/加载默认小说目录并绑定
+
+**手动选目录联动（`src/components/filesystem/FileTree.tsx`）：**
+- 用户点击“打开目录”后，自动绑定到当前会话：
+  - `bindWorkspaceToSession(currentSessionKey, selectedPath)`
+
+**建议验证：**
+- [ ] 首次打开聊天页时，自动出现 `我的第一部小说` 默认工作区
+- [ ] 新建会话后，自动映射到默认工作区（若无专属绑定）
+- [ ] 在会话 A 选新目录后，切换会话 B 再切回 A，目录映射保持不丢失

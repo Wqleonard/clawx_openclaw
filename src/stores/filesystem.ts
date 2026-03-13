@@ -5,6 +5,8 @@ import type { FileNode } from '@/types/electron';
 
 type FileSystemState = {
   workspacePath: string | null;
+  defaultWorkspacePath: string | null;
+  workspaceBindings: Record<string, string>;
   tree: FileNode | null;
   openFiles: string[];
   activeFile: string | null;
@@ -15,6 +17,9 @@ type FileSystemState = {
   lastError: string | null;
 
   openFolder: () => Promise<string | null>;
+  bindWorkspaceToSession: (sessionKey: string, workspacePath: string) => void;
+  applyWorkspaceForSession: (sessionKey: string) => Promise<void>;
+  ensureDefaultWorkspaceForSession: (sessionKey: string) => Promise<void>;
   initWorkspace: (workspacePath: string) => Promise<void>;
   refreshTree: (dirPath?: string) => Promise<void>;
   openFile: (filePath: string) => Promise<void>;
@@ -38,6 +43,22 @@ type FileSystemState = {
 
 let removeFsChangedListener: (() => void) | null = null;
 
+function isWorkspaceNotSelectedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('Workspace is not selected');
+}
+
+async function ensureMainWorkspaceSynced(
+  get: () => FileSystemState,
+): Promise<string | null> {
+  const localWorkspace = get().workspacePath;
+  if (!localWorkspace) return null;
+  const mainWorkspace = await invokeIpc<string | null>('fs:get-workspace');
+  if (mainWorkspace === localWorkspace) return localWorkspace;
+  await invokeIpc<string>('fs:set-workspace', localWorkspace);
+  return localWorkspace;
+}
+
 function setStoreError(
   set: (partial: Partial<FileSystemState> | ((state: FileSystemState) => Partial<FileSystemState>)) => void,
   error: unknown,
@@ -50,6 +71,8 @@ export const useFileSystemStore = create<FileSystemState>()(
   persist(
     (set, get) => ({
       workspacePath: null,
+      defaultWorkspacePath: null,
+      workspaceBindings: {},
       tree: null,
       openFiles: [],
       activeFile: null,
@@ -71,7 +94,45 @@ export const useFileSystemStore = create<FileSystemState>()(
         }
       },
 
+      bindWorkspaceToSession: (sessionKey, workspacePath) => {
+        if (!sessionKey || !workspacePath) return;
+        set((state) => ({
+          workspaceBindings: {
+            ...state.workspaceBindings,
+            [sessionKey]: workspacePath,
+          },
+          defaultWorkspacePath: workspacePath,
+        }));
+      },
+
+      applyWorkspaceForSession: async (sessionKey) => {
+        if (!sessionKey) return;
+        const state = get();
+        const boundPath = state.workspaceBindings[sessionKey] || state.defaultWorkspacePath;
+        if (boundPath) {
+          try {
+            await get().initWorkspace(boundPath);
+            return;
+          } catch {
+            // fallthrough to ensure default workspace
+          }
+        }
+        await get().ensureDefaultWorkspaceForSession(sessionKey);
+      },
+
+      ensureDefaultWorkspaceForSession: async (sessionKey) => {
+        if (!sessionKey) return;
+        try {
+          const ensuredPath = await invokeIpc<string>('fs:ensure-default-workspace');
+          get().bindWorkspaceToSession(sessionKey, ensuredPath);
+          await get().initWorkspace(ensuredPath);
+        } catch (error) {
+          setStoreError(set, error);
+        }
+      },
+
       initWorkspace: async (workspacePath) => {
+        await invokeIpc<string>('fs:set-workspace', workspacePath);
         set({
           workspacePath,
           tree: null,
@@ -87,6 +148,7 @@ export const useFileSystemStore = create<FileSystemState>()(
 
       refreshTree: async (dirPath) => {
         try {
+          await ensureMainWorkspaceSynced(get);
           const tree = await invokeIpc<FileNode>('fs:read-tree', dirPath);
           set({ tree, lastError: null });
         } catch (error) {
@@ -123,7 +185,7 @@ export const useFileSystemStore = create<FileSystemState>()(
             activeFile: nextActiveFile,
             fileContents: nextContents,
             dirtyFiles: state.dirtyFiles.filter((item) => item !== filePath),
-              contextFiles: state.contextFiles.filter((item) => item !== filePath),
+            contextFiles: state.contextFiles.filter((item) => item !== filePath),
           };
         });
       },
@@ -293,6 +355,11 @@ export const useFileSystemStore = create<FileSystemState>()(
 
       loadContextFiles: async (agentId) => {
         try {
+          const workspace = await ensureMainWorkspaceSynced(get);
+          if (!workspace) {
+            set({ contextFiles: [], lastError: null });
+            return;
+          }
           const files = await invokeIpc<string[]>('fs:list-context', agentId);
           set({ contextFiles: files, lastError: null });
         } catch (error) {
@@ -306,16 +373,35 @@ export const useFileSystemStore = create<FileSystemState>()(
             removeFsChangedListener();
             removeFsChangedListener = null;
           }
+          const workspace = await ensureMainWorkspaceSynced(get);
+          if (!workspace) {
+            set({ isWatching: false, lastError: null });
+            return;
+          }
           await invokeIpc<boolean>('fs:watch-start');
           removeFsChangedListener = window.electron.fs.onChanged(() => {
             void get().refreshTree();
           });
           set({ isWatching: true, lastError: null });
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
           // App restart can keep persisted workspacePath in renderer while main process has no selected workspace yet.
-          // In this case, degrade quietly instead of showing a red error banner.
-          if (message.includes('Workspace is not selected')) {
+          // Try one more sync silently before reporting an error.
+          if (isWorkspaceNotSelectedError(error)) {
+            const workspace = get().workspacePath;
+            if (workspace) {
+              try {
+                await invokeIpc<string>('fs:set-workspace', workspace);
+                await invokeIpc<boolean>('fs:watch-start');
+                removeFsChangedListener = window.electron.fs.onChanged(() => {
+                  void get().refreshTree();
+                });
+                set({ isWatching: true, lastError: null });
+                return;
+              } catch {
+                // fall through to degrade branch below
+              }
+            }
+            // No workspace available locally: degrade quietly.
             set({
               workspacePath: null,
               tree: null,
@@ -323,6 +409,7 @@ export const useFileSystemStore = create<FileSystemState>()(
               activeFile: null,
               fileContents: {},
               dirtyFiles: [],
+              contextFiles: [],
               isWatching: false,
               lastError: null,
             });
@@ -353,6 +440,8 @@ export const useFileSystemStore = create<FileSystemState>()(
       name: 'filesystem-store',
       partialize: (state) => ({
         workspacePath: state.workspacePath,
+        defaultWorkspacePath: state.defaultWorkspacePath,
+        workspaceBindings: state.workspaceBindings,
       }),
     },
   ),

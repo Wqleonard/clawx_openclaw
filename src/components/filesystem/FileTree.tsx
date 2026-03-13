@@ -212,6 +212,7 @@ export function FileTree({ className }: FileTreeProps) {
   const contextFiles = useFileSystemStore((s) => s.contextFiles);
   const lastError = useFileSystemStore((s) => s.lastError);
   const openFolder = useFileSystemStore((s) => s.openFolder);
+  const bindWorkspaceToSession = useFileSystemStore((s) => s.bindWorkspaceToSession);
   const refreshTree = useFileSystemStore((s) => s.refreshTree);
   const openFile = useFileSystemStore((s) => s.openFile);
   const clearError = useFileSystemStore((s) => s.clearError);
@@ -227,6 +228,7 @@ export function FileTree({ className }: FileTreeProps) {
   const removeFromContext = useFileSystemStore((s) => s.removeFromContext);
   const loadContextFiles = useFileSystemStore((s) => s.loadContextFiles);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
+  const currentSessionKey = useChatStore((s) => s.currentSessionKey);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -472,7 +474,10 @@ export function FileTree({ className }: FileTreeProps) {
             className="h-7 text-[11px]"
             onClick={() => {
               void openFolder().then((selected) => {
-                if (selected) setExpanded(new Set([selected]));
+                if (selected) {
+                  bindWorkspaceToSession(currentSessionKey, selected);
+                  setExpanded(new Set([selected]));
+                }
               });
             }}
           >

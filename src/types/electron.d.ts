@@ -17,6 +17,8 @@ export interface ElectronAPI {
   isDev: boolean;
   fs: {
     openFolder: () => Promise<string | null>;
+    ensureDefaultWorkspace: () => Promise<string>;
+    setWorkspace: (dirPath: string) => Promise<string>;
     getWorkspace: () => Promise<string | null>;
     readTree: (dirPath?: string) => Promise<FileNode>;
     readFile: (filePath: string) => Promise<string>;

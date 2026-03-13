@@ -67,6 +67,7 @@ export function Chat() {
   const dirtyFiles = useFileSystemStore((s) => s.dirtyFiles);
   const setActiveFile = useFileSystemStore((s) => s.setActiveFile);
   const closeFile = useFileSystemStore((s) => s.closeFile);
+  const applyWorkspaceForSession = useFileSystemStore((s) => s.applyWorkspaceForSession);
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveCurrentFile = useFileSystemStore((s) => s.saveFile);
 
@@ -90,6 +91,10 @@ export function Chat() {
   useEffect(() => {
     void fetchAgents();
   }, [fetchAgents]);
+
+  useEffect(() => {
+    void applyWorkspaceForSession(currentSessionKey);
+  }, [currentSessionKey, applyWorkspaceForSession]);
 
   // Update timestamp when sending starts
   useEffect(() => {
