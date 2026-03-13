@@ -242,7 +242,7 @@ export function Chat() {
               </button>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Input Area */}
         <ChatInput
