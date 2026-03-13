@@ -89,7 +89,6 @@ pnpm package:win:qa       # win qa
 
 ---
 
-<<<<<<< HEAD
 ### 4. 退出登录
 
 **入口：** 侧边栏底部用户头像区域，点击后弹出菜单，包含"退出登录"选项。
@@ -273,3 +272,78 @@ pnpm package:win:qa       # win qa
 - [ ] 首次打开聊天页时，自动出现 `我的第一部小说` 默认工作区
 - [ ] 新建会话后，自动映射到默认工作区（若无专属绑定）
 - [ ] 在会话 A 选新目录后，切换会话 B 再切回 A，目录映射保持不丢失
+
+---
+
+### 9. 会话工作区与 Agent 标准链路（进行中，主链已通）
+
+> 目标：不靠临时 prompt hack，而是通过 OpenClaw 的标准 skill/tool 机制，让 AI 在会话绑定工作区内稳定执行读写。
+
+**本轮已完成：**
+- 会话绑定目录会同步到 OpenClaw `agent.workspace`（主链路）
+  - `electron/utils/agent-config.ts` 新增 `updateAgentWorkspace(agentId, workspacePath)`
+  - `electron/api/routes/agents.ts` 扩展 `PUT /api/agents/:agentId` 支持 `workspace`
+  - `src/stores/filesystem.ts` 在 `bindWorkspaceToSession/applyWorkspaceForSession` 时同步 agent workspace
+- 工作区切换后仅在路径变更时触发 gateway reload（避免频繁重载）
+
+**用户已验证：**
+- [x] 控制台 `Workspace is not selected` 问题已解决
+- [x] 新建会话能自动打开默认目录
+- [x] 基础文件读写 API 正常
+
+**当前问题（未解决）：**
+- [ ] 输入“帮我写一篇小说”时，模型仍可能直接在聊天中输出正文，未稳定触发“先读目录 + 再写文件”
+
+---
+
+### 10. 目录可见性优化（已完成）
+
+> 目标：避免普通用户在小说目录看到运行时引导文件而困惑。
+
+**已实现（UI 层隐藏，不影响运行时）：**
+- `src/stores/filesystem.ts` 对工作区根目录文件树做过滤，隐藏以下运行时文件：
+  - `AGENTS.md` / `SOUL.md` / `TOOLS.md` / `USER.md`
+  - `IDENTITY.md` / `HEARTBEAT.md` / `BOOT.md`
+  - `BOOTSTRAP.md` / `BOOTSRAP.md`
+  - `README.md` / `READMR.md`
+
+**说明：**
+- 仅隐藏展示，不删除文件；OpenClaw 运行仍可使用这些引导文件。
+
+---
+
+### 11. Skill 化尝试（已完成第一步，待验证行为）
+
+> 用户要求改为“能力层注入”（OpenClaw skill/tool），而非对每条消息做强提示注入。
+
+**已完成：**
+- 新增本地写作 skill：
+  - `resources/custom-skills/novel-writing-workflow/SKILL.md`
+- 启动时自动安装 + 自动启用：
+  - `electron/utils/skill-config.ts` 新增 `ensureManagedLocalSkillsInstalled()`
+  - `electron/main/index.ts` 启动流程新增该安装调用
+- 已移除聊天发送链路中的“强提示词注入”逻辑（回归原始消息发送）：
+  - `src/stores/chat/runtime-send-actions.ts`
+
+**当前结论：**
+- skill 已接入工程侧发布/安装链路；
+- 但“小说任务自动写文件”行为仍未稳定出现，需继续做执行层闭环（见下节）。
+
+---
+
+## 下个会话接力（高优先级）
+
+1. **先做可观测性**（必须）  
+   在 chat 运行时统计本轮是否发生文件相关 `tool_use/tool_result`，并记录最小诊断信息（tool 名、参数摘要、是否落盘）。
+
+2. **做执行兜底（一次性重试）**  
+   若命中“小说写作意图”且本轮无文件写入，则自动追加一次系统级重试指令（仅一次），要求先 list/read 再 write。
+
+3. **确认 skill 是否被 runtime 实际加载**  
+   核查 `~/.openclaw/skills/novel-writing-workflow` 与 `openclaw.json skills.entries` 的启用状态，并验证 gateway reload 后生效。
+
+4. **联调验收标准**  
+   对“帮我写一篇小说”至少满足：
+   - 先读目录/关键文件；
+   - 再给简短计划；
+   - 最后写入 `02_正文/*.md` 并在聊天里汇总。

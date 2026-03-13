@@ -44,6 +44,19 @@ type FileSystemState = {
 
 let removeFsChangedListener: (() => void) | null = null;
 const DEFAULT_AGENT_ID = 'main';
+const HIDDEN_RUNTIME_FILES = new Set([
+  'AGENTS.md',
+  'SOUL.md',
+  'TOOLS.md',
+  'USER.md',
+  'IDENTITY.md',
+  'HEARTBEAT.md',
+  'BOOT.md',
+  'BOOTSTRAP.md',
+  'BOOTSRAP.md',
+  'README.md',
+  'READMR.md',
+]);
 
 function resolveAgentIdFromSessionKey(sessionKey: string): string {
   if (!sessionKey.startsWith('agent:')) {
@@ -62,6 +75,24 @@ async function syncAgentWorkspaceBinding(sessionKey: string, workspacePath: stri
       body: JSON.stringify({ workspace: workspacePath }),
     },
   );
+}
+
+function sanitizeTreeForUi(
+  tree: FileNode,
+  workspacePath: string | null,
+): FileNode {
+  if (!workspacePath || tree.type !== 'folder' || tree.path !== workspacePath) {
+    return tree;
+  }
+
+  const children = (tree.children || []).filter((child) => (
+    !(child.type === 'file' && HIDDEN_RUNTIME_FILES.has(child.name))
+  ));
+
+  return {
+    ...tree,
+    children,
+  };
 }
 
 function isWorkspaceNotSelectedError(error: unknown): boolean {
@@ -177,7 +208,8 @@ export const useFileSystemStore = create<FileSystemState>()(
         try {
           await ensureMainWorkspaceSynced(get);
           const tree = await invokeIpc<FileNode>('fs:read-tree', dirPath);
-          set({ tree, lastError: null });
+          const sanitizedTree = sanitizeTreeForUi(tree, get().workspacePath);
+          set({ tree: sanitizedTree, lastError: null });
         } catch (error) {
           setStoreError(set, error);
         }

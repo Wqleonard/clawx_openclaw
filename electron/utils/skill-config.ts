@@ -56,6 +56,11 @@ interface PreinstalledMarker {
     installedAt: string;
 }
 
+interface ManagedLocalSkill {
+    slug: string;
+    autoEnable?: boolean;
+}
+
 async function fileExists(p: string): Promise<boolean> {
     try { await access(p, constants.F_OK); return true; } catch { return false; }
 }
@@ -230,6 +235,10 @@ export async function ensureBuiltinSkillsInstalled(): Promise<void> {
 
 const PREINSTALLED_MANIFEST_NAME = 'preinstalled-manifest.json';
 const PREINSTALLED_MARKER_NAME = '.clawx-preinstalled.json';
+const LOCAL_SKILLS_MARKER_NAME = '.clawx-local-skill.json';
+const MANAGED_LOCAL_SKILLS: ManagedLocalSkill[] = [
+    { slug: 'novel-writing-workflow', autoEnable: true },
+];
 
 async function readPreinstalledManifest(): Promise<PreinstalledSkillSpec[]> {
     const candidates = [
@@ -384,6 +393,73 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             await setSkillsEnabled(toEnable, true);
         } catch (error) {
             logger.warn('Failed to auto-enable preinstalled skills:', error);
+        }
+    }
+}
+
+/**
+ * Ensure app-managed local skills are deployed from resources/custom-skills/<slug>
+ * into ~/.openclaw/skills/<slug> and optionally auto-enabled.
+ */
+export async function ensureManagedLocalSkillsInstalled(): Promise<void> {
+    const sourceRoot = join(getResourcesDir(), 'custom-skills');
+    if (!existsSync(sourceRoot)) {
+        return;
+    }
+
+    const targetRoot = join(homedir(), '.openclaw', 'skills');
+    await mkdir(targetRoot, { recursive: true });
+    const toEnable: string[] = [];
+
+    for (const spec of MANAGED_LOCAL_SKILLS) {
+        const sourceDir = join(sourceRoot, spec.slug);
+        const sourceManifest = join(sourceDir, 'SKILL.md');
+        if (!existsSync(sourceManifest)) {
+            logger.warn(`Managed local skill source missing SKILL.md, skipping: ${sourceDir}`);
+            continue;
+        }
+
+        const targetDir = join(targetRoot, spec.slug);
+        const targetManifest = join(targetDir, 'SKILL.md');
+        const markerPath = join(targetDir, LOCAL_SKILLS_MARKER_NAME);
+        const markerExists = existsSync(markerPath);
+
+        try {
+            if (existsSync(targetManifest) && !markerExists) {
+                // User-managed skill: never overwrite.
+                logger.info(`Skipping user-managed local skill: ${spec.slug}`);
+                if (spec.autoEnable) toEnable.push(spec.slug);
+                continue;
+            }
+
+            if (!existsSync(targetManifest) || markerExists) {
+                await mkdir(targetDir, { recursive: true });
+                await cp(sourceDir, targetDir, { recursive: true, force: true });
+                await writeFile(
+                    markerPath,
+                    `${JSON.stringify({
+                        source: 'clawx-local-skill',
+                        slug: spec.slug,
+                        installedAt: new Date().toISOString(),
+                    }, null, 2)}\n`,
+                    'utf-8',
+                );
+                logger.info(`Installed managed local skill: ${spec.slug} -> ${targetDir}`);
+            }
+
+            if (spec.autoEnable) {
+                toEnable.push(spec.slug);
+            }
+        } catch (error) {
+            logger.warn(`Failed to install managed local skill ${spec.slug}:`, error);
+        }
+    }
+
+    if (toEnable.length > 0) {
+        try {
+            await setSkillsEnabled(toEnable, true);
+        } catch (error) {
+            logger.warn('Failed to auto-enable managed local skills:', error);
         }
     }
 }

@@ -22,7 +22,11 @@ import { isQuitting, setQuitting } from './app-state';
 import { applyProxySettings } from './proxy';
 import { syncLaunchAtStartupSettingFromStore } from './launch-at-startup';
 import { getSetting } from '../utils/store';
-import { ensureBuiltinSkillsInstalled, ensurePreinstalledSkillsInstalled } from '../utils/skill-config';
+import {
+  ensureBuiltinSkillsInstalled,
+  ensureManagedLocalSkillsInstalled,
+  ensurePreinstalledSkillsInstalled,
+} from '../utils/skill-config';
 import { startHostApiServer } from '../api/server';
 import { HostEventBus } from '../api/event-bus';
 import { deviceOAuthManager } from '../utils/device-oauth';
@@ -243,6 +247,11 @@ async function initialize(): Promise<void> {
   // non-destructive way and never blocks startup.
   void ensurePreinstalledSkillsInstalled().catch((error) => {
     logger.warn('Failed to install preinstalled skills:', error);
+  });
+
+  // Install and auto-enable app-managed local skills (e.g. novel workflow).
+  void ensureManagedLocalSkillsInstalled().catch((error) => {
+    logger.warn('Failed to install managed local skills:', error);
   });
 
   // Bridge gateway and host-side events before any auto-start logic runs, so
