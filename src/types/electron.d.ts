@@ -15,6 +15,29 @@ export interface ElectronAPI {
   openExternal: (url: string) => Promise<void>;
   platform: NodeJS.Platform;
   isDev: boolean;
+  fs: {
+    openFolder: () => Promise<string | null>;
+    getWorkspace: () => Promise<string | null>;
+    readTree: (dirPath?: string) => Promise<FileNode>;
+    readFile: (filePath: string) => Promise<string>;
+    writeFile: (filePath: string, content: string) => Promise<boolean>;
+    createFile: (filePath: string) => Promise<boolean>;
+    createFolder: (dirPath: string) => Promise<boolean>;
+    rename: (oldPath: string, newPath: string) => Promise<boolean>;
+    move: (sourcePath: string, targetPath: string) => Promise<boolean>;
+    copy: (sourcePath: string, targetPath: string) => Promise<boolean>;
+    delete: (targetPath: string) => Promise<boolean>;
+    watchStart: (dirPath?: string) => Promise<boolean>;
+    watchStop: () => Promise<boolean>;
+    onChanged: (callback: (data: { event: string; path: string }) => void) => () => void;
+  };
+}
+
+export interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  children?: FileNode[];
 }
 
 declare global {

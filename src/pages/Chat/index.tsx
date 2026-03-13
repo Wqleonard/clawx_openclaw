@@ -5,10 +5,11 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Loader2, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { AlertCircle, Loader2, Save, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
+import { useFileSystemStore } from '@/stores/filesystem';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
@@ -20,15 +21,23 @@ import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
 
 import { TiptapEditor } from '@/components/editor/TiptapEditor';
+import { FileTree } from '@/components/filesystem';
 
 const EDITOR_MIN_WIDTH = 260;
 const EDITOR_MAX_WIDTH = 900;
 const EDITOR_DEFAULT_WIDTH = 560;
+const FILE_TREE_WIDTH = 260;
+
+function baseName(filePath: string | null): string {
+  if (!filePath) return '';
+  const parts = filePath.split(/[\\/]/);
+  return parts[parts.length - 1] || filePath;
+}
 
 export function Chat() {
   const { t } = useTranslation('chat');
   const [editorOpen, setEditorOpen] = useState(true);
-  const [editorContent, setEditorContent] = useState('');
+  const [scratchEditorContent, setScratchEditorContent] = useState('');
   const [editorWidth, setEditorWidth] = useState(EDITOR_DEFAULT_WIDTH);
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
@@ -52,6 +61,11 @@ export function Chat() {
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
+  const activeFile = useFileSystemStore((s) => s.activeFile);
+  const fileContents = useFileSystemStore((s) => s.fileContents);
+  const dirtyFiles = useFileSystemStore((s) => s.dirtyFiles);
+  const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
+  const saveCurrentFile = useFileSystemStore((s) => s.saveFile);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
   const minLoading = useMinLoading(loading && messages.length > 0);
@@ -102,6 +116,46 @@ export function Chat() {
   const hasAnyStreamContent = hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
 
   const isEmpty = messages.length === 0 && !sending;
+  const activeFileName = baseName(activeFile);
+  const isActiveDirty = !!activeFile && dirtyFiles.includes(activeFile);
+  const editorContent = activeFile
+    ? (fileContents[activeFile] ?? '')
+    : scratchEditorContent;
+
+  const handleEditorChange = useCallback((content: string) => {
+    if (activeFile) {
+      updateFileContent(activeFile, content);
+      return;
+    }
+    setScratchEditorContent(content);
+  }, [activeFile, updateFileContent]);
+
+  const handleSaveActive = useCallback(() => {
+    if (!activeFile) return;
+    void saveCurrentFile(activeFile);
+  }, [activeFile, saveCurrentFile]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        handleSaveActive();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [handleSaveActive]);
+
+  const handleImportToEditor = useCallback((content: string) => {
+    if (activeFile) {
+      updateFileContent(activeFile, content);
+      return;
+    }
+    setScratchEditorContent(content);
+  }, [activeFile, updateFileContent]);
+
   // Drag-to-resize editor while preserving chat page behavior from main branch.
   const onDragStart = useCallback((e: React.MouseEvent) => {
     isDragging.current = true;
@@ -129,23 +183,44 @@ export function Chat() {
 
   return (
     <div ref={containerRef} className={cn("flex -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
+      {/* File Tree Panel */}
+      <div className="shrink-0 overflow-hidden" style={{ width: FILE_TREE_WIDTH }}>
+        <FileTree className="h-full" />
+      </div>
+
       {/* Editor Panel */}
       {editorOpen && (
         <div className="flex shrink-0 overflow-hidden" style={{ width: editorWidth }}>
           <div className="flex flex-col flex-1 overflow-hidden bg-card border-r border-border">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-              <span className="text-xs font-medium text-muted-foreground">编辑器</span>
-              <button
-                type="button"
-                onClick={() => setEditorOpen(false)}
-                className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                title="关闭编辑器"
-              >
-                <PanelLeftClose className="h-3.5 w-3.5" />
-              </button>
+              <div className="min-w-0">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {activeFileName || '编辑器'}
+                  {isActiveDirty ? ' *' : ''}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleSaveActive}
+                  disabled={!activeFile}
+                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={activeFile ? '保存 (Cmd/Ctrl+S)' : '未选择文件'}
+                >
+                  <Save className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorOpen(false)}
+                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="关闭编辑器"
+                >
+                  <PanelLeftClose className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden bg-card">
-              <TiptapEditor content={editorContent} onChange={setEditorContent} className="h-full" />
+              <TiptapEditor content={editorContent} onChange={handleEditorChange} className="h-full" />
             </div>
           </div>
           {/* Drag handle */}
@@ -186,7 +261,7 @@ export function Chat() {
                     key={msg.id || `msg-${idx}`}
                     message={msg}
                     showThinking={showThinking}
-                    onImportToEditor={setEditorContent}
+                    onImportToEditor={handleImportToEditor}
                   />
                 ))}
 
@@ -208,7 +283,7 @@ export function Chat() {
                     showThinking={showThinking}
                     isStreaming
                     streamingTools={streamingTools}
-                    onImportToEditor={setEditorContent}
+                    onImportToEditor={handleImportToEditor}
                   />
                 )}
 

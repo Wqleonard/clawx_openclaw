@@ -16,7 +16,7 @@ import { warmupNetworkOptimization } from '../utils/uv-env';
 import { initTelemetry } from '../utils/telemetry';
 
 import { ClawHubService } from '../gateway/clawhub';
-import { ensureBoomClawContext, repairBoomClawOnlyBootstrapFiles } from '../utils/openclaw-workspace';
+import { ensureClawXContext, repairClawXOnlyBootstrapFiles } from '../utils/openclaw-workspace';
 import { autoInstallCliIfNeeded, generateCompletionCache, installCompletionToProfile } from '../utils/openclaw-cli';
 import { isQuitting, setQuitting } from './app-state';
 import { applyProxySettings } from './proxy';
@@ -226,9 +226,9 @@ async function initialize(): Promise<void> {
   });
 
   // Repair any bootstrap files that only contain ClawX markers (no OpenClaw
-  // template content). This fixes a race condition where ensureBoomClawContext()
+  // template content). This fixes a race condition where ensureClawXContext()
   // previously created the file before the gateway could seed the full template.
-  void repairBoomClawOnlyBootstrapFiles().catch((error) => {
+  void repairClawXOnlyBootstrapFiles().catch((error) => {
     logger.warn('Failed to repair bootstrap files:', error);
   });
 
@@ -250,7 +250,7 @@ async function initialize(): Promise<void> {
   gatewayManager.on('status', (status: { state: string }) => {
     hostEventBus.emit('gateway:status', status);
     if (status.state === 'running') {
-      void ensureBoomClawContext().catch((error) => {
+      void ensureClawXContext().catch((error) => {
         logger.warn('Failed to re-merge BoomClaw context after gateway reconnect:', error);
       });
     }
@@ -338,8 +338,8 @@ async function initialize(): Promise<void> {
 
   // Merge BoomClaw context snippets into the workspace bootstrap files.
   // The gateway seeds workspace files asynchronously after its HTTP server
-  // is ready, so ensureBoomClawContext will retry until the target files appear.
-  void ensureBoomClawContext().catch((error) => {
+  // is ready, so ensureClawXContext will retry until the target files appear.
+  void ensureClawXContext().catch((error) => {
     logger.warn('Failed to merge BoomClaw context into workspace:', error);
   });
 

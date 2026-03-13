@@ -53,6 +53,7 @@ import {
 import { validateApiKeyWithProvider } from '../services/providers/provider-validation';
 import { appUpdater } from './updater';
 import { PORTS } from '../utils/config';
+import { registerFileSystemHandlers } from '../services/filesystem';
 
 type AppRequest = {
   id?: string;
@@ -141,6 +142,9 @@ export function registerIpcHandlers(
 
   // File staging handlers (upload/send separation)
   registerFileHandlers();
+
+  // Workspace file system handlers (phase 1: read-only)
+  registerFileSystemHandlers(mainWindow);
 }
 
 type HostApiFetchRequest = {

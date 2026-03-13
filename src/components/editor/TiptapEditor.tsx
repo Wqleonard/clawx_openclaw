@@ -43,7 +43,7 @@ export function TiptapEditor({ content = '', onChange, className }: TiptapEditor
 
   // Sync external content into editor (e.g. import from chat)
   useEffect(() => {
-    if (!editor || !content) return
+    if (!editor) return
     const current = (editor as Editor & { getMarkdown?: () => string }).getMarkdown?.() ?? ''
     if (content === current) return
     suppressNextUpdate.current += 1
