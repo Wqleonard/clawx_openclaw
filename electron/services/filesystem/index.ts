@@ -1,7 +1,8 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { watch, type FSWatcher } from 'node:fs';
-import { cp, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { getOpenClawConfigDir } from '../../utils/paths';
 
 type FileNode = {
   name: string;
@@ -16,6 +17,7 @@ const IGNORED_NAMES = new Set(['.git', 'node_modules', 'dist', 'build']);
 
 let workspaceRoot: string | null = null;
 let workspaceWatcher: FSWatcher | null = null;
+const CONTEXT_MIRROR_DIR = 'boomclaw-files';
 
 function normalizeWorkspaceRoot(input: string): string {
   const resolved = path.resolve(input);
@@ -41,6 +43,46 @@ function ensureInWorkspace(targetPath: string): string {
     throw new Error('Path is outside workspace.');
   }
   return resolved;
+}
+
+function normalizeAgentId(input?: string): string {
+  const normalized = (input || 'main').trim().toLowerCase();
+  if (!normalized) return 'main';
+  if (!/^[a-z0-9_-]+$/.test(normalized)) {
+    throw new Error('Invalid agent id.');
+  }
+  return normalized;
+}
+
+function resolveContextRoot(agentId?: string): string {
+  const normalizedAgentId = normalizeAgentId(agentId);
+  return path.join(getOpenClawConfigDir(), 'agents', normalizedAgentId, 'context', CONTEXT_MIRROR_DIR);
+}
+
+function toContextFilePath(workspaceFilePath: string, agentId?: string): string {
+  const root = assertWorkspaceSelected();
+  const rel = path.relative(root, workspaceFilePath);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('Target path is outside workspace.');
+  }
+  return path.join(resolveContextRoot(agentId), rel);
+}
+
+async function listFilesRecursive(dirPath: string): Promise<string[]> {
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  const result: string[] = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      const nested = await listFilesRecursive(fullPath);
+      result.push(...nested);
+      continue;
+    }
+    if (entry.isFile()) {
+      result.push(fullPath);
+    }
+  }
+  return result;
 }
 
 async function readTreeRecursive(dirPath: string, depth = 0): Promise<FileNode> {
@@ -222,5 +264,40 @@ export function registerFileSystemHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('fs:watch-stop', async () => {
     stopWatcher();
     return true;
+  });
+
+  ipcMain.handle('fs:add-to-context', async (_, filePath: string, agentId?: string) => {
+    const source = ensureInWorkspace(filePath);
+    const sourceStat = await stat(source);
+    if (!sourceStat.isFile()) {
+      throw new Error('Only files can be added to context.');
+    }
+    const target = toContextFilePath(source, agentId);
+    await mkdir(path.dirname(target), { recursive: true });
+    await cp(source, target, { recursive: false, force: true });
+    return true;
+  });
+
+  ipcMain.handle('fs:remove-from-context', async (_, filePath: string, agentId?: string) => {
+    const source = ensureInWorkspace(filePath);
+    const target = toContextFilePath(source, agentId);
+    await rm(target, { force: true });
+    return true;
+  });
+
+  ipcMain.handle('fs:list-context', async (_, agentId?: string) => {
+    const root = assertWorkspaceSelected();
+    const contextRoot = resolveContextRoot(agentId);
+    try {
+      const dirStat = await stat(contextRoot);
+      if (!dirStat.isDirectory()) return [];
+      const files = await listFilesRecursive(contextRoot);
+      return files
+        .map((file) => path.relative(contextRoot, file))
+        .filter((rel) => rel && !rel.startsWith('..') && !path.isAbsolute(rel))
+        .map((rel) => path.join(root, rel));
+    } catch {
+      return [];
+    }
   });
 }

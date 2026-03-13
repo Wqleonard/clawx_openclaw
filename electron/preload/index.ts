@@ -151,6 +151,9 @@ const electronAPI = {
         'fs:delete',
         'fs:watch-start',
         'fs:watch-stop',
+        'fs:add-to-context',
+        'fs:remove-from-context',
+        'fs:list-context',
       ];
 
       if (validChannels.includes(channel)) {
@@ -289,6 +292,9 @@ const electronAPI = {
     delete: (targetPath: string) => ipcRenderer.invoke('fs:delete', targetPath),
     watchStart: (dirPath?: string) => ipcRenderer.invoke('fs:watch-start', dirPath),
     watchStop: () => ipcRenderer.invoke('fs:watch-stop'),
+    addToContext: (filePath: string, agentId?: string) => ipcRenderer.invoke('fs:add-to-context', filePath, agentId),
+    removeFromContext: (filePath: string, agentId?: string) => ipcRenderer.invoke('fs:remove-from-context', filePath, agentId),
+    listContext: (agentId?: string) => ipcRenderer.invoke('fs:list-context', agentId),
     onChanged: (callback: (data: { event: string; path: string }) => void) => {
       const subscription = (_event: Electron.IpcRendererEvent, data: { event: string; path: string }) => {
         callback(data);

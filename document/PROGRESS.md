@@ -188,3 +188,44 @@ pnpm package:win:qa       # win qa
 - [x] 复制/剪切/粘贴冲突提示生效
 - [x] FileTabs 切换/关闭/脏标记生效
 - [x] 新开应用未选目录时，不再出现 `Workspace is not selected` 红色报错
+
+---
+
+### 7. 文件系统 Step 8a（已完成）：文件加入 Agent 上下文
+
+**新增 IPC（Main + Preload + Types）：**
+- `fs:add-to-context`
+- `fs:remove-from-context`
+- `fs:list-context`
+
+对应文件：
+- `electron/services/filesystem/index.ts`
+- `electron/preload/index.ts`
+- `src/types/electron.d.ts`
+
+**实现细节：**
+- context 落盘路径：`~/.openclaw/agents/{agentId}/context/boomclaw-files/`
+- 以“工作目录相对路径”镜像保存，避免同名文件覆盖：
+  - 例：`workspace/chapters/01.md` → `.../context/boomclaw-files/chapters/01.md`
+- 仅允许添加工作目录内文件（复用 workspace 安全校验）
+- `agentId` 做格式校验（仅允许 `[a-z0-9_-]`）
+
+**Store 扩展（`src/stores/filesystem.ts`）：**
+- 新增状态：`contextFiles: string[]`
+- 新增动作：
+  - `addToContext(filePath, agentId?)`
+  - `removeFromContext(filePath, agentId?)`
+  - `loadContextFiles(agentId?)`
+- 已处理 rename/move/delete 时 `contextFiles` 的路径同步映射
+
+**UI 扩展（`src/components/filesystem/FileTree.tsx`）：**
+- 右键文件新增：
+  - `添加到上下文` / `Add to Context`
+  - `从上下文移除` / `Remove from Context`
+- 已添加到上下文的文件在树中高亮（主色文本）
+- 跟随当前会话 agent（`currentAgentId`）加载对应 `contextFiles`
+
+**建议验证：**
+- [ ] 右键任意文件 → 添加到上下文后，菜单切为“从上下文移除”
+- [ ] 切换会话 agent 后，文件树上下文高亮随 agent 变化
+- [ ] 移动/重命名已加入上下文的文件，状态保持同步

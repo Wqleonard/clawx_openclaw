@@ -10,6 +10,7 @@ type FileSystemState = {
   activeFile: string | null;
   fileContents: Record<string, string>;
   dirtyFiles: string[];
+  contextFiles: string[];
   isWatching: boolean;
   lastError: string | null;
 
@@ -27,6 +28,9 @@ type FileSystemState = {
   moveNode: (sourcePath: string, targetPath: string) => Promise<void>;
   copyNode: (sourcePath: string, targetPath: string) => Promise<void>;
   deleteNode: (targetPath: string) => Promise<void>;
+  addToContext: (filePath: string, agentId?: string) => Promise<void>;
+  removeFromContext: (filePath: string, agentId?: string) => Promise<void>;
+  loadContextFiles: (agentId?: string) => Promise<void>;
   startWatching: () => Promise<void>;
   stopWatching: () => Promise<void>;
   clearError: () => void;
@@ -51,6 +55,7 @@ export const useFileSystemStore = create<FileSystemState>()(
       activeFile: null,
       fileContents: {},
       dirtyFiles: [],
+      contextFiles: [],
       isWatching: false,
       lastError: null,
 
@@ -74,6 +79,7 @@ export const useFileSystemStore = create<FileSystemState>()(
           activeFile: null,
           fileContents: {},
           dirtyFiles: [],
+          contextFiles: [],
           lastError: null,
         });
         await get().refreshTree();
@@ -117,6 +123,7 @@ export const useFileSystemStore = create<FileSystemState>()(
             activeFile: nextActiveFile,
             fileContents: nextContents,
             dirtyFiles: state.dirtyFiles.filter((item) => item !== filePath),
+              contextFiles: state.contextFiles.filter((item) => item !== filePath),
           };
         });
       },
@@ -181,11 +188,13 @@ export const useFileSystemStore = create<FileSystemState>()(
               delete nextContents[oldPath];
             }
             const nextDirty = state.dirtyFiles.map((item) => (item === oldPath ? newPath : item));
+            const nextContext = state.contextFiles.map((item) => (item === oldPath ? newPath : item));
             return {
               openFiles: nextOpen,
               activeFile: state.activeFile === oldPath ? newPath : state.activeFile,
               fileContents: nextContents,
               dirtyFiles: nextDirty,
+              contextFiles: nextContext,
             };
           });
           await get().refreshTree();
@@ -205,6 +214,7 @@ export const useFileSystemStore = create<FileSystemState>()(
             );
             const nextOpen = state.openFiles.map(remap);
             const nextDirty = state.dirtyFiles.map(remap);
+            const nextContext = state.contextFiles.map(remap);
             const nextContents = Object.fromEntries(
               Object.entries(state.fileContents).map(([key, val]) => [remap(key), val]),
             );
@@ -212,6 +222,7 @@ export const useFileSystemStore = create<FileSystemState>()(
               openFiles: nextOpen,
               activeFile: state.activeFile ? remap(state.activeFile) : null,
               dirtyFiles: nextDirty,
+              contextFiles: nextContext,
               fileContents: nextContents,
             };
           });
@@ -245,9 +256,45 @@ export const useFileSystemStore = create<FileSystemState>()(
               activeFile: state.activeFile && shouldRemove(state.activeFile) ? null : state.activeFile,
               fileContents: nextContents,
               dirtyFiles: state.dirtyFiles.filter((item) => !shouldRemove(item)),
+              contextFiles: state.contextFiles.filter((item) => !shouldRemove(item)),
             };
           });
           await get().refreshTree();
+        } catch (error) {
+          setStoreError(set, error);
+        }
+      },
+
+      addToContext: async (filePath, agentId) => {
+        try {
+          await invokeIpc<boolean>('fs:add-to-context', filePath, agentId);
+          set((state) => ({
+            contextFiles: state.contextFiles.includes(filePath)
+              ? state.contextFiles
+              : [...state.contextFiles, filePath],
+            lastError: null,
+          }));
+        } catch (error) {
+          setStoreError(set, error);
+        }
+      },
+
+      removeFromContext: async (filePath, agentId) => {
+        try {
+          await invokeIpc<boolean>('fs:remove-from-context', filePath, agentId);
+          set((state) => ({
+            contextFiles: state.contextFiles.filter((item) => item !== filePath),
+            lastError: null,
+          }));
+        } catch (error) {
+          setStoreError(set, error);
+        }
+      },
+
+      loadContextFiles: async (agentId) => {
+        try {
+          const files = await invokeIpc<string[]>('fs:list-context', agentId);
+          set({ contextFiles: files, lastError: null });
         } catch (error) {
           setStoreError(set, error);
         }

@@ -29,6 +29,9 @@ export interface ElectronAPI {
     delete: (targetPath: string) => Promise<boolean>;
     watchStart: (dirPath?: string) => Promise<boolean>;
     watchStop: () => Promise<boolean>;
+    addToContext: (filePath: string, agentId?: string) => Promise<boolean>;
+    removeFromContext: (filePath: string, agentId?: string) => Promise<boolean>;
+    listContext: (agentId?: string) => Promise<string[]>;
     onChanged: (callback: (data: { event: string; path: string }) => void) => () => void;
   };
 }

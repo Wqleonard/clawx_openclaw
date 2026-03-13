@@ -6,13 +6,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFileSystemStore } from '@/stores/filesystem';
+import { useChatStore } from '@/stores/chat';
 import type { FileNode } from '@/types/electron';
 
 type FileTreeProps = {
   className?: string;
 };
 
-type MenuAction = 'new_file' | 'new_folder' | 'rename' | 'delete' | 'cut' | 'copy' | 'paste' | 'move_to';
+type MenuAction = 'new_file' | 'new_folder' | 'rename' | 'delete' | 'cut' | 'copy' | 'paste' | 'move_to' | 'add_to_context' | 'remove_from_context';
 type InputAction = 'new_file' | 'new_folder' | 'rename' | 'move_to';
 
 type ContextMenuState = {
@@ -60,6 +61,8 @@ function labelsForLanguage(language: string): Record<string, string> {
       confirm: '确认',
       operationFailed: '操作失败',
       targetExists: '目标路径已存在',
+      addToContext: '添加到上下文',
+      removeFromContext: '从上下文移除',
     };
   }
   return {
@@ -84,6 +87,8 @@ function labelsForLanguage(language: string): Record<string, string> {
     confirm: 'Confirm',
     operationFailed: 'Operation failed',
     targetExists: 'Target path already exists',
+    addToContext: 'Add to Context',
+    removeFromContext: 'Remove from Context',
   };
 }
 
@@ -110,6 +115,7 @@ function FileTreeNode({
   toggleExpanded,
   activeFile,
   selectedPath,
+  contextPathSet,
   onSelectNode,
   onOpenFile,
   onContextMenu,
@@ -120,6 +126,7 @@ function FileTreeNode({
   toggleExpanded: (path: string) => void;
   activeFile: string | null;
   selectedPath: string | null;
+  contextPathSet: Set<string>;
   onSelectNode: (node: FileNode) => void;
   onOpenFile: (filePath: string) => void;
   onContextMenu: (event: React.MouseEvent, node: FileNode) => void;
@@ -129,6 +136,7 @@ function FileTreeNode({
   const hasChildren = !!node.children?.length;
   const isActive = !isFolder && activeFile === node.path;
   const isSelected = selectedPath === node.path;
+  const isInContext = !isFolder && contextPathSet.has(node.path);
 
   return (
     <div>
@@ -175,7 +183,7 @@ function FileTreeNode({
           <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         )}
 
-        <span className="truncate text-foreground/80">{node.name}</span>
+        <span className={cn('truncate text-foreground/80', isInContext && 'text-primary')}>{node.name}</span>
       </button>
 
       {isFolder && isOpen && node.children?.map((child) => (
@@ -187,6 +195,7 @@ function FileTreeNode({
           toggleExpanded={toggleExpanded}
           activeFile={activeFile}
           selectedPath={selectedPath}
+          contextPathSet={contextPathSet}
           onSelectNode={onSelectNode}
           onOpenFile={onOpenFile}
           onContextMenu={onContextMenu}
@@ -200,6 +209,7 @@ export function FileTree({ className }: FileTreeProps) {
   const workspacePath = useFileSystemStore((s) => s.workspacePath);
   const tree = useFileSystemStore((s) => s.tree);
   const activeFile = useFileSystemStore((s) => s.activeFile);
+  const contextFiles = useFileSystemStore((s) => s.contextFiles);
   const lastError = useFileSystemStore((s) => s.lastError);
   const openFolder = useFileSystemStore((s) => s.openFolder);
   const refreshTree = useFileSystemStore((s) => s.refreshTree);
@@ -213,6 +223,10 @@ export function FileTree({ className }: FileTreeProps) {
   const moveNode = useFileSystemStore((s) => s.moveNode);
   const copyNode = useFileSystemStore((s) => s.copyNode);
   const deleteNode = useFileSystemStore((s) => s.deleteNode);
+  const addToContext = useFileSystemStore((s) => s.addToContext);
+  const removeFromContext = useFileSystemStore((s) => s.removeFromContext);
+  const loadContextFiles = useFileSystemStore((s) => s.loadContextFiles);
+  const currentAgentId = useChatStore((s) => s.currentAgentId);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -230,6 +244,7 @@ export function FileTree({ className }: FileTreeProps) {
 
   const labels = useMemo(() => labelsForLanguage(navigator.language || 'en'), []);
   const rootChildren = tree?.type === 'folder' ? (tree.children || []) : [];
+  const contextPathSet = useMemo(() => new Set(contextFiles), [contextFiles]);
   const pathSet = useMemo(() => {
     const set = new Set<string>();
     const walk = (node: FileNode | null) => {
@@ -301,6 +316,16 @@ export function FileTree({ className }: FileTreeProps) {
       if (action === 'delete') return setDeleteTarget(node);
       if (action === 'cut') return setClipboardItem({ mode: 'cut', nodePath: node.path });
       if (action === 'copy') return setClipboardItem({ mode: 'copy', nodePath: node.path });
+      if (action === 'add_to_context') {
+        if (node.type !== 'file') return;
+        await addToContext(node.path, currentAgentId);
+        return;
+      }
+      if (action === 'remove_from_context') {
+        if (node.type !== 'file') return;
+        await removeFromContext(node.path, currentAgentId);
+        return;
+      }
       if (action === 'paste' && clipboardItem) {
         const pasteTargetDir = node.type === 'folder' ? node.path : dirnamePath(node.path);
         const sourceName = clipboardItem.nodePath.split(/[\\/]/).pop() || 'item';
@@ -345,6 +370,11 @@ export function FileTree({ className }: FileTreeProps) {
       alertError(error);
     }
   };
+
+  useEffect(() => {
+    if (!workspacePath) return;
+    void loadContextFiles(currentAgentId);
+  }, [workspacePath, currentAgentId, loadContextFiles]);
 
   useEffect(() => {
     if (!workspacePath) return;
@@ -463,6 +493,7 @@ export function FileTree({ className }: FileTreeProps) {
             toggleExpanded={toggleExpanded}
             activeFile={activeFile}
             selectedPath={selectedNode?.path || null}
+            contextPathSet={contextPathSet}
             onSelectNode={(nodeValue) => setSelectedNode(nodeValue)}
             onOpenFile={(filePath) => { void openFile(filePath); }}
             onContextMenu={onContextMenu}
@@ -490,6 +521,13 @@ export function FileTree({ className }: FileTreeProps) {
           <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('move_to'); }}>{labels.moveTo}</button>
           <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('copy'); }}>{labels.copy}</button>
           <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('cut'); }}>{labels.cut}</button>
+          {contextMenu.node.type === 'file' && (
+            contextPathSet.has(contextMenu.node.path) ? (
+              <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('remove_from_context'); }}>{labels.removeFromContext}</button>
+            ) : (
+              <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('add_to_context'); }}>{labels.addToContext}</button>
+            )
+          )}
           {contextMenu.node.type === 'folder' && clipboardItem && (
             <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('paste'); }}>{labels.paste}</button>
           )}
