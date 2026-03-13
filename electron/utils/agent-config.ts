@@ -567,6 +567,48 @@ export async function updateAgentName(agentId: string, name: string): Promise<Ag
   });
 }
 
+export async function updateAgentWorkspace(
+  agentId: string,
+  workspacePath: string,
+): Promise<{ snapshot: AgentsSnapshot; changed: boolean }> {
+  return withConfigLock(async () => {
+    const nextWorkspace = workspacePath.trim();
+    if (!nextWorkspace) {
+      throw new Error('Workspace path is required');
+    }
+
+    const config = await readOpenClawConfig() as AgentConfigDocument;
+    const { agentsConfig, entries } = normalizeAgentsConfig(config);
+    const index = entries.findIndex((entry) => entry.id === agentId);
+    if (index === -1) {
+      throw new Error(`Agent "${agentId}" not found`);
+    }
+
+    const prevWorkspace = typeof entries[index].workspace === 'string'
+      ? entries[index].workspace.trim()
+      : '';
+    const changed = prevWorkspace !== nextWorkspace;
+
+    if (changed) {
+      entries[index] = {
+        ...entries[index],
+        workspace: nextWorkspace,
+      };
+
+      config.agents = {
+        ...agentsConfig,
+        list: entries,
+      };
+
+      await writeOpenClawConfig(config);
+      logger.info('Updated agent workspace', { agentId, workspace: nextWorkspace });
+    }
+
+    const snapshot = await buildSnapshotFromConfig(config);
+    return { snapshot, changed };
+  });
+}
+
 export async function deleteAgentConfig(agentId: string): Promise<AgentsSnapshot> {
   return withConfigLock(async () => {
     if (agentId === MAIN_AGENT_ID) {

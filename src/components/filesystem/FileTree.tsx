@@ -475,7 +475,7 @@ export function FileTree({ className }: FileTreeProps) {
             onClick={() => {
               void openFolder().then((selected) => {
                 if (selected) {
-                  bindWorkspaceToSession(currentSessionKey, selected);
+                      void bindWorkspaceToSession(currentSessionKey, selected);
                   setExpanded(new Set([selected]));
                 }
               });

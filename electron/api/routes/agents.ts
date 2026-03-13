@@ -7,6 +7,7 @@ import {
   listAgentsSnapshot,
   resolveAccountIdForAgent,
   updateAgentName,
+  updateAgentWorkspace,
 } from '../../utils/agent-config';
 import { deleteChannelAccountConfig } from '../../utils/channel-config';
 import type { HostApiContext } from '../context';
@@ -49,10 +50,19 @@ export async function handleAgentRoutes(
 
     if (parts.length === 1) {
       try {
-        const body = await parseJsonBody<{ name: string }>(req);
+        const body = await parseJsonBody<{ name?: string; workspace?: string }>(req);
         const agentId = decodeURIComponent(parts[0]);
-        const snapshot = await updateAgentName(agentId, body.name);
-        scheduleGatewayReload(ctx, 'update-agent');
+        if (typeof body.workspace === 'string') {
+          const { snapshot, changed } = await updateAgentWorkspace(agentId, body.workspace);
+          if (changed) {
+            scheduleGatewayReload(ctx, 'update-agent-workspace');
+          }
+          sendJson(res, 200, { success: true, changed, ...snapshot });
+          return true;
+        }
+
+        const snapshot = await updateAgentName(agentId, body.name || '');
+        scheduleGatewayReload(ctx, 'update-agent-name');
         sendJson(res, 200, { success: true, ...snapshot });
       } catch (error) {
         sendJson(res, 500, { success: false, error: String(error) });

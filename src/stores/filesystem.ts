@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invokeIpc } from '@/lib/api-client';
+import { hostApiFetch } from '@/lib/host-api';
 import type { FileNode } from '@/types/electron';
 
 type FileSystemState = {
@@ -17,7 +18,7 @@ type FileSystemState = {
   lastError: string | null;
 
   openFolder: () => Promise<string | null>;
-  bindWorkspaceToSession: (sessionKey: string, workspacePath: string) => void;
+  bindWorkspaceToSession: (sessionKey: string, workspacePath: string) => Promise<void>;
   applyWorkspaceForSession: (sessionKey: string) => Promise<void>;
   ensureDefaultWorkspaceForSession: (sessionKey: string) => Promise<void>;
   initWorkspace: (workspacePath: string) => Promise<void>;
@@ -42,6 +43,26 @@ type FileSystemState = {
 };
 
 let removeFsChangedListener: (() => void) | null = null;
+const DEFAULT_AGENT_ID = 'main';
+
+function resolveAgentIdFromSessionKey(sessionKey: string): string {
+  if (!sessionKey.startsWith('agent:')) {
+    return DEFAULT_AGENT_ID;
+  }
+  const [, agentId] = sessionKey.split(':');
+  return (agentId || DEFAULT_AGENT_ID).trim() || DEFAULT_AGENT_ID;
+}
+
+async function syncAgentWorkspaceBinding(sessionKey: string, workspacePath: string): Promise<void> {
+  const agentId = resolveAgentIdFromSessionKey(sessionKey);
+  await hostApiFetch<{ success: boolean; changed?: boolean }>(
+    `/api/agents/${encodeURIComponent(agentId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ workspace: workspacePath }),
+    },
+  );
+}
 
 function isWorkspaceNotSelectedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -94,7 +115,7 @@ export const useFileSystemStore = create<FileSystemState>()(
         }
       },
 
-      bindWorkspaceToSession: (sessionKey, workspacePath) => {
+      bindWorkspaceToSession: async (sessionKey, workspacePath) => {
         if (!sessionKey || !workspacePath) return;
         set((state) => ({
           workspaceBindings: {
@@ -103,6 +124,11 @@ export const useFileSystemStore = create<FileSystemState>()(
           },
           defaultWorkspacePath: workspacePath,
         }));
+        try {
+          await syncAgentWorkspaceBinding(sessionKey, workspacePath);
+        } catch (error) {
+          setStoreError(set, error);
+        }
       },
 
       applyWorkspaceForSession: async (sessionKey) => {
@@ -112,6 +138,7 @@ export const useFileSystemStore = create<FileSystemState>()(
         if (boundPath) {
           try {
             await get().initWorkspace(boundPath);
+            await syncAgentWorkspaceBinding(sessionKey, boundPath);
             return;
           } catch {
             // fallthrough to ensure default workspace
@@ -124,7 +151,7 @@ export const useFileSystemStore = create<FileSystemState>()(
         if (!sessionKey) return;
         try {
           const ensuredPath = await invokeIpc<string>('fs:ensure-default-workspace');
-          get().bindWorkspaceToSession(sessionKey, ensuredPath);
+          await get().bindWorkspaceToSession(sessionKey, ensuredPath);
           await get().initWorkspace(ensuredPath);
         } catch (error) {
           setStoreError(set, error);
