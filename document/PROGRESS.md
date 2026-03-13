@@ -143,3 +143,48 @@ pnpm package:win:qa       # win qa
 - [ ] 业务接口调用（自定义工具/函数调用）
 - [ ] 多模型协同
 - [ ] 诊断日志导出、断线重连、错误码归一
+
+---
+
+### 6. 文件系统（阶段性完成，可继续联调）
+
+> 本阶段按“小步可验证”推进，已完成基础可用链路，并修复启动边界问题。
+
+**主进程与 IPC：**
+- 新增 `electron/services/filesystem/index.ts`，提供 `fs:*` 通道：
+  - 目录/文件读取：`open-folder`、`get-workspace`、`read-tree`、`read-file`
+  - 写操作：`write-file`、`create-file`、`create-folder`、`rename`、`move`、`copy`、`delete`
+  - 监听：`watch-start`、`watch-stop` + 事件 `fs:changed`
+- 注册接入 `electron/main/ipc-handlers.ts`（通过 `registerFileSystemHandlers(mainWindow)`）
+- `electron/preload/index.ts` 已暴露 `window.electron.fs.*` 全量能力并放行白名单
+- `src/types/electron.d.ts` 已补全 `fs` 类型声明（含监听回调）
+
+**渲染层状态管理：**
+- 新增 `src/stores/filesystem.ts`（Zustand）：
+  - `workspacePath/tree/openFiles/activeFile/fileContents/dirtyFiles`
+  - 支持打开、编辑、保存、增删改移动复制、监听刷新
+  - 文件移动/删除时同步维护 openFiles、activeFile、dirtyFiles 与缓存内容映射
+
+**UI 与交互：**
+- 新增 `src/components/filesystem/FileTree.tsx`：
+  - 左侧文件树、展开/折叠、文件打开
+  - 右键菜单：新建/重命名/移动/复制/剪切/粘贴/删除
+  - 项目风格对话框替代 `prompt/confirm`
+  - 菜单边界防出屏、路径冲突提示、快捷键（F2/Delete/Cmd|Ctrl+C/X/V）
+- 新增 `src/components/filesystem/FileTabs.tsx`：
+  - 打开文件标签切换/关闭
+  - 未保存 `*` 标记
+- `src/pages/Chat/index.tsx` 已完成三栏集成：`FileTree | Editor | Chat`，并支持 `Cmd/Ctrl+S`
+
+**本轮关键修复（已验证）：**
+- 修复空文件切换不同步：`TiptapEditor` 外部内容同步支持空字符串覆盖旧内容
+- 修复应用新开窗口误报 `fs:watch-start`：
+  - 当 renderer 持久化了 `workspacePath` 但 main 尚未选中工作目录时，
+    `startWatching()` 现在会静默降级并清理本地文件系统状态，不再弹红色错误提示
+
+**当前建议验证清单：**
+- [x] 新建空文件后，编辑器正确显示空内容
+- [x] 文件树右键菜单与对话框可用（无 `prompt()` 报错）
+- [x] 复制/剪切/粘贴冲突提示生效
+- [x] FileTabs 切换/关闭/脏标记生效
+- [x] 新开应用未选目录时，不再出现 `Workspace is not selected` 红色报错

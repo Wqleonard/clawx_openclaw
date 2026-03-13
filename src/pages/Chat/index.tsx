@@ -21,7 +21,7 @@ import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
 
 import { TiptapEditor } from '@/components/editor/TiptapEditor';
-import { FileTree } from '@/components/filesystem';
+import { FileTabs, FileTree } from '@/components/filesystem';
 
 const EDITOR_MIN_WIDTH = 260;
 const EDITOR_MAX_WIDTH = 900;
@@ -62,8 +62,11 @@ export function Chat() {
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
   const activeFile = useFileSystemStore((s) => s.activeFile);
+  const openFiles = useFileSystemStore((s) => s.openFiles);
   const fileContents = useFileSystemStore((s) => s.fileContents);
   const dirtyFiles = useFileSystemStore((s) => s.dirtyFiles);
+  const setActiveFile = useFileSystemStore((s) => s.setActiveFile);
+  const closeFile = useFileSystemStore((s) => s.closeFile);
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveCurrentFile = useFileSystemStore((s) => s.saveFile);
 
@@ -219,6 +222,13 @@ export function Chat() {
                 </button>
               </div>
             </div>
+            <FileTabs
+              openFiles={openFiles}
+              activeFile={activeFile}
+              dirtyFiles={dirtyFiles}
+              onSelectFile={setActiveFile}
+              onCloseFile={closeFile}
+            />
             <div className="flex-1 overflow-hidden bg-card">
               <TiptapEditor content={editorContent} onChange={handleEditorChange} className="h-full" />
             </div>

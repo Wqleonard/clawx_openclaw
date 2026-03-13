@@ -265,6 +265,22 @@ export const useFileSystemStore = create<FileSystemState>()(
           });
           set({ isWatching: true, lastError: null });
         } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          // App restart can keep persisted workspacePath in renderer while main process has no selected workspace yet.
+          // In this case, degrade quietly instead of showing a red error banner.
+          if (message.includes('Workspace is not selected')) {
+            set({
+              workspacePath: null,
+              tree: null,
+              openFiles: [],
+              activeFile: null,
+              fileContents: {},
+              dirtyFiles: [],
+              isWatching: false,
+              lastError: null,
+            });
+            return;
+          }
           setStoreError(set, error);
         }
       },
