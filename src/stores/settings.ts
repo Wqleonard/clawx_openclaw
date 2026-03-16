@@ -60,6 +60,7 @@ interface SettingsState {
   setAutoDownloadUpdate: (value: boolean) => void;
   setSidebarCollapsed: (value: boolean) => void;
   setDevModeUnlocked: (value: boolean) => void;
+  setSetupComplete: (value: boolean) => void;
   markSetupComplete: () => void;
   resetSettings: () => void;
 }
@@ -160,6 +161,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAutoDownloadUpdate: (autoDownloadUpdate) => set({ autoDownloadUpdate }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       setDevModeUnlocked: (devModeUnlocked) => set({ devModeUnlocked }),
+      setSetupComplete: (setupComplete) => set({ setupComplete }),
       markSetupComplete: () => set({ setupComplete: true }),
       resetSettings: () => set(defaultSettings),
     }),

@@ -150,6 +150,11 @@
     "proxySaved": "代理设置已保存",
     "proxySaveFailed": "保存代理设置失败"
   },
+  "openclawSetup": {
+    "title": "OpenClaw 连接配置",
+    "description": "重新打开初始化向导，在“自定义 API Key”和“托管配置”之间切换。",
+    "action": "重新配置"
+  },
   "updates": {
     "title": "更新",
     "description": "保持 BoomClaw 最新",

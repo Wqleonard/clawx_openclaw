@@ -161,9 +161,11 @@ pnpm dev
 When you launch ClawX for the first time, the **Setup Wizard** will guide you through:
 
 1. **Language & Region** – Configure your preferred locale
-2. **AI Provider** – Add providers with API keys or OAuth (for providers that support browser/device login)
+2. **AI Provider** – Choose either your own API key/OAuth, or a managed OpenClaw config injected via environment variables
 3. **Skill Bundles** – Select pre-configured skills for common use cases
 4. **Verification** – Test your configuration before entering the main interface
+
+You can re-open this flow any time from **Settings → Gateway → OpenClaw Connection Setup**.
 
 > Note for Moonshot (Kimi): ClawX keeps Kimi web search enabled by default.  
 > When Moonshot is configured, ClawX also syncs Kimi web search to the China endpoint (`https://api.moonshot.cn/v1`) in OpenClaw config.

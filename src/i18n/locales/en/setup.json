@@ -63,6 +63,17 @@
     },
     "provider": {
         "label": "Model Provider",
+        "connectionMode": "Connection Mode",
+        "connectionModes": {
+            "personal": "Use My Own API Key",
+            "personalDesc": "Configure your own provider credentials.",
+            "managed": "Use BoomClaw Managed Config",
+            "managedDesc": "Use the managed OpenClaw endpoint configured by your organization."
+        },
+        "managedConfigLoading": "Loading managed OpenClaw configuration...",
+        "managedConfigReady": "Managed OpenClaw configuration is ready.",
+        "managedConfigMissing": "Managed OpenClaw configuration is unavailable. Ask your administrator to set BOOMCLAW_OPENCLAW_BASE_URL and BOOMCLAW_OPENCLAW_API_KEY.",
+        "applyManaged": "Apply Managed Config",
         "selectPlaceholder": "Select a provider...",
         "baseUrl": "Base URL",
         "modelId": "Model ID",

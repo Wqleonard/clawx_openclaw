@@ -3,6 +3,7 @@
  * Application configuration
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Sun,
   Moon,
@@ -50,6 +51,7 @@ type ControlUiInfo = {
 
 export function Settings() {
   const { t } = useTranslation('settings');
+  const navigate = useNavigate();
   const {
     theme,
     setTheme,
@@ -79,6 +81,7 @@ export function Settings() {
     setDevModeUnlocked,
     telemetryEnabled,
     setTelemetryEnabled,
+    setSetupComplete,
   } = useSettingsStore();
 
   const { status: gatewayStatus, restart: restartGateway } = useGatewayStore();
@@ -451,6 +454,11 @@ export function Settings() {
     );
   };
 
+  const handleReconfigureOpenClaw = () => {
+    setSetupComplete(false);
+    navigate('/setup');
+  };
+
   return (
     <div className="flex flex-col -m-6 dark:bg-background h-[calc(100vh-2.5rem)] overflow-hidden">
       <div className="w-full max-w-5xl mx-auto flex flex-col h-full p-10 pt-16">
@@ -605,6 +613,23 @@ export function Settings() {
                   checked={gatewayAutoStart}
                   onCheckedChange={setGatewayAutoStart}
                 />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-[15px] font-medium text-foreground">{t('openclawSetup.title')}</Label>
+                  <p className="text-[13px] text-muted-foreground mt-1">
+                    {t('openclawSetup.description')}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReconfigureOpenClaw}
+                  className="rounded-full h-8 px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  {t('openclawSetup.action')}
+                </Button>
               </div>
 
 

@@ -149,6 +149,11 @@
     "proxySaved": "プロキシ設定を保存しました",
     "proxySaveFailed": "プロキシ設定の保存に失敗しました"
   },
+  "openclawSetup": {
+    "title": "OpenClaw 接続設定",
+    "description": "初期セットアップを再度開き、個人 API キーと管理設定を切り替えます。",
+    "action": "再設定"
+  },
   "updates": {
     "title": "アップデート",
     "description": "BoomClaw を最新に保つ",

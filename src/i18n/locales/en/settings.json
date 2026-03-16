@@ -150,6 +150,11 @@
     "proxySaved": "Proxy settings saved",
     "proxySaveFailed": "Failed to save proxy settings"
   },
+  "openclawSetup": {
+    "title": "OpenClaw Connection Setup",
+    "description": "Re-open the setup wizard to switch between your own API key and managed OpenClaw config.",
+    "action": "Reconfigure"
+  },
   "updates": {
     "title": "Updates",
     "description": "Keep BoomClaw up to date",
