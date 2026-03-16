@@ -199,8 +199,8 @@ export function MainLayout() {
           onCloseWorkspace={handleCloseWorkspace}
         />
 
-        <Sidebar />
-        <main className="flex-1 overflow-auto p-6">
+        {/* <Sidebar /> */}
+        <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>
