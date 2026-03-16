@@ -218,8 +218,7 @@ export function Chat() {
   return (
     <div
       ref={containerRef}
-      className={cn('flex -m-6 transition-colors duration-500 dark:bg-background')}
-      style={{ height: 'calc(100vh - 2.5rem)' }}
+      className={cn('flex h-full transition-colors duration-500 dark:bg-background')}
     >
       {/* Chat Panel */}
       <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -329,14 +328,15 @@ export function Chat() {
             onCloseFile={closeFile}
           />
 
-          <div className="min-h-0 flex-1 overflow-hidden relative">
+          <div className="min-h-0 flex-1 overflow-hidden">
             {!activeMarkdownFile ? (
               <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 点击文件树中的 `.md` 文件后，会在这里新增标签页并显示内容
               </div>
             ) : (
               <div className="w-full h-full">
-                <div className="flex items-center gap-1 absolute top-2 right-2">
+                <div className="w-full flex items-center justify-end gap-1 px-4 py-1">
+                  <div>
                   <button
                     type="button"
                     onClick={() => setMdViewMode('source')}
@@ -363,6 +363,7 @@ export function Chat() {
                   >
                     渲染
                   </button>
+                  </div>
                 </div>
                 <MarkdownEditor
                   className="h-full"

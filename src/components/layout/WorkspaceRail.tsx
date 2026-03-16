@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -31,6 +31,44 @@ type WorkspaceRailProps = {
   onCloseWorkspace: (workspacePath: string) => Promise<void>;
 };
 
+type WorkspaceShortcutButtonProps = {
+  workspace: WorkspaceItem;
+  onActivate: (workspacePath: string) => Promise<void>;
+  onContextMenu: (event: React.MouseEvent, workspacePath: string) => void;
+};
+
+function WorkspaceShortcutButton({
+  workspace,
+  onActivate,
+  onContextMenu,
+}: WorkspaceShortcutButtonProps) {
+  return (
+    <button
+      key={workspace.path}
+      title={workspace.path}
+      type="button"
+      aria-label={`Switch to workspace ${workspace.name}`}
+      onClick={() => void onActivate(workspace.path)}
+      onContextMenu={(event) => onContextMenu(event, workspace.path)}
+      className={cn(
+        'size-10 rounded-lg p-0.5 flex items-center justify-center border-2',
+        workspace.isActive ? 'border-[#1d1917]' : 'border-transparent'
+      )}
+    >
+      <div
+        className="size-full rounded-md border text-sm font-semibold flex items-center justify-center"
+        style={{
+          backgroundColor: workspace.theme.bg,
+          color: workspace.theme.text,
+          borderColor: workspace.theme.border,
+        }}
+      >
+        {workspace.initial}
+      </div>
+    </button>
+  );
+}
+
 export function WorkspaceRail({
   workspaceItems,
   isAddingWorkspace,
@@ -39,6 +77,7 @@ export function WorkspaceRail({
   onEditWorkspace: _onEditWorkspace,
   onCloseWorkspace,
 }: WorkspaceRailProps) {
+  const navigate = useNavigate();
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
 
   useEffect(() => {
@@ -85,29 +124,21 @@ export function WorkspaceRail({
     await onCloseWorkspace(target);
   };
 
+  const handleActivateWorkspace = async (workspacePath: string) => {
+    await onSwitchWorkspace(workspacePath);
+    navigate('/chat');
+  };
+
   return (
     <>
       <div className="flex w-16 h-full flex-col items-center gap-3 py-3">
         {workspaceItems.map((workspace) => (
-          <button
+          <WorkspaceShortcutButton
             key={workspace.path}
-            type="button"
-            title={workspace.path}
-            aria-label={`Switch to workspace ${workspace.name}`}
-            onClick={() => void onSwitchWorkspace(workspace.path)}
-            onContextMenu={(event) => handleContextMenu(event, workspace.path)}
-            className="size-8 rounded-lg border text-sm font-semibold transition-all"
-            style={{
-              backgroundColor: workspace.theme.bg,
-              color: workspace.theme.text,
-              borderColor: workspace.isActive ? workspace.theme.text : workspace.theme.border,
-              boxShadow: workspace.isActive
-                ? `0 0 0 1px ${workspace.theme.text} inset`
-                : undefined,
-            }}
-          >
-            {workspace.initial}
-          </button>
+            workspace={workspace}
+            onActivate={handleActivateWorkspace}
+            onContextMenu={handleContextMenu}
+          />
         ))}
         <Button
           variant="ghost"
@@ -128,7 +159,7 @@ export function WorkspaceRail({
               'mt-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
               isActive
                 ? 'border-border bg-black/5 text-foreground dark:bg-white/10'
-                : 'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10',
+                : 'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
             )
           }
           title="设置"

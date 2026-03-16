@@ -61,7 +61,7 @@ export function MarkdownEditor({
     return (
       <textarea
         className={cn(
-          'h-full w-full resize-none border-0 bg-transparent p-4 font-mono text-[12px] leading-6 text-foreground outline-none',
+          'h-full w-full resize-none border-0 bg-transparent p-4 font-mono text-base leading-6 text-foreground outline-none',
           className,
         )}
         value={value}

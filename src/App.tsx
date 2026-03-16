@@ -2,7 +2,7 @@
  * Root Application Component
  * Handles routing and global providers
  */
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Component, useEffect } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { Toaster } from 'sonner';
@@ -193,6 +193,7 @@ function App() {
           {/* Main application routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Chat />} />
+            <Route path="/chat" element={<Chat />} />
 
             <Route path="/settings" element={<SettingLayout />}>
               <Route path="/settings/base" element={<Settings />} />

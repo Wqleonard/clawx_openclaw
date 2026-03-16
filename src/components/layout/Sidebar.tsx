@@ -13,8 +13,6 @@ import {
   PanelLeftClose,
   PanelLeft,
   Plus,
-  Terminal,
-  ExternalLink,
   Trash2,
   Cpu,
 } from 'lucide-react';
