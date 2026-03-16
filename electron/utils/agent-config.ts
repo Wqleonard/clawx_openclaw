@@ -20,14 +20,14 @@ export async function listAgentTemplates(): Promise<AgentTemplate[]> {
   if (!existsSync(templatesRoot)) {
     return [];
   }
-  let entries: Awaited<ReturnType<typeof readdir>>;
+  let dirEntries: { name: string; isDirectory: () => boolean }[];
   try {
-    entries = await readdir(templatesRoot, { withFileTypes: true });
+    dirEntries = await readdir(templatesRoot, { withFileTypes: true }) as { name: string; isDirectory: () => boolean }[];
   } catch {
     return [];
   }
   const templates: AgentTemplate[] = [];
-  for (const entry of entries) {
+  for (const entry of dirEntries) {
     if (!entry.isDirectory()) continue;
     const id = entry.name;
     const metaPath = join(templatesRoot, id, 'meta.json');
@@ -575,7 +575,7 @@ export async function listConfiguredAgentIds(): Promise<string[]> {
 
 export async function createAgent(
   name: string,
-  options?: { templateId?: string; sourceAgentId?: string },
+  options?: { templateId?: string; sourceAgentId?: string; workspacePath?: string },
 ): Promise<AgentsSnapshot> {
   return withConfigLock(async () => {
     const config = await readOpenClawConfig() as AgentConfigDocument;
@@ -591,11 +591,15 @@ export async function createAgent(
       suffix += 1;
     }
 
+    const resolvedWorkspace = options?.workspacePath?.trim()
+      ? options.workspacePath.trim()
+      : `~/.openclaw/workspace-${nextId}`;
+
     const nextEntries = syntheticMain ? [createImplicitMainEntry(config), ...entries.filter((_, index) => index > 0)] : [...entries];
     const newAgent: AgentListEntry = {
       id: nextId,
       name: normalizedName,
-      workspace: `~/.openclaw/workspace-${nextId}`,
+      workspace: resolvedWorkspace,
       agentDir: getDefaultAgentDirPath(nextId),
     };
 

@@ -45,10 +45,11 @@ export async function handleAgentRoutes(
 
   if (url.pathname === '/api/agents' && req.method === 'POST') {
     try {
-      const body = await parseJsonBody<{ name: string; templateId?: string; sourceAgentId?: string }>(req);
+      const body = await parseJsonBody<{ name: string; templateId?: string; sourceAgentId?: string; workspacePath?: string }>(req);
       const snapshot = await createAgent(body.name, {
         templateId: body.templateId,
         sourceAgentId: body.sourceAgentId,
+        workspacePath: body.workspacePath,
       });
       scheduleGatewayReload(ctx, 'create-agent');
       sendJson(res, 200, { success: true, ...snapshot });
