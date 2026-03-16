@@ -11,8 +11,6 @@ import { TableHeader } from '@tiptap/extension-table-header'
 import { Markdown } from '@tiptap/markdown'
 import Placeholder from '@tiptap/extension-placeholder'
 import Mermaid from '@/extensions/Mermaid'
-import TokenizerHighlight from '@/extensions/TokenizerHighlight'
-import SelectionToolbarComponent, { type SelectionToolbarAction } from '@/components/editor/SelectionToolbarComponent'
 import './index.css'
 
 export interface MarkdownEditorProps {

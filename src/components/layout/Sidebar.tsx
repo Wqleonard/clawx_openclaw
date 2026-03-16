@@ -10,7 +10,6 @@ import {
   Bot,
   Puzzle,
   Clock,
-  Settings as SettingsIcon,
   PanelLeftClose,
   PanelLeft,
   Plus,
@@ -331,28 +330,7 @@ export function Sidebar() {
       )}
 
       {/* Footer */}
-      <div className="p-2 mt-auto">
-        <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors',
-                'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80',
-                isActive && 'bg-black/5 dark:bg-white/10 text-foreground',
-                sidebarCollapsed ? 'justify-center px-0' : ''
-              )
-            }
-          >
-          {({ isActive }) => (
-            <>
-              <div className={cn("flex shrink-0 items-center justify-center", isActive ? "text-foreground" : "text-muted-foreground")}>
-                <SettingsIcon className="h-[18px] w-[18px]" strokeWidth={2} />
-              </div>
-              {!sidebarCollapsed && <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{t('sidebar.settings')}</span>}
-            </>
-          )}
-        </NavLink>
-
+      {/* <div className="p-2 mt-auto">
         <Button
           variant="ghost"
           className={cn(
@@ -372,7 +350,7 @@ export function Sidebar() {
             </>
           )}
         </Button>
-      </div>
+      </div> */}
 
       <ConfirmDialog
         open={!!sessionToDelete}

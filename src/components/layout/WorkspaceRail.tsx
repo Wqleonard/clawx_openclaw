@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
+import { NavLink } from 'react-router-dom';
+import { Settings as SettingsIcon } from 'lucide-react';
 import { Button } from '../ui/button';
+import { cn } from '@/lib/utils';
 
 export type WorkspaceItem = {
   path: string;
@@ -33,7 +36,7 @@ export function WorkspaceRail({
   isAddingWorkspace,
   onAddWorkspace,
   onSwitchWorkspace,
-  onEditWorkspace,
+  onEditWorkspace: _onEditWorkspace,
   onCloseWorkspace,
 }: WorkspaceRailProps) {
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
@@ -117,6 +120,22 @@ export function WorkspaceRail({
         >
           +
         </Button>
+
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            cn(
+              'mt-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+              isActive
+                ? 'border-border bg-black/5 text-foreground dark:bg-white/10'
+                : 'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10',
+            )
+          }
+          title="设置"
+          aria-label="Open settings"
+        >
+          <SettingsIcon className="h-4 w-4" strokeWidth={2} />
+        </NavLink>
       </div>
 
       {menuState && (

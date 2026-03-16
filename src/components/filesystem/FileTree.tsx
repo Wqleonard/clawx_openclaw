@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, FilePlus, FileText, Folder, FolderOpen, FolderPlus, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useChatStore } from '@/stores/chat';
@@ -13,7 +14,7 @@ type FileTreeProps = {
   className?: string;
 };
 
-type MenuAction = 'new_file' | 'new_folder' | 'rename' | 'delete' | 'cut' | 'copy' | 'paste' | 'move_to' | 'add_to_context' | 'remove_from_context';
+type MenuAction = 'new_file' | 'new_md_file' | 'new_folder' | 'rename' | 'delete' | 'open_in_file_manager' | 'cut' | 'copy' | 'paste' | 'move_to' | 'add_to_context' | 'remove_from_context';
 type InputAction = 'new_file' | 'new_folder' | 'rename' | 'move_to';
 
 type ContextMenuState = {
@@ -46,8 +47,10 @@ function labelsForLanguage(language: string): Record<string, string> {
       openFolder: '打开目录',
       refresh: '刷新',
       newFile: '新建文件',
+      newMarkdownFile: '新建 Markdown 文件',
       newFolder: '新建文件夹',
       rename: '重命名',
+      openInFileManager: '在文件管理器中打开',
       moveTo: '移动到...',
       delete: '删除',
       createNamePrompt: '请输入名称',
@@ -72,8 +75,10 @@ function labelsForLanguage(language: string): Record<string, string> {
     openFolder: 'Open Folder',
     refresh: 'Refresh',
     newFile: 'New File',
+    newMarkdownFile: 'New Markdown File',
     newFolder: 'New Folder',
     rename: 'Rename',
+    openInFileManager: 'Open in File Manager',
     moveTo: 'Move to...',
     delete: 'Delete',
     createNamePrompt: 'Input name',
@@ -235,6 +240,7 @@ export function FileTree({ className }: FileTreeProps) {
   const [clipboardItem, setClipboardItem] = useState<ClipboardItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null);
   const [selectedNode, setSelectedNode] = useState<FileNode | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [inputModal, setInputModal] = useState<InputModalState>({
     open: false,
     action: 'new_file',
@@ -294,6 +300,7 @@ export function FileTree({ className }: FileTreeProps) {
 
   const onContextMenu = (event: React.MouseEvent, node: FileNode) => {
     event.preventDefault();
+    event.stopPropagation();
     setSelectedNode(node);
     setContextMenu({ x: event.clientX, y: event.clientY, node });
   };
@@ -311,9 +318,18 @@ export function FileTree({ className }: FileTreeProps) {
     setContextMenu(null);
 
     try {
-      if (action === 'new_file') return openInputModal('new_file', targetDir, 'untitled.md');
+      if (action === 'new_file') return openInputModal('new_file', targetDir, 'untitled.txt');
+      if (action === 'new_md_file') return openInputModal('new_file', targetDir, 'untitled.md');
       if (action === 'new_folder') return openInputModal('new_folder', targetDir, 'new-folder');
       if (action === 'rename') return openInputModal('rename', node.path, node.name);
+      if (action === 'open_in_file_manager') {
+        if (node.type === 'folder') {
+          await invokeIpc('shell:openPath', node.path);
+          return;
+        }
+        await invokeIpc('shell:showItemInFolder', node.path);
+        return;
+      }
       if (action === 'move_to') return openInputModal('move_to', node.path, node.path);
       if (action === 'delete') return setDeleteTarget(node);
       if (action === 'cut') return setClipboardItem({ mode: 'cut', nodePath: node.path });
@@ -387,10 +403,17 @@ export function FileTree({ className }: FileTreeProps) {
   }, [workspacePath, startWatching, stopWatching]);
 
   useEffect(() => {
-    const closeMenu = () => setContextMenu(null);
-    window.addEventListener('click', closeMenu);
-    return () => window.removeEventListener('click', closeMenu);
-  }, []);
+    const closeMenuOnOutsidePointerDown = (event: PointerEvent) => {
+      if (!contextMenu) return;
+      // Keep context menu stable when right-clicking to reopen on another node.
+      if (event.button === 2) return;
+      const target = event.target as Node | null;
+      if (target && contextMenuRef.current?.contains(target)) return;
+      setContextMenu(null);
+    };
+    window.addEventListener('pointerdown', closeMenuOnOutsidePointerDown, true);
+    return () => window.removeEventListener('pointerdown', closeMenuOnOutsidePointerDown, true);
+  }, [contextMenu]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -515,14 +538,24 @@ export function FileTree({ className }: FileTreeProps) {
       )}
 
       {contextMenu && (
-        <div className="fixed z-50 min-w-36 rounded-md border bg-background p-1 shadow-md" style={menuStyle}>
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 min-w-36 rounded-md border bg-background p-1 shadow-md"
+          style={menuStyle}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
           {contextMenu.node.type === 'folder' && (
             <>
               <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('new_file'); }}>{labels.newFile}</button>
+              <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('new_md_file'); }}>{labels.newMarkdownFile}</button>
               <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('new_folder'); }}>{labels.newFolder}</button>
             </>
           )}
           <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('rename'); }}>{labels.rename}</button>
+          <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('open_in_file_manager'); }}>{labels.openInFileManager}</button>
           <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('move_to'); }}>{labels.moveTo}</button>
           <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('copy'); }}>{labels.copy}</button>
           <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('cut'); }}>{labels.cut}</button>
