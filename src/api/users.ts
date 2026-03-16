@@ -1,4 +1,4 @@
-import apiClient from "./index";
+import apiClient from './index';
 
 interface RegisterInfo {
   phone: string | number;
@@ -13,7 +13,7 @@ interface LoginInfo {
 }
 
 const createNewUserReq = (registerInfo: RegisterInfo) => {
-  return apiClient.post("/api/users/register", {
+  return apiClient.post('/api/users/register', {
     phone: registerInfo.phone,
     password: registerInfo.password,
     invitationCode: registerInfo.invitationCode,
@@ -22,43 +22,51 @@ const createNewUserReq = (registerInfo: RegisterInfo) => {
 };
 
 const loginReq = (loginInfo: LoginInfo) => {
-  return apiClient.post("/api/users/login", {
+  return apiClient.post('/api/users/login', {
     phone: loginInfo.phone,
     password: loginInfo.password,
   });
 };
 
+// 测试模拟登录
+const loginWithTestReq = () => {
+  return apiClient.post('/auth/login', {
+    username: 'southwind',
+    password: '123456',
+  });
+};
+
 const postSuggestsReq = (suggest: string, contactNumber?: string) => {
-  return apiClient.post("/api/users/suggests", {
+  return apiClient.post('/api/users/suggests', {
     content: suggest,
     contactNumber: contactNumber ? contactNumber : undefined,
   });
 };
 
 const getUserInfoReq = () => {
-  return apiClient.get("/api/users");
+  return apiClient.get('/api/users');
 };
 
 const getUserBalanceReq = () => {
-  return apiClient.get("/api/users/balance");
+  return apiClient.get('/api/users/balance');
 };
 
 const getInvitationCodeReq = () => {
-  return apiClient.get("/api/users/invitation-code");
+  return apiClient.get('/api/users/invitation-code');
 };
 
 const useInvitationCodeReq = (invitationCode: string) => {
-  return apiClient.post("/api/users/invitation-code", {
+  return apiClient.post('/api/users/invitation-code', {
     invitationCode,
   });
 };
 
 const getFrozenUserEmailReq = () => {
-  return apiClient.get("/api/users/is-have-frozen-user-email");
+  return apiClient.get('/api/users/is-have-frozen-user-email');
 };
 
 const postFrozenUserEmailReq = (email: string) => {
-  return apiClient.post("/api/users/frozen-user-email", {
+  return apiClient.post('/api/users/frozen-user-email', {
     email,
   });
 };
@@ -69,18 +77,18 @@ interface UserInfo {
 }
 
 const updateUserInfo = (data: Partial<UserInfo>) => {
-  return apiClient.put("/api/users", data);
+  return apiClient.put('/api/users', data);
 };
 
 const updatePassword = (oldPassword: string, newPassword: string) => {
-  return apiClient.put("/api/users/password", {
+  return apiClient.put('/api/users/password', {
     oldPassword,
     newPassword,
   });
 };
 
-const verifyTicket = (ticket: string, invitationCode: string = "") => {
-  return apiClient.post("/api/users/verify-ticket", {
+const verifyTicket = (ticket: string, invitationCode: string = '') => {
+  return apiClient.post('/api/users/verify-ticket', {
     ticket,
     invitationCode,
   });
@@ -103,7 +111,7 @@ export interface GetNewbieMissionData {
 }
 
 const getNewbieMission = () => {
-  return apiClient.get<GetNewbieMissionData>("/api/users/guide/tasks");
+  return apiClient.get<GetNewbieMissionData>('/api/users/guide/tasks');
 };
 
 const completeNewbieMissionReq = (taskId: number) => {
@@ -125,4 +133,5 @@ export {
   getFrozenUserEmailReq,
   getNewbieMission,
   completeNewbieMissionReq,
+  loginWithTestReq,
 };
