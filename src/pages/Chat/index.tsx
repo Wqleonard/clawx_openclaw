@@ -19,6 +19,8 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
+import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { useChatLayoutStore } from '@/stores/chat-layout';
 
 import { TiptapEditor } from '@/components/editor/TiptapEditor';
 import { FileTabs, FileTree } from '@/components/filesystem';
@@ -26,7 +28,6 @@ import { FileTabs, FileTree } from '@/components/filesystem';
 const EDITOR_MIN_WIDTH = 260;
 const EDITOR_MAX_WIDTH = 900;
 const EDITOR_DEFAULT_WIDTH = 560;
-const FILE_TREE_WIDTH = 260;
 
 function baseName(filePath: string | null): string {
   if (!filePath) return '';
@@ -70,6 +71,8 @@ export function Chat() {
   const applyWorkspaceForSession = useFileSystemStore((s) => s.applyWorkspaceForSession);
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveCurrentFile = useFileSystemStore((s) => s.saveFile);
+  const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
+  const setFileTreeDrawerOpen = useChatLayoutStore((s) => s.setFileTreeDrawerOpen);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
   const minLoading = useMinLoading(loading && messages.length > 0);
@@ -348,11 +351,16 @@ export function Chat() {
         </div>
       )}
 
-
-      {/* File Tree Panel */}
-      <div className="shrink-0 overflow-hidden" style={{ width: FILE_TREE_WIDTH }}>
-        <FileTree className="h-full" />
-      </div>
+      <Drawer
+        direction="right"
+        open={isFileTreeDrawerOpen}
+        onOpenChange={setFileTreeDrawerOpen}
+        shouldScaleBackground={false}
+      >
+        <DrawerContent className="border-l border-border p-0 data-[vaul-drawer-direction=right]:w-[260px] data-[vaul-drawer-direction=right]:max-w-[260px] data-[vaul-drawer-direction=right]:rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:bottom-0">
+          <FileTree className="h-full" />
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
