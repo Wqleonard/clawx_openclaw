@@ -1,4 +1,5 @@
 import apiClient from './index';
+import { hostApiFetch } from '@/lib/host-api';
 
 interface RegisterInfo {
   phone: string | number;
@@ -30,9 +31,15 @@ const loginReq = (loginInfo: LoginInfo) => {
 
 // 测试模拟登录
 const loginWithTestReq = () => {
-  return apiClient.post('/auth/login', {
-    username: 'southwind',
-    password: '123456',
+  const rawBase = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? '';
+  const baseUrl = rawBase.replace(/\/+$/, '');
+  return hostApiFetch('/api/app/mock-login', {
+    method: 'POST',
+    body: JSON.stringify({
+      baseUrl,
+      username: 'southwind',
+      password: '123456',
+    }),
   });
 };
 
