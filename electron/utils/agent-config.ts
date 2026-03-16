@@ -1,10 +1,52 @@
-import { access, copyFile, mkdir, readdir, rm } from 'fs/promises';
-import { constants } from 'fs';
+import { access, copyFile, mkdir, readdir, readFile, rm } from 'fs/promises';
+import { constants, existsSync } from 'fs';
 import { join, normalize } from 'path';
 import { deleteAgentChannelAccounts, listConfiguredChannels, readOpenClawConfig, writeOpenClawConfig } from './channel-config';
 import { withConfigLock } from './config-mutex';
-import { expandPath, getOpenClawConfigDir } from './paths';
+import { expandPath, getOpenClawConfigDir, getResourcesDir } from './paths';
 import * as logger from './logger';
+
+const AGENT_TEMPLATES_DIR = 'agent-templates';
+const DEFAULT_TEMPLATE_ID = 'default';
+
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export async function listAgentTemplates(): Promise<AgentTemplate[]> {
+  const templatesRoot = join(getResourcesDir(), AGENT_TEMPLATES_DIR);
+  if (!existsSync(templatesRoot)) {
+    return [];
+  }
+  let entries: Awaited<ReturnType<typeof readdir>>;
+  try {
+    entries = await readdir(templatesRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const templates: AgentTemplate[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const id = entry.name;
+    const metaPath = join(templatesRoot, id, 'meta.json');
+    let name = id;
+    let description: string | undefined;
+    if (existsSync(metaPath)) {
+      try {
+        const raw = await readFile(metaPath, 'utf-8');
+        const meta = JSON.parse(raw) as { name?: string; description?: string };
+        if (meta.name) name = meta.name;
+        description = meta.description;
+      } catch {
+        // ignore malformed meta
+      }
+    }
+    templates.push({ id, name, description });
+  }
+  return templates;
+}
 
 const MAIN_AGENT_ID = 'main';
 const MAIN_AGENT_NAME = 'Main';
@@ -367,6 +409,22 @@ async function copyBootstrapFiles(sourceWorkspace: string, targetWorkspace: stri
   }
 }
 
+async function writeBootstrapFilesFromTemplate(templateId: string, targetWorkspace: string): Promise<void> {
+  await ensureDir(targetWorkspace);
+  const templateDir = join(getResourcesDir(), AGENT_TEMPLATES_DIR, templateId);
+  if (!existsSync(templateDir)) {
+    throw new Error(`Agent template "${templateId}" not found`);
+  }
+  for (const fileName of AGENT_BOOTSTRAP_FILES) {
+    const source = join(templateDir, fileName);
+    const target = join(targetWorkspace, fileName);
+    if (!(await fileExists(source))) continue;
+    // Never overwrite an existing file (idempotent)
+    if (await fileExists(target)) continue;
+    await copyFile(source, target);
+  }
+}
+
 async function copyRuntimeFiles(sourceAgentDir: string, targetAgentDir: string): Promise<void> {
   await ensureDir(targetAgentDir);
 
@@ -378,10 +436,9 @@ async function copyRuntimeFiles(sourceAgentDir: string, targetAgentDir: string):
   }
 }
 
-async function provisionAgentFilesystem(config: AgentConfigDocument, agent: AgentListEntry): Promise<void> {
+async function provisionAgentFilesystem(config: AgentConfigDocument, agent: AgentListEntry, templateId?: string): Promise<void> {
   const { entries } = normalizeAgentsConfig(config);
   const mainEntry = entries.find((entry) => entry.id === MAIN_AGENT_ID) ?? createImplicitMainEntry(config);
-  const sourceWorkspace = expandPath(mainEntry.workspace || getDefaultWorkspacePath(config));
   const targetWorkspace = expandPath(agent.workspace || `~/.openclaw/workspace-${agent.id}`);
   const sourceAgentDir = expandPath(mainEntry.agentDir || getDefaultAgentDirPath(MAIN_AGENT_ID));
   const targetAgentDir = expandPath(agent.agentDir || getDefaultAgentDirPath(agent.id));
@@ -391,9 +448,10 @@ async function provisionAgentFilesystem(config: AgentConfigDocument, agent: Agen
   await ensureDir(targetAgentDir);
   await ensureDir(targetSessionsDir);
 
-  if (targetWorkspace !== sourceWorkspace) {
-    await copyBootstrapFiles(sourceWorkspace, targetWorkspace);
-  }
+  // Bootstrap files always come from a bundled template, never from main's workspace
+  const resolvedTemplateId = templateId || DEFAULT_TEMPLATE_ID;
+  await writeBootstrapFilesFromTemplate(resolvedTemplateId, targetWorkspace);
+
   if (targetAgentDir !== sourceAgentDir) {
     await copyRuntimeFiles(sourceAgentDir, targetAgentDir);
   }
@@ -501,7 +559,7 @@ export async function listConfiguredAgentIds(): Promise<string[]> {
   return ids.length > 0 ? ids : [MAIN_AGENT_ID];
 }
 
-export async function createAgent(name: string): Promise<AgentsSnapshot> {
+export async function createAgent(name: string, templateId?: string): Promise<AgentsSnapshot> {
   return withConfigLock(async () => {
     const config = await readOpenClawConfig() as AgentConfigDocument;
     const { agentsConfig, entries, syntheticMain } = normalizeAgentsConfig(config);
@@ -534,9 +592,9 @@ export async function createAgent(name: string): Promise<AgentsSnapshot> {
       list: nextEntries,
     };
 
-    await provisionAgentFilesystem(config, newAgent);
+    await provisionAgentFilesystem(config, newAgent, templateId);
     await writeOpenClawConfig(config);
-    logger.info('Created agent config entry', { agentId: nextId });
+    logger.info('Created agent config entry', { agentId: nextId, templateId });
     return buildSnapshotFromConfig(config);
   });
 }

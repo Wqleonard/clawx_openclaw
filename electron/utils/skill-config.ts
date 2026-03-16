@@ -236,9 +236,7 @@ export async function ensureBuiltinSkillsInstalled(): Promise<void> {
 const PREINSTALLED_MANIFEST_NAME = 'preinstalled-manifest.json';
 const PREINSTALLED_MARKER_NAME = '.clawx-preinstalled.json';
 const LOCAL_SKILLS_MARKER_NAME = '.clawx-local-skill.json';
-const MANAGED_LOCAL_SKILLS: ManagedLocalSkill[] = [
-    { slug: 'novel-writing-workflow', autoEnable: true },
-];
+const MANAGED_LOCAL_SKILLS: ManagedLocalSkill[] = [];
 
 async function readPreinstalledManifest(): Promise<PreinstalledSkillSpec[]> {
     const candidates = [
