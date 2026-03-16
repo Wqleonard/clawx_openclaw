@@ -9,20 +9,14 @@ import { Toaster } from 'sonner';
 import i18n from './i18n';
 import { MainLayout } from './components/layout/MainLayout';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Models } from './pages/Models';
 import { Chat } from './pages/Chat';
-import { Agents } from './pages/Agents';
-import { Channels } from './pages/Channels';
-import { Skills } from './pages/Skills';
-import { Cron } from './pages/Cron';
-import { Settings } from './pages/Settings';
 import { Setup } from './pages/Setup';
 import { Login } from './pages/Login';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
 import { useLoginStore } from './stores/loginStore';
 import { applyGatewayTransportPreference } from './lib/api-client';
-import SettingLayout from './components/layout/SettingLayout';
+import { SettingDialog } from './components/settingDialog';
 
 /**
  * Error Boundary to catch and display React rendering errors
@@ -195,14 +189,7 @@ function App() {
             <Route path="/" element={<Chat />} />
             <Route path="/chat" element={<Chat />} />
 
-            <Route path="/settings" element={<SettingLayout />}>
-              <Route path="/settings/base" element={<Settings />} />
-              <Route path="/settings/models" element={<Models />} />
-              <Route path="/settings/agents" element={<Agents />} />
-              <Route path="/settings/channels" element={<Channels />} />
-              <Route path="/settings/skills" element={<Skills />} />
-              <Route path="/settings/cron" element={<Cron />} />
-            </Route>
+            <Route path="/settings" element={<SettingDialog />} />
           </Route>
         </Routes>
 

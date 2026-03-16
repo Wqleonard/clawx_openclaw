@@ -28,6 +28,7 @@ import { MarkdownEditor } from '@/components/markdownEditor';
 const EDITOR_MIN_WIDTH = 260;
 const EDITOR_MAX_WIDTH = 900;
 const EDITOR_DEFAULT_WIDTH = 560;
+const CHAT_MIN_WIDTH = 420;
 
 function isMarkdownFile(filePath: string): boolean {
   const lower = filePath.toLowerCase();
@@ -196,9 +197,12 @@ export function Chat() {
       const onMove = (ev: MouseEvent) => {
         if (!isDragging.current) return;
         const delta = ev.clientX - dragStartX.current;
+        const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
+        const maxByContainer = Math.max(EDITOR_MIN_WIDTH, containerWidth - CHAT_MIN_WIDTH);
+        const dynamicMaxWidth = Math.min(EDITOR_MAX_WIDTH, maxByContainer);
         const next = Math.min(
-          EDITOR_MAX_WIDTH,
-          Math.max(EDITOR_MIN_WIDTH, dragStartWidth.current + delta)
+          dynamicMaxWidth,
+          Math.max(EDITOR_MIN_WIDTH, dragStartWidth.current - delta)
         );
         setEditorWidth(next);
       };
@@ -317,8 +321,20 @@ export function Chat() {
         )}
       </div>
 
+      <div
+          onMouseDown={onDragStart}
+          className=" left-0 top-0 z-10 h-full w-2 -translate-x-1 cursor-col-resize"
+          title="拖动调整宽度"
+        >
+          <div className="mx-auto h-full w-1 rounded bg-border/50 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-primary/40 active:bg-primary/60" />
+        </div>
+
       {/* Markdown Viewer Panel */}
-      <div className="flex shrink-0 overflow-hidden" style={{ width: editorWidth }}>
+      <div
+        className="group relative border-l flex shrink-0 overflow-hidden"
+        style={{ width: editorWidth }}
+      >
+        
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-border">
           <FileTabs
             openFiles={markdownOpenFiles}
@@ -375,11 +391,6 @@ export function Chat() {
             )}
           </div>
         </div>
-        <div
-          onMouseDown={onDragStart}
-          className="w-1 shrink-0 cursor-col-resize bg-border/50 transition-colors hover:bg-primary/40 active:bg-primary/60"
-          title="拖动调整宽度"
-        />
       </div>
 
       <Drawer
@@ -388,7 +399,10 @@ export function Chat() {
         onOpenChange={setFileTreeDrawerOpen}
         shouldScaleBackground={false}
       >
-        <DrawerContent className="border-l border-border p-0 data-[vaul-drawer-direction=right]:w-[260px] data-[vaul-drawer-direction=right]:max-w-[260px] data-[vaul-drawer-direction=right]:rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:bottom-0">
+        <DrawerContent
+          hideOverlay
+          className="border-l border-border p-0 data-[vaul-drawer-direction=right]:w-[260px] data-[vaul-drawer-direction=right]:max-w-[260px] data-[vaul-drawer-direction=right]:rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:bottom-0"
+        >
           <FileTree className="h-full" />
         </DrawerContent>
       </Drawer>

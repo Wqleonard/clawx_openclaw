@@ -29,7 +29,7 @@ export function MarkdownEditor({
     extensions: [StarterKit, Markdown],
     content: value,
     contentType: 'markdown',
-    editable: false,
+    editable: mode === 'rendered',
     editorProps: {
       attributes: {
         class: 'prose prose-sm dark:prose-invert max-w-none min-h-full px-4 py-3 focus:outline-none',
@@ -56,6 +56,11 @@ export function MarkdownEditor({
       { contentType: 'markdown' } as Parameters<typeof editor.commands.setContent>[1],
     );
   }, [editor, value]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(mode === 'rendered');
+  }, [editor, mode]);
 
   if (mode === 'source') {
     return (

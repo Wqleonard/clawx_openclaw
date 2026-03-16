@@ -200,7 +200,7 @@ export function MainLayout() {
         />
 
         {/* <Sidebar /> */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto border rounded-ss-xl">
           <Outlet />
         </main>
       </div>
