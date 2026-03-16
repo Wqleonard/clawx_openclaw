@@ -436,7 +436,11 @@ async function copyRuntimeFiles(sourceAgentDir: string, targetAgentDir: string):
   }
 }
 
-async function provisionAgentFilesystem(config: AgentConfigDocument, agent: AgentListEntry, templateId?: string): Promise<void> {
+async function provisionAgentFilesystem(
+  config: AgentConfigDocument,
+  agent: AgentListEntry,
+  options?: { templateId?: string; sourceAgentId?: string },
+): Promise<void> {
   const { entries } = normalizeAgentsConfig(config);
   const mainEntry = entries.find((entry) => entry.id === MAIN_AGENT_ID) ?? createImplicitMainEntry(config);
   const targetWorkspace = expandPath(agent.workspace || `~/.openclaw/workspace-${agent.id}`);
@@ -448,9 +452,19 @@ async function provisionAgentFilesystem(config: AgentConfigDocument, agent: Agen
   await ensureDir(targetAgentDir);
   await ensureDir(targetSessionsDir);
 
-  // Bootstrap files always come from a bundled template, never from main's workspace
-  const resolvedTemplateId = templateId || DEFAULT_TEMPLATE_ID;
-  await writeBootstrapFilesFromTemplate(resolvedTemplateId, targetWorkspace);
+  if (options?.sourceAgentId) {
+    // Copy bootstrap files from an existing agent's workspace
+    const sourceEntry = entries.find((e) => e.id === options.sourceAgentId);
+    if (!sourceEntry) {
+      throw new Error(`Source agent "${options.sourceAgentId}" not found`);
+    }
+    const sourceWorkspace = expandPath(sourceEntry.workspace || getDefaultWorkspacePath(config));
+    await copyBootstrapFiles(sourceWorkspace, targetWorkspace);
+  } else {
+    // Bootstrap files from a bundled template
+    const resolvedTemplateId = options?.templateId || DEFAULT_TEMPLATE_ID;
+    await writeBootstrapFilesFromTemplate(resolvedTemplateId, targetWorkspace);
+  }
 
   if (targetAgentDir !== sourceAgentDir) {
     await copyRuntimeFiles(sourceAgentDir, targetAgentDir);
@@ -559,7 +573,10 @@ export async function listConfiguredAgentIds(): Promise<string[]> {
   return ids.length > 0 ? ids : [MAIN_AGENT_ID];
 }
 
-export async function createAgent(name: string, templateId?: string): Promise<AgentsSnapshot> {
+export async function createAgent(
+  name: string,
+  options?: { templateId?: string; sourceAgentId?: string },
+): Promise<AgentsSnapshot> {
   return withConfigLock(async () => {
     const config = await readOpenClawConfig() as AgentConfigDocument;
     const { agentsConfig, entries, syntheticMain } = normalizeAgentsConfig(config);
@@ -592,9 +609,9 @@ export async function createAgent(name: string, templateId?: string): Promise<Ag
       list: nextEntries,
     };
 
-    await provisionAgentFilesystem(config, newAgent, templateId);
+    await provisionAgentFilesystem(config, newAgent, options);
     await writeOpenClawConfig(config);
-    logger.info('Created agent config entry', { agentId: nextId, templateId });
+    logger.info('Created agent config entry', { agentId: nextId, ...options });
     return buildSnapshotFromConfig(config);
   });
 }
