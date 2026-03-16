@@ -83,6 +83,8 @@ Add whatever helps you do your job. This is your cheat sheet.
 
 ## 技能系统
 
+以下是你最关键的skill，你必须调用它们。
+
 | 技能 | 适用场景 |
 |---|---|
 | `story-setting-skill` | 设计世界观 |
