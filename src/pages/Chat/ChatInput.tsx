@@ -407,7 +407,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
       onDrop={handleDrop}
     >
       <div className="w-full">
-        <div className="bg-black/10 pb-2 -mb-2 rounded-ss-lg rounded-se-lg">
+        <div className="bg-black/5 pb-2 -mb-2 rounded-ss-lg rounded-se-lg">
           <div className='flex items-center gap-2 px-3 h-7 leading-7 '>
             <Bot className="h-3.5 w-3.5 text-primary" />
             <span className="text-sm">{t('toolbar.currentAgent', { agent: currentAgentName })}</span>

@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -62,66 +63,6 @@ type InputModalState = {
   value: string;
   targetPath: string;
 };
-
-function labelsForLanguage(language: string): Record<string, string> {
-  const isZh = language.toLowerCase().startsWith('zh');
-  if (isZh) {
-    return {
-      title: '文件',
-      noWorkspace: '未选择工作目录',
-      emptyFolder: '当前目录为空',
-      openFolder: '打开目录',
-      refresh: '刷新',
-      newFile: '新建文件',
-      newMarkdownFile: '新建 Markdown 文件',
-      newFolder: '新建文件夹',
-      rename: '重命名',
-      openInFileManager: '在文件管理器中打开',
-      moveTo: '移动到...',
-      delete: '删除',
-      createNamePrompt: '请输入名称',
-      renamePrompt: '请输入新名称',
-      movePrompt: '请输入新路径（可相对工作目录）',
-      deleteConfirm: '确认删除此项？',
-      cut: '剪切',
-      copy: '复制',
-      paste: '粘贴',
-      cancel: '取消',
-      confirm: '确认',
-      operationFailed: '操作失败',
-      targetExists: '目标路径已存在',
-      addToContext: '添加到上下文',
-      removeFromContext: '从上下文移除',
-    };
-  }
-  return {
-    title: 'Files',
-    noWorkspace: 'No workspace selected',
-    emptyFolder: 'Folder is empty',
-    openFolder: 'Open Folder',
-    refresh: 'Refresh',
-    newFile: 'New File',
-    newMarkdownFile: 'New Markdown File',
-    newFolder: 'New Folder',
-    rename: 'Rename',
-    openInFileManager: 'Open in File Manager',
-    moveTo: 'Move to...',
-    delete: 'Delete',
-    createNamePrompt: 'Input name',
-    renamePrompt: 'Input new name',
-    movePrompt: 'Input new path (relative to workspace allowed)',
-    deleteConfirm: 'Delete this item?',
-    cut: 'Cut',
-    copy: 'Copy',
-    paste: 'Paste',
-    cancel: 'Cancel',
-    confirm: 'Confirm',
-    operationFailed: 'Operation failed',
-    targetExists: 'Target path already exists',
-    addToContext: 'Add to Context',
-    removeFromContext: 'Remove from Context',
-  };
-}
 
 function isWindowsPath(pathValue: string): boolean {
   return pathValue.includes('\\');
@@ -275,6 +216,7 @@ function FileTreeNode({
 }
 
 export function FileTree({ className }: FileTreeProps) {
+  const { t } = useTranslation('chat');
   const workspacePath = useFileSystemStore((s) => s.workspacePath);
   const tree = useFileSystemStore((s) => s.tree);
   const contextFiles = useFileSystemStore((s) => s.contextFiles);
@@ -312,7 +254,37 @@ export function FileTree({ className }: FileTreeProps) {
     targetPath: '',
   });
 
-  const labels = useMemo(() => labelsForLanguage(navigator.language || 'en'), []);
+  const labels = useMemo(
+    () => ({
+      title: t('fileTree.title'),
+      noWorkspace: t('fileTree.noWorkspace'),
+      emptyFolder: t('fileTree.emptyFolder'),
+      openFolder: t('fileTree.openFolder'),
+      refresh: t('fileTree.refresh'),
+      newFile: t('fileTree.newFile'),
+      newMarkdownFile: t('fileTree.newMarkdownFile'),
+      newFolder: t('fileTree.newFolder'),
+      rename: t('fileTree.rename'),
+      openInFileManager: t('fileTree.openInFileManager'),
+      moveTo: t('fileTree.moveTo'),
+      delete: t('fileTree.delete'),
+      createNamePrompt: t('fileTree.createNamePrompt'),
+      renamePrompt: t('fileTree.renamePrompt'),
+      movePrompt: t('fileTree.movePrompt'),
+      deleteConfirm: t('fileTree.deleteConfirm'),
+      cut: t('fileTree.cut'),
+      copy: t('fileTree.copy'),
+      paste: t('fileTree.paste'),
+      cancel: t('fileTree.cancel'),
+      confirm: t('fileTree.confirm'),
+      operationFailed: t('fileTree.operationFailed'),
+      targetExists: t('fileTree.targetExists'),
+      addToContext: t('fileTree.addToContext'),
+      removeFromContext: t('fileTree.removeFromContext'),
+    }),
+    [t]
+  );
+  const defaultNewFolderName = t('fileTree.defaultNewFolderName');
   const rootChildren = tree?.type === 'folder' ? tree.children || [] : [];
   const contextPathSet = useMemo(() => new Set(contextFiles), [contextFiles]);
   const pathSet = useMemo(() => {
@@ -402,7 +374,9 @@ export function FileTree({ className }: FileTreeProps) {
     try {
       if (action === 'new_file') return openInputModal('new_file', targetDir, 'untitled.txt');
       if (action === 'new_md_file') return openInputModal('new_file', targetDir, 'untitled.md');
-      if (action === 'new_folder') return openInputModal('new_folder', targetDir, 'new-folder');
+      if (action === 'new_folder') {
+        return openInputModal('new_folder', targetDir, defaultNewFolderName);
+      }
       if (action === 'rename') return openInputModal('rename', node.path, node.name);
       if (action === 'open_in_file_manager') {
         if (node.type === 'folder') {
@@ -635,7 +609,7 @@ export function FileTree({ className }: FileTreeProps) {
             className="h-7 w-7"
             title={labels.newFolder}
             onClick={() =>
-              workspacePath && openInputModal('new_folder', workspacePath, 'new-folder')
+              workspacePath && openInputModal('new_folder', workspacePath, defaultNewFolderName)
             }
           >
             <FolderPlus className="h-3.5 w-3.5 text-muted-foreground" />
