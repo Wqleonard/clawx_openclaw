@@ -6,7 +6,6 @@
 import { useState, useEffect } from 'react';
 import { Minus, Square, X, Copy } from 'lucide-react';
 import { invokeIpc } from '@/lib/api-client';
-import { Button } from '../ui/button';
 
 const isMac = window.electron?.platform === 'darwin';
 
@@ -29,10 +28,6 @@ function WindowsTitleBar() {
     });
   }, []);
 
-  const handleOpenFolder = () => {
-
-  };
-
   const handleMinimize = () => {
     invokeIpc('window:minimize');
   };
@@ -54,15 +49,6 @@ function WindowsTitleBar() {
 
       {/* Right: Window Controls */}
       <div className="no-drag flex h-full">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={handleOpenFolder}
-        >
-          文
-        </Button>
-        
         <button
           onClick={handleMinimize}
           className="flex h-full w-11 items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
