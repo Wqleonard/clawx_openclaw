@@ -233,7 +233,7 @@ function renderAvatarFromData(
 
 function getAvatarDataUrl(userInfo: UserInfo | null): string {
   return renderAvatarFromData(
-    makeRandomAvatar(userInfo?.phone ?? '13600008888')
+    makeRandomAvatar(userInfo?.username ?? '13600008888')
   )
 }
 
@@ -276,14 +276,11 @@ export const useLoginStore = create<LoginStore>((set, get) => {
     },
 
     saveUserInfo: (info) => {
-      console.log('[loginStore-debug] saveUserInfo input =', info)
       if (info) {
         localStorage.setItem('userInfo', JSON.stringify(info))
-        console.log('[loginStore-debug] localStorage.userInfo saved =', localStorage.getItem('userInfo'))
         set({ userInfo: info })
       } else {
         localStorage.removeItem('userInfo')
-        console.log('[loginStore-debug] localStorage.userInfo removed')
         set({ userInfo: null })
       }
     },
@@ -291,10 +288,8 @@ export const useLoginStore = create<LoginStore>((set, get) => {
     loadUserInfo: () => {
       try {
         const saved = localStorage.getItem('userInfo')
-        console.log('[loginStore-debug] loadUserInfo localStorage.userInfo =', saved)
         if (saved) {
           const parsed = JSON.parse(saved)
-          console.log('[loginStore-debug] loadUserInfo parsed =', parsed)
           set({ userInfo: parsed })
           return parsed
         }
@@ -403,7 +398,6 @@ export const useLoginStore = create<LoginStore>((set, get) => {
       try {
         const req = await verifyTicket(ticket, invitationCode) as unknown
         const token = extractAuthToken(req)
-        console.log('[loginStore-debug] loginWithTicket token extracted =', token)
         if (!token) {
           return {
             success: false,
@@ -412,7 +406,6 @@ export const useLoginStore = create<LoginStore>((set, get) => {
         }
 
         localStorage.setItem('token', token)
-        console.log('[loginStore-debug] loginWithTicket token saved =', localStorage.getItem('token'))
         try {
           await ensureBaowenmaoProvider(token)
           useSettingsStore.getState().markSetupComplete()
@@ -423,24 +416,20 @@ export const useLoginStore = create<LoginStore>((set, get) => {
         // 尝试从业务接口获取并规范化用户信息
         try {
           const profile = await getUserInfoReq() as unknown
-          console.log('[loginStore-debug] getUserInfoReq response =', profile)
           if (profile && typeof profile === 'object') {
-            const p = profile as Record<string, any>
+            const p = profile as Record<string, unknown>
+            const points =
+              typeof p.points === 'number'
+                ? p.points
+                : Number(p.points ?? 0)
             const normalized: UserInfo = {
               id: String(p.id ?? p.userId ?? ''),
-              // 后端当前返回 username 为脱敏手机号（例如 150****9090）
-              phone: String(p.phone ?? p.mobile ?? p.username ?? ''),
-              nickName: String(p.nickName ?? p.nickname ?? p.name ?? p.username ?? ''),
-              limitStatus: typeof p.limitStatus === 'number' ? p.limitStatus : undefined,
-              createdTime: typeof p.createdTime === 'string'
-                ? p.createdTime
-                : (p.created_at ?? p.createdAt),
+              username: String(p.username ?? p.phone ?? p.mobile ?? ''),
+              points: Number.isFinite(points) ? points : 0,
+              role: String(p.role ?? 'user'),
             }
-            console.log('[loginStore-debug] normalized userInfo =', normalized)
-            if (normalized.phone) {
+            if (normalized.username) {
               get().saveUserInfo(normalized)
-            } else {
-              console.warn('[loginStore-debug] normalized.phone is empty, skip saveUserInfo')
             }
           }
         } catch (profileError) {
