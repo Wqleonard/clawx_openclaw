@@ -98,14 +98,15 @@
     "marketplace": {
         "title": "Marketplace",
         "installDialogTitle": "Install Skills",
-        "installDialogSubtitle": "Browse Explore by default, or enter keywords to search.",
+        "installDialogSubtitle": "Browse by default, or enter keywords to search SkillHub.",
         "sourceLabel": "Source",
         "sourceClawHub": "ClawHub",
-        "securityNote": "Click skill card to view its documentation and security information on ClawHub before installation.",
-        "manualInstallHint": "Network issues? You can always download skill ZIP archives from ClawHub.ai and extract them manually into \"{{path}}\".",
-        "searching": "Searching ClawHub...",
+        "sourceSkillHub": "SkillHub",
+        "securityNote": "Click skill card to view details. Install from SkillHub.",
+        "manualInstallHint": "Network issues? You can download skill ZIP from SkillHub and extract manually into \"{{path}}\".",
+        "searching": "Searching SkillHub...",
         "noResults": "No skills found matching your search.",
         "emptyPrompt": "Search for new skills to expand your capabilities.",
-        "searchError": "ClawHub search failed. Check your connection or installation."
+        "searchError": "SkillHub search failed. Check your connection."
     }
 }

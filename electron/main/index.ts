@@ -16,6 +16,7 @@ import { warmupNetworkOptimization } from '../utils/uv-env';
 import { initTelemetry } from '../utils/telemetry';
 
 import { ClawHubService } from '../gateway/clawhub';
+import { SkillHubService } from '../services/skillhub-service';
 import { ensureClawXContext, repairClawXOnlyBootstrapFiles } from '../utils/openclaw-workspace';
 import { autoInstallCliIfNeeded, generateCompletionCache, installCompletionToProfile } from '../utils/openclaw-cli';
 import { isQuitting, setQuitting } from './app-state';
@@ -24,7 +25,6 @@ import { syncLaunchAtStartupSettingFromStore } from './launch-at-startup';
 import { getSetting } from '../utils/store';
 import {
   ensureBuiltinSkillsInstalled,
-  ensureManagedLocalSkillsInstalled,
   ensurePreinstalledSkillsInstalled,
 } from '../utils/skill-config';
 import { startHostApiServer } from '../api/server';
@@ -71,6 +71,7 @@ if (!gotTheLock) {
 let mainWindow: BrowserWindow | null = null;
 const gatewayManager = new GatewayManager();
 const clawHubService = new ClawHubService();
+const skillHubService = new SkillHubService();
 const hostEventBus = new HostEventBus();
 let hostApiServer: Server | null = null;
 
@@ -207,6 +208,7 @@ async function initialize(): Promise<void> {
   hostApiServer = startHostApiServer({
     gatewayManager,
     clawHubService,
+    skillHubService,
     eventBus: hostEventBus,
     mainWindow,
   });
@@ -247,11 +249,6 @@ async function initialize(): Promise<void> {
   // non-destructive way and never blocks startup.
   void ensurePreinstalledSkillsInstalled().catch((error) => {
     logger.warn('Failed to install preinstalled skills:', error);
-  });
-
-  // Install and auto-enable app-managed local skills (e.g. novel workflow).
-  void ensureManagedLocalSkillsInstalled().catch((error) => {
-    logger.warn('Failed to install managed local skills:', error);
   });
 
   // Bridge gateway and host-side events before any auto-start logic runs, so

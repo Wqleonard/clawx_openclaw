@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { watch, type FSWatcher } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -14,8 +14,6 @@ type FileNode = {
 const TREE_MAX_DEPTH = 6;
 const MAX_READ_FILE_BYTES = 2 * 1024 * 1024; // 2MB safety limit for initial phase
 const IGNORED_NAMES = new Set(['.git', 'node_modules', 'dist', 'build']);
-const DEFAULT_WORKSPACE_ROOT_FOLDER = 'BoomClaw Workspaces';
-const DEFAULT_NOVEL_WORKSPACE_NAME = '我的第一部小说';
 
 let workspaceRoot: string | null = null;
 let workspaceWatcher: FSWatcher | null = null;
@@ -87,51 +85,6 @@ async function listFilesRecursive(dirPath: string): Promise<string[]> {
   return result;
 }
 
-async function writeFileIfAbsent(filePath: string, content: string): Promise<void> {
-  try {
-    await writeFile(filePath, content, { encoding: 'utf-8', flag: 'wx' });
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== 'EEXIST') throw error;
-  }
-}
-
-async function ensureDefaultNovelWorkspace(): Promise<string> {
-  const documentsDir = app.getPath('documents');
-  const workspacePath = path.join(
-    documentsDir,
-    DEFAULT_WORKSPACE_ROOT_FOLDER,
-    DEFAULT_NOVEL_WORKSPACE_NAME,
-  );
-
-  await mkdir(path.join(workspacePath, '00_设定'), { recursive: true });
-  await mkdir(path.join(workspacePath, '01_大纲'), { recursive: true });
-  await mkdir(path.join(workspacePath, '02_正文'), { recursive: true });
-
-  await writeFileIfAbsent(
-    path.join(workspacePath, 'README.md'),
-    '# 我的第一部小说\n\n这是 BoomClaw 自动创建的小说工作区。\n',
-  );
-  await writeFileIfAbsent(
-    path.join(workspacePath, '00_设定', '人物设定.md'),
-    '# 人物设定\n\n- 主角：\n- 配角：\n',
-  );
-  await writeFileIfAbsent(
-    path.join(workspacePath, '00_设定', '世界观.md'),
-    '# 世界观\n\n',
-  );
-  await writeFileIfAbsent(
-    path.join(workspacePath, '01_大纲', '总纲.md'),
-    '# 总纲\n\n',
-  );
-  await writeFileIfAbsent(
-    path.join(workspacePath, '02_正文', '第01章.md'),
-    '# 第01章\n\n',
-  );
-
-  return workspacePath;
-}
-
 async function readTreeRecursive(dirPath: string, depth = 0): Promise<FileNode> {
   const dirStat = await stat(dirPath);
   const name = path.basename(dirPath);
@@ -201,12 +154,6 @@ export function registerFileSystemHandlers(mainWindow: BrowserWindow): void {
       throw new Error('Workspace target must be a directory.');
     }
     workspaceRoot = target;
-    return workspaceRoot;
-  });
-
-  ipcMain.handle('fs:ensure-default-workspace', async () => {
-    const workspacePath = await ensureDefaultNovelWorkspace();
-    workspaceRoot = path.resolve(workspacePath);
     return workspaceRoot;
   });
 

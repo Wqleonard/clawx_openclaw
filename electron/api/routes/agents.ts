@@ -5,6 +5,7 @@ import {
   createAgent,
   deleteAgentConfig,
   listAgentsSnapshot,
+  listAgentTemplates,
   resolveAccountIdForAgent,
   updateAgentName,
   updateAgentWorkspace,
@@ -32,10 +33,24 @@ export async function handleAgentRoutes(
     return true;
   }
 
+  if (url.pathname === '/api/agents/templates' && req.method === 'GET') {
+    try {
+      const templates = await listAgentTemplates();
+      sendJson(res, 200, { success: true, templates });
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
+  }
+
   if (url.pathname === '/api/agents' && req.method === 'POST') {
     try {
-      const body = await parseJsonBody<{ name: string }>(req);
-      const snapshot = await createAgent(body.name);
+      const body = await parseJsonBody<{ name: string; templateId?: string; sourceAgentId?: string; workspacePath?: string }>(req);
+      const snapshot = await createAgent(body.name, {
+        templateId: body.templateId,
+        sourceAgentId: body.sourceAgentId,
+        workspacePath: body.workspacePath,
+      });
       scheduleGatewayReload(ctx, 'create-agent');
       sendJson(res, 200, { success: true, ...snapshot });
     } catch (error) {
