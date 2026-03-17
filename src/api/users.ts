@@ -78,6 +78,18 @@ const postFrozenUserEmailReq = (email: string) => {
   });
 };
 
+/**
+ * 查询当前用户积分消耗记录
+ * 接口返回结果直接就是 data
+ */
+const getPointsConsumption = (params?: { page: number, page_size: number }): Promise<any> => {
+  const queryParams: Record<string, number | string> = {
+    page: params?.page ?? 1,
+    page_size: params?.page_size ?? 20,
+  };
+  return apiClient.get<any>("/point-consumptions", queryParams);
+};
+
 interface UserInfo {
   nickName: string;
   coverImgUrl: string;
@@ -135,6 +147,7 @@ export {
   loginReq,
   postSuggestsReq,
   getUserInfoReq,
+  getPointsConsumption,
   getInvitationCodeReq,
   updateUserInfo,
   updatePassword,
