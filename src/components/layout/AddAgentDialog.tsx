@@ -145,21 +145,21 @@ export function AddAgentDialog({
           </div>
 
           <div className="space-y-2.5">
-            <Label className={labelClasses}>{t('createDialog.sourceLabel', '提示词来源')}</Label>
+            <Label className={labelClasses}>{t('createDialog.sourceLabel')}</Label>
             <div className="flex gap-1 p-1 rounded-full bg-black/5 dark:bg-white/5">
               <button
                 type="button"
                 className={sourceTabClass('template')}
                 onClick={() => setSource('template')}
               >
-                {t('createDialog.sourceTemplate', '从模板')}
+                {t('createDialog.sourceTemplate')}
               </button>
               <button
                 type="button"
                 className={sourceTabClass('agent')}
                 onClick={() => setSource('agent')}
               >
-                {t('createDialog.sourceAgent', '从现有 Agent')}
+                {t('createDialog.sourceAgent')}
               </button>
             </div>
           </div>
@@ -201,7 +201,7 @@ export function AddAgentDialog({
             <div className="space-y-2">
               {agents.length === 0 ? (
                 <p className="text-[13px] text-foreground/50 px-1">
-                  {t('createDialog.noAgents', '暂无已创建的 Agent')}
+                  {t('createDialog.noAgents')}
                 </p>
               ) : (
                 agents.map((agent) => (
@@ -234,7 +234,7 @@ export function AddAgentDialog({
           {!hideWorkspaceSelector && (
             <div className="space-y-2.5">
               <Label className={labelClasses}>
-                {t('createDialog.workspaceLabel', '工作区目录（可选）')}
+                {t('createDialog.workspaceLabel')}
               </Label>
               <div className="flex gap-2 items-center">
                 <button
@@ -248,7 +248,7 @@ export function AddAgentDialog({
                       workspacePath ? 'text-foreground' : 'text-foreground/40'
                     }`}
                   >
-                    {workspacePath || t('createDialog.workspacePlaceholder', '不选择，自动分配')}
+                    {workspacePath || t('createDialog.workspacePlaceholder')}
                   </span>
                 </button>
                 {workspacePath && (

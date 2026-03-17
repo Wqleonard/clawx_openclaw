@@ -5,9 +5,11 @@
  */
 import { useState, useEffect } from 'react';
 import { Minus, Square, X, Copy, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
 import { Button } from '../ui/button';
 import { useChatLayoutStore } from '@/stores/chat-layout';
+import { useFileSystemStore } from '@/stores/filesystem';
 import { cn } from '@/lib/utils';
 
 const isMac = window.electron?.platform === 'darwin';
@@ -22,9 +24,11 @@ export function TitleBar() {
 }
 
 function WindowsTitleBar() {
+  const { t } = useTranslation('chat');
   const [maximized, setMaximized] = useState(false);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
   const toggleFileTreeDrawer = useChatLayoutStore((s) => s.toggleFileTreeDrawer);
+  const projectPath = useFileSystemStore((s) => s.projectPath);
 
   useEffect(() => {
     // Check initial state
@@ -57,24 +61,26 @@ function WindowsTitleBar() {
     <div className="drag-region flex h-10 shrink-0 items-center justify-end bg-background">
       {/* Right: Window Controls */}
       <div className="no-drag flex h-full">
-        <div className="flex h-full items-center justify-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'size-7 cursor-pointer ',
-              isFileTreeDrawerOpen ? 'bg-accent' : 'text-muted-foreground'
-            )}
-            onClick={handleOpenFolder}
-            title={isFileTreeDrawerOpen ? '关闭文件树' : '打开文件树'}
-          >
-            {isFileTreeDrawerOpen ? (
-              <PanelRightClose className="size-4" />
-            ) : (
-              <PanelRightOpen className="size-4" />
-            )}
-          </Button>
-        </div>
+        {projectPath && (
+          <div className="flex h-full items-center justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'size-7 cursor-pointer ',
+                isFileTreeDrawerOpen ? 'bg-accent' : 'text-muted-foreground'
+              )}
+              onClick={handleOpenFolder}
+              title={isFileTreeDrawerOpen ? t('common:actions.close') : t('fileTree.openFolder')}
+            >
+              {isFileTreeDrawerOpen ? (
+                <PanelRightClose className="size-4" />
+              ) : (
+                <PanelRightOpen className="size-4" />
+              )}
+            </Button>
+          </div>
+        )}
 
         <button
           onClick={handleMinimize}

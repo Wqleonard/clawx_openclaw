@@ -64,6 +64,7 @@
         "targetExists": "Target path already exists",
         "addToContext": "Add to Context",
         "removeFromContext": "Remove from Context",
-        "defaultNewFolderName": "new-folder"
+        "defaultNewFolderName": "new-folder",
+        "defaultNewMarkdownFileName": "new-file.md"
     }
 }

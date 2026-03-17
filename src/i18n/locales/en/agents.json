@@ -16,7 +16,13 @@
         "title": "Add Agent",
         "description": "Create a new agent by name. BoomClaw will copy the main agent's workspace bootstrap files and runtime auth setup.",
         "nameLabel": "Agent Name",
-        "namePlaceholder": "Coding Helper"
+        "namePlaceholder": "Coding Helper",
+        "sourceLabel": "Prompt Source",
+        "sourceTemplate": "From Template",
+        "sourceAgent": "From Existing Agent",
+        "noAgents": "No agents created yet",
+        "workspaceLabel": "Workspace Directory (Optional)",
+        "workspacePlaceholder": "Leave empty for automatic assignment"
     },
     "deleteDialog": {
         "title": "Delete Agent",

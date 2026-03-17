@@ -64,6 +64,7 @@
         "targetExists": "目标路径已存在",
         "addToContext": "添加到上下文",
         "removeFromContext": "从上下文移除",
-        "defaultNewFolderName": "新建文件夹"
+        "defaultNewFolderName": "新建文件夹",
+        "defaultNewMarkdownFileName": "新建文件.md"
     }
 }

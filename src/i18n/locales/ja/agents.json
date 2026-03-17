@@ -16,7 +16,13 @@
         "title": "Agent を追加",
         "description": "名前だけで新しい Agent を作成できます。BoomClaw はメイン Agent のワークスペース初期ファイルと認証設定をコピーします。",
         "nameLabel": "Agent 名",
-        "namePlaceholder": "Coding Helper"
+        "namePlaceholder": "Coding Helper",
+        "sourceLabel": "プロンプトのソース",
+        "sourceTemplate": "テンプレートから",
+        "sourceAgent": "既存 Agent から",
+        "noAgents": "作成済みの Agent はありません",
+        "workspaceLabel": "ワークスペースディレクトリ（任意）",
+        "workspacePlaceholder": "未選択の場合は自動割り当て"
     },
     "deleteDialog": {
         "title": "Agent を削除",

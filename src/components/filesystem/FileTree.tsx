@@ -291,6 +291,7 @@ export function FileTree({ className }: FileTreeProps) {
     [t]
   );
   const defaultNewFolderName = t('fileTree.defaultNewFolderName');
+  const defaultNewMarkdownFileName = t('fileTree.defaultNewMarkdownFileName');
   const rootChildren = tree?.type === 'folder' ? tree.children || [] : [];
   const contextPathSet = useMemo(() => new Set(contextFiles), [contextFiles]);
   const pathSet = useMemo(() => {
@@ -379,7 +380,9 @@ export function FileTree({ className }: FileTreeProps) {
 
     try {
       if (action === 'new_file') return openInputModal('new_file', targetDir, 'untitled.txt');
-      if (action === 'new_md_file') return openInputModal('new_file', targetDir, 'untitled.md');
+      if (action === 'new_md_file') {
+        return openInputModal('new_file', targetDir, defaultNewMarkdownFileName);
+      }
       if (action === 'new_folder') {
         return openInputModal('new_folder', targetDir, defaultNewFolderName);
       }
@@ -617,7 +620,7 @@ export function FileTree({ className }: FileTreeProps) {
             className="h-7 w-7"
             title={labels.newFile}
             onClick={() =>
-              workspacePath && openInputModal('new_file', workspacePath, 'untitled.md')
+              workspacePath && openInputModal('new_file', workspacePath, defaultNewMarkdownFileName)
             }
           >
             <FilePlus className="h-3.5 w-3.5 text-muted-foreground" />
