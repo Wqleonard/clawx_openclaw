@@ -2,124 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useLoginStore } from '@/stores/loginStore';
-import { useSettingsStore } from '@/stores/settings';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Bot, Terminal, Zap, Layers } from 'lucide-react';
-import { loginWithTestReq } from '@/api/users';
-import { hostApiFetch } from '@/lib/host-api';
-import type { ProviderAccount } from '@/lib/providers';
 
 const IFRAME_URL = 'https://www.baowenmao.com/login/login';
 const ALLOWED_ORIGIN = 'https://www.baowenmao.com';
 const LOAD_TIMEOUT_MS = 5000;
-const BAOWENMAO_PROVIDER_ID = 'custom-baowenmao';
-const BAOWENMAO_PROVIDER_LABEL = '爆文猫';
-const BAOWENMAO_MODEL_ID = 'ep-20260123143950-zm9zl';
-const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions';
-
-function resolveBusinessApiBaseUrl(): string {
-  const raw = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? '';
-  return raw.replace(/\/+$/, '');
-}
-
-function extractToken(payload: unknown): string | null {
-  if (typeof payload === 'string') return payload;
-  if (!payload || typeof payload !== 'object') return null;
-
-  const obj = payload as Record<string, unknown>;
-  const token =
-    (typeof obj.access_token === 'string' && obj.access_token)
-    || (typeof obj.token === 'string' && obj.token)
-    || (typeof obj.accessToken === 'string' && obj.accessToken)
-    || (obj.data && typeof obj.data === 'object'
-      ? (
-        ((obj.data as Record<string, unknown>).access_token as string | undefined)
-        || ((obj.data as Record<string, unknown>).token as string | undefined)
-      )
-      : undefined);
-
-  return token || null;
-}
 
 export function Login() {
   const navigate = useNavigate();
   const loginWithTicket = useLoginStore((s) => s.loginWithTicket);
-  const updateLoginStatus = useLoginStore((s) => s.updateLoginStatus);
   const executeInterceptedActions = useLoginStore((s) => s.executeInterceptedActions);
-  const markSetupComplete = useSettingsStore((s) => s.markSetupComplete);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeLoadFailed, setIframeLoadFailed] = useState(false);
   const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [mockLoginLoading, setMockLoginLoading] = useState(false);
-
-  const ensureBaowenmaoProvider = useCallback(async (apiKey: string) => {
-    const baseUrl = resolveBusinessApiBaseUrl();
-    if (!baseUrl) {
-      throw new Error('VITE_BUSINESS_API_BASE_URL is not configured');
-    }
-
-    const now = new Date().toISOString();
-    const accountPayload: ProviderAccount = {
-      id: BAOWENMAO_PROVIDER_ID,
-      vendorId: 'custom',
-      label: BAOWENMAO_PROVIDER_LABEL,
-      authMode: 'api_key',
-      baseUrl,
-      apiProtocol: BAOWENMAO_PROTOCOL,
-      model: BAOWENMAO_MODEL_ID,
-      enabled: true,
-      isDefault: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts');
-    const existing = accounts.find((account) => account.id === BAOWENMAO_PROVIDER_ID);
-
-    if (existing) {
-      const updateResult = await hostApiFetch<{ success: boolean; error?: string }>(
-        `/api/provider-accounts/${encodeURIComponent(BAOWENMAO_PROVIDER_ID)}`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({
-            updates: {
-              label: BAOWENMAO_PROVIDER_LABEL,
-              authMode: 'api_key',
-              baseUrl,
-              apiProtocol: BAOWENMAO_PROTOCOL,
-              model: BAOWENMAO_MODEL_ID,
-              enabled: true,
-            },
-            apiKey,
-          }),
-        }
-      );
-      if (!updateResult.success) {
-        throw new Error(updateResult.error || 'Failed to update 爆文猫 provider');
-      }
-    } else {
-      const createResult = await hostApiFetch<{ success: boolean; error?: string }>('/api/provider-accounts', {
-        method: 'POST',
-        body: JSON.stringify({ account: accountPayload, apiKey }),
-      });
-      if (!createResult.success) {
-        throw new Error(createResult.error || 'Failed to create 爆文猫 provider');
-      }
-    }
-
-    const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
-      '/api/provider-accounts/default',
-      {
-        method: 'PUT',
-        body: JSON.stringify({ accountId: BAOWENMAO_PROVIDER_ID }),
-      }
-    );
-
-    if (!defaultResult.success) {
-      throw new Error(defaultResult.error || 'Failed to set 爆文猫 as default provider');
-    }
-  }, []);
 
   const handleMessage = useCallback(
     async (event: MessageEvent) => {
@@ -145,41 +42,6 @@ export function Login() {
     },
     [loginWithTicket, executeInterceptedActions, navigate]
   );
-
-  const handleMockLogin = useCallback(async () => {
-    setMockLoginLoading(true);
-    try {
-      const result = await loginWithTestReq();
-      const token = extractToken(result);
-      if (!token) {
-        throw new Error('模拟登录接口未返回 token');
-      }
-
-      localStorage.setItem('token', token);
-      updateLoginStatus();
-
-      try {
-        await ensureBaowenmaoProvider(token);
-      } catch (error) {
-        toast.error(`爆文猫 Provider 自动配置失败：${String(error)}`);
-      }
-
-      markSetupComplete();
-      await executeInterceptedActions();
-      toast.success('模拟登录成功');
-      navigate('/');
-    } catch (error) {
-      toast.error(`模拟登录失败：${String(error)}`);
-    } finally {
-      setMockLoginLoading(false);
-    }
-  }, [
-    ensureBaowenmaoProvider,
-    executeInterceptedActions,
-    markSetupComplete,
-    navigate,
-    updateLoginStatus,
-  ]);
 
   useEffect(() => {
     window.addEventListener('message', handleMessage);
@@ -322,16 +184,6 @@ export function Login() {
               </div>
             )}
           </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-4 w-full"
-            onClick={handleMockLogin}
-            disabled={mockLoginLoading}
-          >
-            {mockLoginLoading ? '模拟登录中...' : '模拟登录（用户名密码）'}
-          </Button>
         </div>
       </div>
     </div>
