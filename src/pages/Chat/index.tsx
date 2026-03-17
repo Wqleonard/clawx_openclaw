@@ -83,6 +83,7 @@ export function Chat() {
   const isEditorDragging = useRef(false);
   const editorDragStartX = useRef(0);
   const editorDragStartWidth = useRef(0);
+  const initTaskVersionRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
@@ -166,22 +167,26 @@ export function Chat() {
 
   useEffect(() => {
     if (workspacePath) return;
+    initTaskVersionRef.current += 1;
     resetChatRuntimeState();
   }, [workspacePath, resetChatRuntimeState]);
 
   useEffect(() => {
     if (!isGatewayRunning) return;
-    let cancelled = false;
+    const version = ++initTaskVersionRef.current;
+    const controller = new AbortController();
+    const isTaskAborted = () => controller.signal.aborted || version !== initTaskVersionRef.current;
 
     (async () => {
       if (!workspacePath) {
+        if (isTaskAborted()) return;
         resetChatRuntimeState();
         return;
       }
 
       // 1) Initialize sessions after current project is known.
       await loadSessions();
-      if (cancelled) return;
+      if (isTaskAborted()) return;
 
       const chatState = useChatStore.getState();
       const fsState = useFileSystemStore.getState();
@@ -194,24 +199,28 @@ export function Chat() {
       if (targetSessions.length > 0) {
         const firstSessionKey = targetSessions[0].key;
         if (firstSessionKey !== chatState.currentSessionKey) {
+          if (isTaskAborted()) return;
           switchSession(firstSessionKey);
           return;
         }
         const hasExistingMessages = chatState.messages.length > 0;
         await loadHistory(hasExistingMessages);
+        if (isTaskAborted()) return;
         return;
       }
 
       // 5) No bound sessions: create one and bind it to current project.
+      if (isTaskAborted()) return;
       newSession();
-      if (cancelled) return;
+      if (isTaskAborted()) return;
       const newSessionKey = useChatStore.getState().currentSessionKey;
       if (newSessionKey) {
         await bindProjectToSession(newSessionKey, workspacePath);
+        if (isTaskAborted()) return;
       }
     })();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [
     isGatewayRunning,
