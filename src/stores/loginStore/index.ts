@@ -15,10 +15,13 @@ export type { UserInfo, AvatarData, Message, InterceptedAction, LoginStore } fro
 
 const NEWBIE_TOUR_STORAGE_KEY = 'hasNewbieTourShowed'
 const READED_IDS_KEY = 'readedMessageIds'
-const BAOWENMAO_PROVIDER_ID = 'custom-baowenmao'
+const BAOWENMAO_PROVIDER_ID_HS = 'ark:custom-baowenmao'
+const BAOWENMAO_PROVIDER_ID_AL = 'aliyun:custom-baowenmao'
 const BAOWENMAO_PROVIDER_LABEL = '爆文猫'
-const BAOWENMAO_MODEL_ID = 'ep-20260123143950-zm9zl'
+const BAOWENMAO_MODEL_ID_HS = 'ark:ep-20260123143950-zm9zl'
+const BAOWENMAO_MODEL_ID_AL = 'aliyun:qwen3-max'
 const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions'
+
 
 function resolveBusinessApiBaseUrl(): string {
   const raw = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? ''
@@ -52,59 +55,67 @@ async function ensureBaowenmaoProvider(apiKey: string): Promise<void> {
   }
 
   const now = new Date().toISOString()
-  const accountPayload: ProviderAccount = {
-    id: BAOWENMAO_PROVIDER_ID,
-    vendorId: 'custom',
-    label: BAOWENMAO_PROVIDER_LABEL,
-    authMode: 'api_key',
-    baseUrl,
-    apiProtocol: BAOWENMAO_PROTOCOL,
-    model: BAOWENMAO_MODEL_ID,
-    enabled: true,
-    isDefault: false,
-    createdAt: now,
-    updatedAt: now,
-  }
-
   const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts')
-  const existing = accounts.find((account) => account.id === BAOWENMAO_PROVIDER_ID)
 
-  if (existing) {
-    const updateResult = await hostApiFetch<{ success: boolean; error?: string }>(
-      `/api/provider-accounts/${encodeURIComponent(BAOWENMAO_PROVIDER_ID)}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({
-          updates: {
-            label: BAOWENMAO_PROVIDER_LABEL,
-            authMode: 'api_key',
-            baseUrl,
-            apiProtocol: BAOWENMAO_PROTOCOL,
-            model: BAOWENMAO_MODEL_ID,
-            enabled: true,
-          },
-          apiKey,
-        }),
-      }
-    )
-    if (!updateResult.success) {
-      throw new Error(updateResult.error || 'Failed to update 爆文猫 provider')
+  const upsertAccount = async (id: string, model: string, label: string): Promise<void> => {
+    const existing = accounts.find((account) => account.id === id)
+    const payload: ProviderAccount = {
+      id,
+      vendorId: 'baowenmao',
+      label,
+      authMode: 'api_key',
+      baseUrl,
+      apiProtocol: BAOWENMAO_PROTOCOL,
+      model,
+      enabled: true,
+      isDefault: false,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
     }
-  } else {
-    const createResult = await hostApiFetch<{ success: boolean; error?: string }>('/api/provider-accounts', {
-      method: 'POST',
-      body: JSON.stringify({ account: accountPayload, apiKey }),
-    })
-    if (!createResult.success) {
-      throw new Error(createResult.error || 'Failed to create 爆文猫 provider')
+
+    if (existing) {
+      const updateResult = await hostApiFetch<{ success: boolean; error?: string }>(
+        `/api/provider-accounts/${encodeURIComponent(id)}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            updates: {
+              label: payload.label,
+              authMode: payload.authMode,
+              baseUrl: payload.baseUrl,
+              apiProtocol: payload.apiProtocol,
+              model: payload.model,
+              enabled: payload.enabled,
+            },
+            apiKey,
+          }),
+        }
+      )
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || `Failed to update 爆文猫 provider ${id}`)
+      }
+    } else {
+      const createResult = await hostApiFetch<{ success: boolean; error?: string }>('/api/provider-accounts', {
+        method: 'POST',
+        body: JSON.stringify({ account: payload, apiKey }),
+      })
+      if (!createResult.success) {
+        throw new Error(createResult.error || `Failed to create 爆文猫 provider ${id}`)
+      }
     }
   }
 
+  // 火山 Ark 版本
+  await upsertAccount(BAOWENMAO_PROVIDER_ID_HS, BAOWENMAO_MODEL_ID_HS, `${BAOWENMAO_PROVIDER_LABEL} (Ark)`)
+  // 阿里云 Qwen 版本
+  await upsertAccount(BAOWENMAO_PROVIDER_ID_AL, BAOWENMAO_MODEL_ID_AL, `${BAOWENMAO_PROVIDER_LABEL} (Aliyun)`)
+
+  // 默认选中阿里云 qwen3-max
   const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
     '/api/provider-accounts/default',
     {
       method: 'PUT',
-      body: JSON.stringify({ accountId: BAOWENMAO_PROVIDER_ID }),
+      body: JSON.stringify({ accountId: BAOWENMAO_PROVIDER_ID_AL }),
     }
   )
   if (!defaultResult.success) {

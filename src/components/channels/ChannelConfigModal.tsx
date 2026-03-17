@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Dialog as DialogPrimitive } from 'radix-ui';
 import {
   X,
   Loader2,
@@ -377,11 +378,22 @@ export function ChannelConfigModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <Card
-        className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <DialogPrimitive.Root open modal>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          className="fixed inset-0 z-[200] bg-black/50"
+          onClick={onClose}
+        />
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onEscapeKeyDown={onClose}
+          className="fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[90vh] p-4 outline-none"
+        >
+          <Card
+            className="w-full max-h-[calc(90vh-2rem)] flex flex-col rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
         <CardHeader className="flex flex-row items-start justify-between pb-2 shrink-0">
           <div>
             <CardTitle className="text-2xl font-serif font-normal tracking-tight">
@@ -646,7 +658,9 @@ export function ChannelConfigModal({
           )}
         </CardContent>
       </Card>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 
