@@ -258,8 +258,8 @@ export function PointsSection() {
           className="h-8 px-4 rounded-xl text-[13px] font-medium bg-orange-500/80 text-white cursor-not-allowed opacity-60"
           title={isZh ? '充值接口待接入' : 'Top-up API coming soon'}
         >
-          {/* TODO: 接入充值接口 */}
-          {isZh ? '去充值' : 'Top Up'}
+          {/* TODO: 接入兑换接口 */}
+          {isZh ? '去兑换' : 'Redeem'}
         </button>
       </div>
 
