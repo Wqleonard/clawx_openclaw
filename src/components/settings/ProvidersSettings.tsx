@@ -3,6 +3,7 @@
  * Manage AI provider configurations and API keys
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import { Dialog as DialogPrimitive } from 'radix-ui';
 import {
   Plus,
   Trash2,
@@ -431,8 +432,8 @@ function ProviderCard({
           : "bg-transparent border border-transparent"
       )}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center">
+        <div className="flex items-center gap-4 flex-1 min-w-0 pr-2">
           <div className="h-[42px] w-[42px] shrink-0 flex items-center justify-center text-foreground border border-black/5 dark:border-white/10 rounded-full bg-black/5 dark:bg-white/5 shadow-sm group-hover:scale-105 transition-transform">
             {getProviderIconUrl(account.vendorId) ? (
               <img src={getProviderIconUrl(account.vendorId)} alt={typeInfo?.name || account.vendorId} className={cn('h-5 w-5', shouldInvertInDark(account.vendorId) && 'dark:invert')} />
@@ -440,7 +441,7 @@ function ProviderCard({
               <span className="text-xl">{vendor?.icon || typeInfo?.icon || '⚙️'}</span>
             )}
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[15px]">{account.label}</span>
               {isDefault && (
@@ -450,7 +451,7 @@ function ProviderCard({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-0.5 text-[13px] text-muted-foreground">
+            <div className="flex items-center gap-2 mt-0.5 text-[13px] text-muted-foreground flex-wrap">
               <span className="capitalize">{vendor?.name || account.vendorId}</span>
               <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
               <span>{getAuthModeLabel(account.authMode, t)}</span>
@@ -486,7 +487,7 @@ function ProviderCard({
         </div>
 
         {!isEditing && (
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {!isDefault && (
               <Button
                 variant="ghost"
@@ -1028,8 +1029,19 @@ function AddProviderDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden">
+    <DialogPrimitive.Root open modal>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          className="fixed inset-0 z-[200] bg-black/50"
+          onClick={onClose}
+        />
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onEscapeKeyDown={onClose}
+          className="fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] p-4 outline-none"
+        >
+      <Card className="w-full max-h-[calc(90vh-2rem)] flex flex-col rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden">
         <CardHeader className="relative pb-2 shrink-0">
           <CardTitle className="text-2xl font-serif font-normal">{t('aiProviders.dialog.title')}</CardTitle>
           <CardDescription className="text-[15px] mt-1 text-foreground/70">
@@ -1399,6 +1411,8 @@ function AddProviderDialog({
           )}
         </CardContent>
       </Card>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

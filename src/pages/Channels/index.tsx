@@ -95,7 +95,7 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
 
   // hideHeader 模式下只显示 qqbot，其他渠道暂时注释
   const visibleChannelTypes: ChannelType[] = hideHeader
-    ? ['qqbot']
+    ? ['qqbot','feishu','wecom']
     : displayedChannelTypes;
     /* 暂时注释掉的其他渠道（hideHeader 模式）：
        'telegram', 'discord', 'whatsapp', 'dingtalk', 'feishu', 'wecom'

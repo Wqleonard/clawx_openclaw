@@ -411,7 +411,11 @@ export function Sidebar() {
       />
 
       <Dialog open={preferencesOpen} onOpenChange={setPreferencesOpen}>
-        <DialogContent className="max-w-[900px] w-[90vw] h-[80vh] p-0 gap-0 overflow-hidden rounded-2xl bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10">
+        <DialogContent
+          className="max-w-[900px] w-[90vw] h-[80vh] p-0 gap-0 overflow-hidden rounded-2xl bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <Preferences />
         </DialogContent>
       </Dialog>
