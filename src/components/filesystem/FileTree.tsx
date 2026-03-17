@@ -475,11 +475,7 @@ export function FileTree({ className }: FileTreeProps) {
 
   return (
     <section className={cn('flex h-full min-h-0 flex-col border-r bg-[#eae8e1]/45 dark:bg-background', className)}>
-      <div className="flex items-center justify-between border-b px-2 py-2 h-11">
-        <div className="flex items-center gap-2">
-          <FolderPlus className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">{labels.title}</span>
-        </div>
+      <div className="flex items-center justify-end border-b px-2 py-2 h-11">
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={labels.newFile} onClick={() => workspacePath && openInputModal('new_file', workspacePath, 'untitled.md')}>
             <FilePlus className="h-3.5 w-3.5 text-muted-foreground" />
@@ -489,22 +485,6 @@ export function FileTree({ className }: FileTreeProps) {
           </Button>
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={labels.refresh} onClick={() => { void refreshTree(); }}>
             <RefreshCcw className="h-3.5 w-3.5 text-muted-foreground" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 text-[11px]"
-            onClick={() => {
-              void openFolder().then((selected) => {
-                if (selected) {
-                      void bindWorkspaceToSession(currentSessionKey, selected);
-                  setExpanded(new Set([selected]));
-                }
-              });
-            }}
-          >
-            {labels.openFolder}
           </Button>
         </div>
       </div>

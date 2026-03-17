@@ -61,7 +61,7 @@ function WindowsTitleBar() {
         <Button
           variant="ghost"
           size="icon"
-          className="size-7"
+          className="size-7 cursor-pointer"
           onClick={handleOpenFolder}
           title={isFileTreeDrawerOpen ? '关闭文件树' : '打开文件树'}
         >

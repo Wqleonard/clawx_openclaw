@@ -19,7 +19,6 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
-import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { useChatLayoutStore } from '@/stores/chat-layout';
 
 import { FileTabs, FileTree } from '@/components/filesystem';
@@ -71,7 +70,6 @@ export function Chat() {
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
-  const setFileTreeDrawerOpen = useChatLayoutStore((s) => s.setFileTreeDrawerOpen);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
@@ -392,19 +390,14 @@ export function Chat() {
         </div>
       </div>
 
-      <Drawer
-        direction="right"
-        open={isFileTreeDrawerOpen}
-        onOpenChange={setFileTreeDrawerOpen}
-        shouldScaleBackground={false}
+      <div
+        className={cn(
+          'fixed right-0 top-10 bottom-0 z-40 w-[260px] border-l border-t border-border bg-background transition-transform duration-200 ease-out will-change-transform',
+          isFileTreeDrawerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
+        )}
       >
-        <DrawerContent
-          hideOverlay
-          className="border-l border-t border-border p-0 data-[vaul-drawer-direction=right]:w-[260px] data-[vaul-drawer-direction=right]:max-w-[260px] data-[vaul-drawer-direction=right]:rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:bottom-0"
-        >
-          <FileTree className="h-full" />
-        </DrawerContent>
-      </Drawer>
+        <FileTree className="h-full" />
+      </div>
     </div>
   );
 }

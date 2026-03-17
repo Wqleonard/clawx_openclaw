@@ -40,7 +40,7 @@ export function FileTabs({
 
   if (openFiles.length === 0) {
     return (
-      <div className="flex h-9 items-center border-b border-border px-3 text-xs text-muted-foreground">
+      <div className="flex h-11 items-center border-b border-border px-3 text-xs text-muted-foreground">
         {labels.empty}
       </div>
     );
