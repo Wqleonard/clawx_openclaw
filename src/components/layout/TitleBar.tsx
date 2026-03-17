@@ -4,7 +4,7 @@
  * Windows/Linux: drag region on left, minimize/maximize/close on right.
  */
 import { useState, useEffect } from 'react';
-import { Minus, Square, X, Copy, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Minus, Square, X, Copy, PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
 import { Button } from '../ui/button';
@@ -28,6 +28,8 @@ function WindowsTitleBar() {
   const [maximized, setMaximized] = useState(false);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
   const toggleFileTreeDrawer = useChatLayoutStore((s) => s.toggleFileTreeDrawer);
+  const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
+  const toggleSessionListCollapsed = useChatLayoutStore((s) => s.toggleSessionListCollapsed);
   const projectPath = useFileSystemStore((s) => s.projectPath);
 
   useEffect(() => {
@@ -39,6 +41,9 @@ function WindowsTitleBar() {
 
   const handleOpenFolder = () => {
     toggleFileTreeDrawer();
+  };
+  const handleToggleSessionPanel = () => {
+    toggleSessionListCollapsed();
   };
 
   const handleMinimize = () => {
@@ -58,7 +63,27 @@ function WindowsTitleBar() {
   };
 
   return (
-    <div className="drag-region flex h-10 shrink-0 items-center justify-end bg-background">
+    <div className="drag-region flex h-10 shrink-0 items-center justify-between bg-background">
+      {projectPath && (
+        <div className="no-drag flex h-full items-center justify-center px-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              'size-7 cursor-pointer',
+              !isSessionListCollapsed ? 'bg-accent' : 'text-muted-foreground'
+            )}
+            onClick={handleToggleSessionPanel}
+            title={isSessionListCollapsed ? t('common:actions.open') : t('common:actions.close')}
+          >
+            {isSessionListCollapsed ? (
+              <PanelLeftOpen className="size-4" />
+            ) : (
+              <PanelLeftClose className="size-4" />
+            )}
+          </Button>
+        </div>
+      )}
       {/* Right: Window Controls */}
       <div className="no-drag flex h-full">
         {projectPath && (

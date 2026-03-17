@@ -125,6 +125,8 @@ export function Chat() {
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
+  const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
+  const setProjectSwitching = useChatLayoutStore((s) => s.setProjectSwitching);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(null);
   const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
@@ -168,55 +170,66 @@ export function Chat() {
   useEffect(() => {
     if (workspacePath) return;
     initTaskVersionRef.current += 1;
+    setProjectSwitching(false);
     resetChatRuntimeState();
-  }, [workspacePath, resetChatRuntimeState]);
+  }, [workspacePath, resetChatRuntimeState, setProjectSwitching]);
 
   useEffect(() => {
-    if (!isGatewayRunning) return;
+    if (!isGatewayRunning) {
+      setProjectSwitching(false);
+      return;
+    }
     const version = ++initTaskVersionRef.current;
     const controller = new AbortController();
     const isTaskAborted = () => controller.signal.aborted || version !== initTaskVersionRef.current;
+    setProjectSwitching(true);
 
     (async () => {
-      if (!workspacePath) {
-        if (isTaskAborted()) return;
-        resetChatRuntimeState();
-        return;
-      }
-
-      // 1) Initialize sessions after current project is known.
-      await loadSessions();
-      if (isTaskAborted()) return;
-
-      const chatState = useChatStore.getState();
-      const fsState = useFileSystemStore.getState();
-      // 2/3) Derive project sessions (source used by sessionBuckets) from current project.
-      const targetSessions = [...chatState.sessions]
-        .filter((session) => fsState.projectBindings[session.key] === workspacePath)
-        .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
-
-      // 4) If project has bound sessions, activate and load the first one.
-      if (targetSessions.length > 0) {
-        const firstSessionKey = targetSessions[0].key;
-        if (firstSessionKey !== chatState.currentSessionKey) {
+      try {
+        if (!workspacePath) {
           if (isTaskAborted()) return;
-          switchSession(firstSessionKey);
+          resetChatRuntimeState();
           return;
         }
-        const hasExistingMessages = chatState.messages.length > 0;
-        await loadHistory(hasExistingMessages);
-        if (isTaskAborted()) return;
-        return;
-      }
 
-      // 5) No bound sessions: create one and bind it to current project.
-      if (isTaskAborted()) return;
-      newSession();
-      if (isTaskAborted()) return;
-      const newSessionKey = useChatStore.getState().currentSessionKey;
-      if (newSessionKey) {
-        await bindProjectToSession(newSessionKey, workspacePath);
+        // 1) Initialize sessions after current project is known.
+        await loadSessions();
         if (isTaskAborted()) return;
+
+        const chatState = useChatStore.getState();
+        const fsState = useFileSystemStore.getState();
+        // 2/3) Derive project sessions (source used by sessionBuckets) from current project.
+        const targetSessions = [...chatState.sessions]
+          .filter((session) => fsState.projectBindings[session.key] === workspacePath)
+          .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+
+        // 4) If project has bound sessions, activate and load the first one.
+        if (targetSessions.length > 0) {
+          const firstSessionKey = targetSessions[0].key;
+          if (firstSessionKey !== chatState.currentSessionKey) {
+            if (isTaskAborted()) return;
+            switchSession(firstSessionKey);
+            return;
+          }
+          const hasExistingMessages = chatState.messages.length > 0;
+          await loadHistory(hasExistingMessages);
+          if (isTaskAborted()) return;
+          return;
+        }
+
+        // 5) No bound sessions: create one and bind it to current project.
+        if (isTaskAborted()) return;
+        newSession();
+        if (isTaskAborted()) return;
+        const newSessionKey = useChatStore.getState().currentSessionKey;
+        if (newSessionKey) {
+          await bindProjectToSession(newSessionKey, workspacePath);
+          if (isTaskAborted()) return;
+        }
+      } finally {
+        if (!controller.signal.aborted && version === initTaskVersionRef.current) {
+          setProjectSwitching(false);
+        }
       }
     })();
     return () => {
@@ -231,6 +244,7 @@ export function Chat() {
     newSession,
     bindProjectToSession,
     resetChatRuntimeState,
+    setProjectSwitching,
   ]);
 
   useEffect(() => {
@@ -247,7 +261,6 @@ export function Chat() {
   // Update timestamp when sending starts
   useEffect(() => {
     if (sending && streamingTimestamp === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStreamingTimestamp(Date.now() / 1000);
     } else if (!sending && streamingTimestamp !== 0) {
       setStreamingTimestamp(0);
@@ -455,96 +468,103 @@ export function Chat() {
       ref={containerRef}
       className={cn('flex h-full transition-colors duration-500 dark:bg-background')}
     >
-      {/* Chat List Panel */}
-      <div
-        className="shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
-        style={{ width: listWidth }}
-      >
-        {workspacePath && (
-          <>
-            <button
-              onClick={() => void handleNewProjectSession()}
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
-                'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground',
-              )}
-            >
-              <div className="flex shrink-0 items-center justify-center text-foreground/80">
-                <Plus className="h-[18px] w-[18px]" strokeWidth={2} />
-              </div>
-              <span className="flex-1 text-left overflow-hidden text-ellipsis whitespace-nowrap">
-                {t('common:sidebar.newChat')}
-              </span>
-            </button>
-
-            {sessionBuckets.map((bucket) =>
-              bucket.sessions.length > 0 ? (
-                <div key={bucket.key} className="pt-2">
-                  <div className="px-2.5 pb-1 text-[11px] font-medium text-muted-foreground/60 tracking-tight">
-                    {bucket.label}
+      {!isSessionListCollapsed && (
+        <>
+          {/* Chat List Panel */}
+          <div
+            className="shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
+            style={{ width: listWidth }}
+          >
+            {workspacePath && (
+              <>
+                <button
+                  onClick={() => void handleNewProjectSession()}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
+                    'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground',
+                  )}
+                >
+                  <div className="flex shrink-0 items-center justify-center text-foreground/80">
+                    <Plus className="h-[18px] w-[18px]" strokeWidth={2} />
                   </div>
-                  {bucket.sessions.map((session) => {
-                    const agentId = getAgentIdFromSessionKey(session.key);
-                    const agentName = agentNameById[agentId] || agentId;
-                    return (
-                      <div key={session.key} className="group relative flex items-center">
-                        <button
-                          onClick={() => {
-                            switchSession(session.key);
-                            navigate('/');
-                          }}
-                          className={cn(
-                            'w-full text-left rounded-lg px-2.5 py-1.5 text-[13px] transition-colors pr-7',
-                            'hover:bg-black/5 dark:hover:bg-white/5',
-                            currentSessionKey === session.key
-                              ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
-                              : 'text-foreground/75',
-                          )}
-                        >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/70 dark:bg-white/[0.08]">
-                              {agentName}
-                            </span>
-                            <span className="truncate">
-                              {getSessionLabel(session.key, session.displayName, session.label)}
-                            </span>
-                          </div>
-                        </button>
-                        <button
-                          aria-label="Delete session"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSessionToDelete({
-                              key: session.key,
-                              label: getSessionLabel(session.key, session.displayName, session.label),
-                            });
-                          }}
-                          className={cn(
-                            'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
-                            'opacity-0 group-hover:opacity-100',
-                            'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
-                          )}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null,
-            )}
-          </>
-        )}
-      </div>
+                  <span className="flex-1 text-left overflow-hidden text-ellipsis whitespace-nowrap">
+                    {t('common:sidebar.newChat')}
+                  </span>
+                </button>
 
-      <div
-        onMouseDown={onListDragStart}
-        className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
-        title="拖动调整宽度"
-      ></div>
+                {sessionBuckets.map((bucket) =>
+                  bucket.sessions.length > 0 ? (
+                    <div key={bucket.key} className="pt-2">
+                      <div className="px-2.5 pb-1 text-[11px] font-medium text-muted-foreground/60 tracking-tight">
+                        {bucket.label}
+                      </div>
+                      {bucket.sessions.map((session) => {
+                        const agentId = getAgentIdFromSessionKey(session.key);
+                        const agentName = agentNameById[agentId] || agentId;
+                        return (
+                          <div key={session.key} className="group relative flex items-center">
+                            <button
+                              onClick={() => {
+                                switchSession(session.key);
+                                navigate('/');
+                              }}
+                              className={cn(
+                                'w-full text-left rounded-lg px-2.5 py-1.5 text-[13px] transition-colors pr-7',
+                                'hover:bg-black/5 dark:hover:bg-white/5',
+                                currentSessionKey === session.key
+                                  ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
+                                  : 'text-foreground/75',
+                              )}
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/70 dark:bg-white/[0.08]">
+                                  {agentName}
+                                </span>
+                                <span className="truncate">
+                                  {getSessionLabel(session.key, session.displayName, session.label)}
+                                </span>
+                              </div>
+                            </button>
+                            <button
+                              aria-label="Delete session"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSessionToDelete({
+                                  key: session.key,
+                                  label: getSessionLabel(session.key, session.displayName, session.label),
+                                });
+                              }}
+                              className={cn(
+                                'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
+                                'opacity-0 group-hover:opacity-100',
+                                'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
+                              )}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null,
+                )}
+              </>
+            )}
+          </div>
+
+          <div
+            onMouseDown={onListDragStart}
+            className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
+            title="拖动调整宽度"
+          ></div>
+        </>
+      )}
 
       {/* Chat Panel */}
-      <div className="relative flex flex-1 flex-col overflow-hidden rounded-ss-lg border-l">
+      <div className={cn(
+        "relative flex flex-1 flex-col overflow-hidden",
+        !isSessionListCollapsed && "rounded-ss-lg border-l"
+      )}>
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />

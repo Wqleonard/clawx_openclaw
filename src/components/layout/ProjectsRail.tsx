@@ -125,6 +125,7 @@ function WorkspaceShortcutButton({
 }
 
 export function ProjectsRail() {
+  const isDev = import.meta.env.DEV;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
@@ -306,6 +307,7 @@ export function ProjectsRail() {
   };
 
   const openDevConsole = useCallback(async () => {
+    if (!isDev) return;
     try {
       const result = await hostApiFetch<{
         success: boolean;
@@ -321,7 +323,7 @@ export function ProjectsRail() {
       const message = error instanceof Error ? error.message : String(error);
       toast.error(message || 'Failed to open debug console');
     }
-  }, []);
+  }, [isDev]);
 
   return (
     <>
@@ -345,8 +347,6 @@ export function ProjectsRail() {
         >
           +
         </Button>
-
-        
 
         <Button
           variant="ghost"
@@ -376,20 +376,21 @@ export function ProjectsRail() {
           <SettingsIcon className="h-4 w-4" strokeWidth={2} />
         </Button>
 
-        {/* 打开debug按钮 */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
-            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
-          )}
-          onClick={() => void openDevConsole()}
-          title="Open debug console"
-          aria-label="Open debug console"
-        >
-          <Terminal className="h-4 w-4" strokeWidth={2} />
-        </Button>
+        {isDev && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+              'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+            )}
+            onClick={() => void openDevConsole()}
+            title="Open debug console"
+            aria-label="Open debug console"
+          >
+            <Terminal className="h-4 w-4" strokeWidth={2} />
+          </Button>
+        )}
       </div>
 
       {menuState && (

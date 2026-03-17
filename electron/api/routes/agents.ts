@@ -8,7 +8,6 @@ import {
   listAgentTemplates,
   resolveAccountIdForAgent,
   updateAgentName,
-  updateAgentWorkspace,
 } from '../../utils/agent-config';
 import { deleteChannelAccountConfig } from '../../utils/channel-config';
 import type { HostApiContext } from '../context';
@@ -68,11 +67,11 @@ export async function handleAgentRoutes(
         const body = await parseJsonBody<{ name?: string; workspace?: string }>(req);
         const agentId = decodeURIComponent(parts[0]);
         if (typeof body.workspace === 'string') {
-          const { snapshot, changed } = await updateAgentWorkspace(agentId, body.workspace);
-          if (changed) {
-            scheduleGatewayReload(ctx, 'update-agent-workspace');
-          }
-          sendJson(res, 200, { success: true, changed, ...snapshot });
+          // TEMP: update-agent-workspace is intentionally disabled for validation.
+          // Keep endpoint contract stable (success + changed=false) without
+          // mutating agent workspace or triggering gateway reload.
+          const snapshot = await listAgentsSnapshot();
+          sendJson(res, 200, { success: true, changed: false, ...snapshot });
           return true;
         }
 
