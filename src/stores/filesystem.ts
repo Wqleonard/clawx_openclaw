@@ -20,7 +20,6 @@ type FileSystemState = {
   openFolder: () => Promise<string | null>;
   bindWorkspaceToSession: (sessionKey: string, workspacePath: string) => Promise<void>;
   applyWorkspaceForSession: (sessionKey: string) => Promise<void>;
-  ensureDefaultWorkspaceForSession: (sessionKey: string) => Promise<void>;
   initWorkspace: (workspacePath: string) => Promise<void>;
   clearWorkspace: () => Promise<void>;
   refreshTree: (dirPath?: string) => Promise<void>;
@@ -171,22 +170,9 @@ export const useFileSystemStore = create<FileSystemState>()(
           try {
             await get().initWorkspace(boundPath);
             await syncAgentWorkspaceBinding(sessionKey, boundPath);
-            return;
           } catch {
-            // fallthrough to ensure default workspace
+            // ignore error
           }
-        }
-        await get().ensureDefaultWorkspaceForSession(sessionKey);
-      },
-
-      ensureDefaultWorkspaceForSession: async (sessionKey) => {
-        if (!sessionKey) return;
-        try {
-          const ensuredPath = await invokeIpc<string>('fs:ensure-default-workspace');
-          await get().bindWorkspaceToSession(sessionKey, ensuredPath);
-          await get().initWorkspace(ensuredPath);
-        } catch (error) {
-          setStoreError(set, error);
         }
       },
 
