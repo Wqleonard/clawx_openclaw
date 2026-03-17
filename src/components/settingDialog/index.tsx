@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Bot,
   Clock,
@@ -14,6 +13,7 @@ import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/settings';
+import { useSettingDialogStore } from '@/stores/setting-dialog';
 import { useTranslation } from 'react-i18next';
 import logoSvg from '@/assets/logo.svg';
 import { Settings } from '@/pages/Settings';
@@ -32,14 +32,12 @@ type PanelNavItem = {
 };
 
 export function SettingDialog() {
-  const navigate = useNavigate();
-  const location = useLocation();
   const { t } = useTranslation(['common', 'chat']);
   const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed);
   const setSidebarCollapsed = useSettingsStore((state) => state.setSidebarCollapsed);
+  const open = useSettingDialogStore((state) => state.open);
+  const setOpen = useSettingDialogStore((state) => state.setOpen);
   const [activePanel, setActivePanel] = useState<SettingPanel>('base');
-
-  const isOpen = location.pathname === '/settings';
 
   const navItems: PanelNavItem[] = [
     {
@@ -74,22 +72,10 @@ export function SettingDialog() {
     },
   ];
 
-  const handleClose = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-    navigate('/chat', { replace: true });
-  };
-
   return (
     <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) {
-          handleClose();
-        }
-      }}
+      open={open}
+      onOpenChange={setOpen}
     >
       <DialogContent
         className="h-[min(86vh,860px)] w-[min(1200px,calc(100vw-2rem))] max-w-none overflow-hidden p-0"

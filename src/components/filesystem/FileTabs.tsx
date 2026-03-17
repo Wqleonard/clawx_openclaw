@@ -14,7 +14,7 @@ function labelsForLanguage(language: string): { empty: string; close: string } {
   const isZh = language.toLowerCase().startsWith('zh');
   if (isZh) {
     return {
-      empty: '暂无打开文件',
+      empty: '暂无打开的文件',
       close: '关闭',
     };
   }

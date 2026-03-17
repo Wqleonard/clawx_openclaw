@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
+import { useSettingDialogStore } from '@/stores/setting-dialog';
 
 export type WorkspaceItem = {
   path: string;
@@ -52,7 +53,7 @@ function WorkspaceShortcutButton({
       onContextMenu={(event) => onContextMenu(event, workspace.path)}
       className={cn(
         'size-10 rounded-lg p-0.5 flex items-center justify-center border-2',
-        workspace.isActive ? 'border-[#1d1917]' : 'border-transparent'
+        workspace.isActive ? 'border-[var(--workspace-active-border)]' : 'border-transparent'
       )}
     >
       <div
@@ -78,6 +79,7 @@ export function WorkspaceRail({
   onCloseWorkspace,
 }: WorkspaceRailProps) {
   const navigate = useNavigate();
+  const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
 
   useEffect(() => {
@@ -152,21 +154,19 @@ export function WorkspaceRail({
           +
         </Button>
 
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            cn(
-              'mt-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
-              isActive
-                ? 'border-border bg-black/5 text-foreground dark:bg-white/10'
-                : 'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
-            )
-          }
-          title="设置"
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'mt-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
+          onClick={openSettingDialog}
+          title="settings"
           aria-label="Open settings"
         >
           <SettingsIcon className="h-4 w-4" strokeWidth={2} />
-        </NavLink>
+        </Button>
       </div>
 
       {menuState && (

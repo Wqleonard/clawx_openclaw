@@ -29,6 +29,7 @@
         --ring: 40 82% 62%;
         --radius: 0.5rem;
         --tab-active: 0 0.4% 99.6%;
+        --workspace-active-border:#494644;
     }
 
     /* Neutral deep-gray dark palette */
@@ -53,6 +54,7 @@
         --input: 240 3% 18%;
         --ring: 40 82% 62%;
         --tab-active: 0 0.4% 99.6%;
+        --workspace-active-border: #ede8e4;
     }
 }
 

@@ -5,14 +5,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
 import { WorkspaceRail, type WorkspaceItem } from './WorkspaceRail';
+import { SettingDialog } from '@/components/settingDialog';
 import { invokeIpc } from '@/lib/api-client';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useSettingsStore } from '@/stores/settings';
-
-const WORKSPACE_STORAGE_KEY = 'clawx:workspace-shortcuts';
+import { useWorkspaceStore } from '@/stores/workspace';
 
 type WorkspaceBadgeTheme = {
   bg: string;
@@ -70,32 +69,21 @@ export function MainLayout() {
   const workspacePath = useFileSystemStore((state) => state.workspacePath);
   const initWorkspace = useFileSystemStore((state) => state.initWorkspace);
   const workspaceRoots = useSettingsStore((state) => state.workspaceRoots);
-  const [workspaceShortcuts, setWorkspaceShortcuts] = useState<string[]>([]);
+  const workspaceShortcuts = useWorkspaceStore((state) => state.workspaceShortcuts);
+  const initWorkspaceShortcuts = useWorkspaceStore((state) => state.initWorkspaceShortcuts);
+  const addWorkspaceShortcut = useWorkspaceStore((state) => state.addWorkspaceShortcut);
+  const replaceWorkspaceShortcut = useWorkspaceStore((state) => state.replaceWorkspaceShortcut);
+  const removeWorkspaceShortcut = useWorkspaceStore((state) => state.removeWorkspaceShortcut);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return;
-      const shortcuts = parsed.filter((item): item is string => typeof item === 'string');
-      setWorkspaceShortcuts(shortcuts);
-    } catch {
-      // Ignore invalid localStorage payload
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(workspaceShortcuts));
-  }, [workspaceShortcuts]);
+    initWorkspaceShortcuts();
+  }, [initWorkspaceShortcuts]);
 
   useEffect(() => {
     if (!workspacePath) return;
-    setWorkspaceShortcuts((prev) =>
-      prev.includes(workspacePath) ? prev : [workspacePath, ...prev]
-    );
-  }, [workspacePath]);
+    addWorkspaceShortcut(workspacePath);
+  }, [workspacePath, addWorkspaceShortcut]);
 
   const workspaceItems = useMemo<WorkspaceItem[]>(
     () =>
@@ -132,7 +120,7 @@ export function MainLayout() {
       }
 
       await initWorkspace(selected);
-      setWorkspaceShortcuts((prev) => (prev.includes(selected) ? prev : [selected, ...prev]));
+      addWorkspaceShortcut(selected);
     } finally {
       setIsAddingWorkspace(false);
     }
@@ -163,10 +151,7 @@ export function MainLayout() {
       return;
     }
 
-    setWorkspaceShortcuts((prev) => {
-      const replaced = prev.map((item) => (item === targetPath ? selected : item));
-      return Array.from(new Set(replaced));
-    });
+    replaceWorkspaceShortcut(targetPath, selected);
 
     if (workspacePath === targetPath) {
       await initWorkspace(selected);
@@ -175,7 +160,7 @@ export function MainLayout() {
 
   const handleCloseWorkspace = async (targetPath: string) => {
     const nextShortcuts = workspaceShortcuts.filter((item) => item !== targetPath);
-    setWorkspaceShortcuts(nextShortcuts);
+    removeWorkspaceShortcut(targetPath);
 
     if (workspacePath === targetPath && nextShortcuts.length > 0) {
       await initWorkspace(nextShortcuts[0]);
@@ -204,6 +189,7 @@ export function MainLayout() {
           <Outlet />
         </main>
       </div>
+      <SettingDialog />
     </div>
   );
 }

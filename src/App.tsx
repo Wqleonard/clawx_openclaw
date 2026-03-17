@@ -16,7 +16,6 @@ import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
 import { useLoginStore } from './stores/loginStore';
 import { applyGatewayTransportPreference } from './lib/api-client';
-import { SettingDialog } from './components/settingDialog';
 
 /**
  * Error Boundary to catch and display React rendering errors
@@ -188,8 +187,6 @@ function App() {
           <Route element={<MainLayout />}>
             <Route path="/" element={<Chat />} />
             <Route path="/chat" element={<Chat />} />
-
-            <Route path="/settings" element={<SettingDialog />} />
           </Route>
         </Routes>
 
