@@ -6,7 +6,7 @@ export function SkillsSection() {
   const isZh = i18n.language?.startsWith('zh');
 
   return (
-    <div className="p-8 space-y-4 max-w-2xl">
+    <div className="p-8 space-y-4 max-w-4xl mx-auto">
       <div>
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 px-1">
           {isZh ? '技能' : 'Skills'}
@@ -17,7 +17,7 @@ export function SkillsSection() {
             : 'Skills give your AI assistant extra abilities like web search, image generation, document processing, and more.'}
         </p>
       </div>
-      <Skills />
+      <Skills hideHeader />
     </div>
   );
 }

@@ -15,7 +15,7 @@ const ALLOWED_ORIGIN = 'https://www.baowenmao.com';
 const LOAD_TIMEOUT_MS = 5000;
 const BAOWENMAO_PROVIDER_ID = 'custom-baowenmao';
 const BAOWENMAO_PROVIDER_LABEL = '爆文猫';
-const BAOWENMAO_MODEL_ID = 'qwen3-max';
+const BAOWENMAO_MODEL_ID = 'ep-20260123143950-zm9zl';
 const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions';
 
 function resolveBusinessApiBaseUrl(): string {

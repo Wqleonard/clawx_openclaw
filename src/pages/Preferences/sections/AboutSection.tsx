@@ -1,6 +1,6 @@
-import { UpdateSettings } from '@/components/settings/UpdateSettings';
+// import { UpdateSettings } from '@/components/settings/UpdateSettings';
 import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
+// import { Button } from '@/components/ui/button';
 import { useSettingsStore } from '@/stores/settings';
 import { useUpdateStore } from '@/stores/update';
 import { useTranslation } from 'react-i18next';
@@ -36,7 +36,7 @@ export function AboutSection() {
   const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
 
   return (
-    <div className="p-8 space-y-6 max-w-2xl">
+    <div className="p-8 space-y-6 max-w-2xl mx-auto">
 
       {/* App info */}
       <div>
@@ -48,7 +48,7 @@ export function AboutSection() {
             <p className="text-[14px] font-medium text-foreground">BoomClaw</p>
             <p className="text-[13px] text-muted-foreground">{currentVersion || '—'}</p>
           </div>
-          <div className="flex items-center gap-3 px-5 py-4">
+          {/* <div className="flex items-center gap-3 px-5 py-4">
             <Button
               variant="outline"
               size="sm"
@@ -57,6 +57,7 @@ export function AboutSection() {
             >
               {isZh ? '文档' : 'Docs'}
             </Button>
+           
             <Button
               variant="outline"
               size="sm"
@@ -65,7 +66,7 @@ export function AboutSection() {
             >
               GitHub
             </Button>
-          </div>
+          </div> */}
         </SectionCard>
       </div>
 
@@ -75,9 +76,11 @@ export function AboutSection() {
           {isZh ? '更新' : 'Updates'}
         </h2>
         <SectionCard>
+          {/* 手动检查更新暂时隐藏
           <div className="px-5 py-4 border-b border-black/5 dark:border-white/5">
             <UpdateSettings />
           </div>
+          */}
           <SettingRow
             label={isZh ? '自动检查更新' : 'Auto-check for Updates'}
             desc={isZh ? '启动时自动检查是否有新版本。' : 'Automatically check for updates on launch.'}
@@ -95,6 +98,16 @@ export function AboutSection() {
             last
           />
         </SectionCard>
+      </div>
+
+      {/* Copyright */}
+      <div className="pt-2 text-center space-y-1">
+        <p className="text-[12px] text-muted-foreground/60">
+          © {new Date().getFullYear()} BoomClaw. All rights reserved.
+        </p>
+        <p className="text-[11px] text-muted-foreground/40">
+          v{currentVersion || '—'} · Built with ❤️
+        </p>
       </div>
 
     </div>

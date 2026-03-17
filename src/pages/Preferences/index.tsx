@@ -8,7 +8,10 @@ import { SkillsSection } from './sections/SkillsSection';
 import { ChannelsSection } from './sections/ChannelsSection';
 import { UsageSection } from './sections/UsageSection';
 import { AboutSection } from './sections/AboutSection';
-import { McpSection, PointsSection, PrivacySection, FeedbackSection } from './sections/PlaceholderSections';
+import { McpSection } from './sections/PlaceholderSections';
+import { PrivacySection } from './sections/PrivacySection';
+import { FeedbackSection } from './sections/FeedbackSection';
+import { PointsSection } from './sections/PointsSection';
 
 type SectionKey =
   | 'general' | 'usage' | 'points' | 'models' | 'mcp'
@@ -25,15 +28,14 @@ const NAV_MAIN: NavItem[] = [
   { key: 'usage',     zh: '用量统计',   en: 'Usage' },
   { key: 'points',    zh: '积分详情',   en: 'Points' },
   { key: 'models',    zh: '模型与 API', en: 'Models & API' },
-  { key: 'mcp',       zh: 'MCP 服务',   en: 'MCP Servers' },
+  // { key: 'mcp',       zh: 'MCP 服务',   en: 'MCP Servers' },
   { key: 'skills',    zh: '技能',       en: 'Skills' },
   { key: 'channels',  zh: 'IM 频道',    en: 'IM Channels' },
   { key: 'workspace', zh: '工作区',     en: 'Workspace' },
   { key: 'privacy',   zh: '数据与隐私', en: 'Data & Privacy' },
   { key: 'feedback',  zh: '提交反馈',   en: 'Send Feedback' },
+  { key: 'about',     zh: '关于',       en: 'About' },
 ];
-
-const NAV_ABOUT: NavItem = { key: 'about', zh: '关于', en: 'About' };
 
 function renderSection(key: SectionKey) {
   switch (key) {
@@ -76,23 +78,6 @@ export function Preferences() {
             {label(item)}
           </button>
         ))}
-
-        <div className="flex-1" />
-
-        {/* Divider before About */}
-        <div className="mx-3 my-2 border-t border-black/5 dark:border-white/5" />
-
-        <button
-          onClick={() => setActive('about')}
-          className={cn(
-            'flex items-center px-3 py-[7px] rounded-lg text-[13px] transition-colors text-left w-full',
-            active === 'about'
-              ? 'bg-black/8 dark:bg-white/10 text-foreground font-medium'
-              : 'text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground'
-          )}
-        >
-          {label(NAV_ABOUT)}
-        </button>
       </div>
 
       {/* ── Right content ── */}

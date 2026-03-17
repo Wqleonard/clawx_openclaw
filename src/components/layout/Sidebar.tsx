@@ -333,7 +333,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="p-2 mt-auto">
-        {/* <NavLink
+        <NavLink
             to="/preferences"
             className={({ isActive }) =>
               cn(
@@ -352,7 +352,7 @@ export function Sidebar() {
               {!sidebarCollapsed && <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{t('sidebar.preferences')}</span>}
             </>
           )}
-        </NavLink> */}
+        </NavLink>
 
         <NavLink
             to="/settings"

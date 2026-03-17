@@ -6,7 +6,7 @@ export function ChannelsSection() {
   const isZh = i18n.language?.startsWith('zh');
 
   return (
-    <div className="p-8 space-y-4 max-w-2xl">
+    <div className="p-8 space-y-4 max-w-2xl mx-auto">
       <div>
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 px-1">
           {isZh ? 'IM 频道' : 'IM Channels'}
@@ -17,7 +17,7 @@ export function ChannelsSection() {
             : 'Connect BoomClaw to Feishu, Telegram, and other messaging platforms.'}
         </p>
       </div>
-      <Channels />
+      <Channels hideHeader />
     </div>
   );
 }

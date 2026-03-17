@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useGatewayStore } from '@/stores/gateway';
 import { useSettingsStore } from '@/stores/settings';
@@ -81,6 +81,8 @@ export function UsageSection() {
   const [usageGroupBy, setUsageGroupBy] = useState<UsageGroupBy>('model');
   const [usageWindow, setUsageWindow] = useState<UsageWindow>('7d');
   const [usagePage, setUsagePage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const usageFetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const usageFetchGenerationRef = useRef(0);
 
@@ -93,19 +95,23 @@ export function UsageSection() {
     async function fetchWithRetry(attempt: number) {
       if (usageFetchGenerationRef.current !== generation) return;
       try {
-        const result = await hostApiFetch<{ entries: UsageHistoryEntry[] }>('/api/usage/history');
+        const result = await hostApiFetch<UsageHistoryEntry[]>('/api/usage/recent-token-history');
         if (usageFetchGenerationRef.current !== generation) return;
-        setUsageHistory(result.entries ?? []);
+        setUsageHistory(Array.isArray(result) ? result : []);
       } catch {
         if (usageFetchGenerationRef.current !== generation) return;
         if (attempt < usageFetchMaxAttempts) {
           usageFetchTimerRef.current = setTimeout(() => { void fetchWithRetry(attempt + 1); }, USAGE_FETCH_RETRY_DELAY_MS);
+        } else {
+          setUsageHistory([]);
         }
+      } finally {
+        if (usageFetchGenerationRef.current === generation) setIsRefreshing(false);
       }
     }
     void fetchWithRetry(1);
     return () => { if (usageFetchTimerRef.current) { clearTimeout(usageFetchTimerRef.current); usageFetchTimerRef.current = null; } };
-  }, [isGatewayRunning, gatewayStatus.connectedAt, gatewayStatus.pid, usageFetchMaxAttempts]);
+  }, [isGatewayRunning, gatewayStatus.connectedAt, gatewayStatus.pid, usageFetchMaxAttempts, refreshKey]);
 
   const visibleUsageHistory = isGatewayRunning ? usageHistory : [];
   const filteredUsageHistory = filterUsageHistoryByWindow(visibleUsageHistory, usageWindow);
@@ -114,7 +120,7 @@ export function UsageSection() {
   const usageTotalPages = Math.max(1, Math.ceil(filteredUsageHistory.length / usagePageSize));
   const safeUsagePage = Math.min(usagePage, usageTotalPages);
   const pagedUsageHistory = filteredUsageHistory.slice((safeUsagePage - 1) * usagePageSize, safeUsagePage * usagePageSize);
-  const usageLoading = isGatewayRunning && visibleUsageHistory.length === 0;
+  const usageLoading = isGatewayRunning && visibleUsageHistory.length === 0 && !isRefreshing;
 
   const windowLabels: Record<UsageWindow, string> = {
     '7d': isZh ? '近 7 天' : 'Last 7 days',
@@ -122,15 +128,44 @@ export function UsageSection() {
     'all': isZh ? '全部' : 'All time',
   };
 
+  // Summary stats
+  const totalSessions = new Set(visibleUsageHistory.map((e) => e.sessionId)).size;
+  const totalMessages = visibleUsageHistory.length;
+  const totalTokens = visibleUsageHistory.reduce((sum, e) => sum + e.totalTokens, 0);
+
   return (
-    <div className="p-8 space-y-6 max-w-2xl">
-      <div>
-        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 px-1">
-          {isZh ? '用量统计' : 'Usage'}
-        </h2>
-        <p className="text-[13px] text-muted-foreground px-1 mb-4">
-          {isZh ? '本设备所有已保存对话的 Token 用量汇总。' : 'Aggregated token usage across all saved conversations on this device.'}
-        </p>
+    <div className="p-8 space-y-6 max-w-2xl mx-auto">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 px-1">
+            {isZh ? '用量统计' : 'Usage'}
+          </h2>
+          <p className="text-[13px] text-muted-foreground px-1 mb-4">
+            {isZh ? '本设备所有已保存对话的 Token 用量汇总。' : 'Aggregated token usage across all saved conversations on this device.'}
+          </p>
+        </div>
+        <button
+          onClick={() => { setIsRefreshing(true); setUsageHistory([]); setRefreshKey((k) => k + 1); }}
+          disabled={!isGatewayRunning || isRefreshing}
+          className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-40 transition-colors"
+          title={isZh ? '刷新' : 'Refresh'}
+        >
+          <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
+        </button>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: isZh ? '会话数' : 'Sessions', value: totalSessions },
+          { label: isZh ? '消息数' : 'Messages', value: totalMessages },
+          { label: isZh ? '总 Token' : 'Total Tokens', value: totalTokens },
+        ].map(({ label, value }) => (
+          <div key={label} className="rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] px-4 py-3 text-center">
+            <p className="text-[22px] font-bold text-foreground">{formatTokenCount(value)}</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">{label}</p>
+          </div>
+        ))}
       </div>
 
       {usageLoading ? (
