@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
@@ -130,7 +130,6 @@ export function ProjectsRail() {
   const projectPath = useFileSystemStore((state) => state.projectPath);
   const initProject = useFileSystemStore((state) => state.initProject);
   const clearProject = useFileSystemStore((state) => state.clearProject);
-  const bindProjectToSession = useFileSystemStore((state) => state.bindProjectToSession);
   const projectShortcuts = useFileSystemStore((state) => state.projectShortcuts);
   const initProjectShortcuts = useFileSystemStore((state) => state.initProjectShortcuts);
   const addProjectShortcut = useFileSystemStore((state) => state.addProjectShortcut);
@@ -140,7 +139,6 @@ export function ProjectsRail() {
     return workspaceState.workspaceRoots ?? [];
   });
   const createAgent = useAgentsStore((state) => state.createAgent);
-  const currentSessionKey = useChatStore((state) => state.currentSessionKey);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
   const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
@@ -198,15 +196,35 @@ export function ProjectsRail() {
     });
   };
 
+  const switchToProjectSession = useCallback(async (targetPath: string) => {
+    const chatState = useChatStore.getState();
+    const fsState = useFileSystemStore.getState();
+    const targetSessions = [...chatState.sessions]
+      .filter((session) => fsState.projectBindings[session.key] === targetPath)
+      .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+
+    if (targetSessions.length > 0) {
+      const nextSessionKey = targetSessions[0].key;
+      if (nextSessionKey !== chatState.currentSessionKey) {
+        chatState.switchSession(nextSessionKey);
+      }
+      return;
+    }
+
+    chatState.newSession();
+    const newSessionKey = useChatStore.getState().currentSessionKey;
+    if (newSessionKey) {
+      await fsState.bindProjectToSession(newSessionKey, targetPath);
+    }
+  }, []);
+
   const handleActivateProject = async (targetPath: string) => {
     if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
       navigate('/chat');
       return;
     }
     await initProject(targetPath);
-    if (currentSessionKey) {
-      await bindProjectToSession(currentSessionKey, targetPath);
-    }
+    await switchToProjectSession(targetPath);
     navigate('/chat');
   };
 
@@ -234,9 +252,7 @@ export function ProjectsRail() {
 
       await initProject(selected);
       addProjectShortcut(selected);
-      if (currentSessionKey) {
-        await bindProjectToSession(currentSessionKey, selected);
-      }
+      await switchToProjectSession(selected);
       setPendingWorkspacePath(selected);
       setShowAddAgentDialog(true);
     } finally {
@@ -248,14 +264,38 @@ export function ProjectsRail() {
     if (!menuState) return;
     const target = menuState.workspacePath;
     setMenuState(null);
+    const resetChatViewState = () => {
+      useChatStore.setState({
+        messages: [],
+        loading: false,
+        sending: false,
+        error: null,
+        streamingText: '',
+        streamingMessage: null,
+        streamingTools: [],
+        pendingFinal: false,
+        activeRunId: null,
+        lastUserMessageAt: null,
+        pendingToolImages: [],
+      });
+    };
+    const sessionsToDelete = useChatStore
+      .getState()
+      .sessions.filter((session) => useFileSystemStore.getState().projectBindings[session.key] === target)
+      .map((session) => session.key);
+    for (const sessionKey of sessionsToDelete) {
+      await useChatStore.getState().deleteSession(sessionKey);
+    }
+    if (projectPath === target) {
+      resetChatViewState();
+    }
     const nextShortcuts = projectShortcuts.filter((item) => item !== target);
     removeProjectShortcut(target);
 
     if (projectPath === target && nextShortcuts.length > 0) {
-      await initProject(nextShortcuts[0]);
-      if (currentSessionKey) {
-        await bindProjectToSession(currentSessionKey, nextShortcuts[0]);
-      }
+      const nextProject = nextShortcuts[0];
+      await initProject(nextProject);
+      await switchToProjectSession(nextProject);
       return;
     }
 

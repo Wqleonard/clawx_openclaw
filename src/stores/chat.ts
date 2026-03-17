@@ -4,6 +4,7 @@
  * Communicates with OpenClaw Gateway via renderer WebSocket RPC.
  */
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import { hostApiFetch } from '@/lib/host-api';
 import { useGatewayStore } from './gateway';
 import { useAgentsStore } from './agents';
@@ -1014,7 +1015,7 @@ function hasNonToolAssistantContent(message: RawMessage | undefined): boolean {
 
 // ── Store ────────────────────────────────────────────────────────
 
-export const useChatStore = create<ChatState>((set, get) => ({
+const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => ({
   messages: [],
   loading: false,
   error: null,
@@ -1937,4 +1938,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
-}));
+});
+
+export const useChatStore = create<ChatState>()(
+  import.meta.env.DEV
+    ? devtools(createChatStore, { name: 'chat-store' })
+    : createChatStore,
+);
