@@ -51,7 +51,7 @@ const postSuggestsReq = (suggest: string, contactNumber?: string) => {
 };
 
 const getUserInfoReq = () => {
-  return apiClient.get('/api/users');
+  return apiClient.get('/me');
 };
 
 const getUserBalanceReq = () => {
@@ -97,11 +97,11 @@ const updatePassword = (oldPassword: string, newPassword: string) => {
 const verifyTicket = async (ticket: string, invitationCode: string = '') => {
   // 注意：/auth/login 返回的是原始 token 对象（非 { code, message, data } 包装），
   // 这里需要直接使用底层 axios 实例拿到 response.data。
-  const response = await apiClient.api.post('/auth/login', {
+  const response = await apiClient.post('/auth/login', {
     ticket,
     invitationCode,
   });
-  return response.data;
+  return response;
 };
 
 export interface GuideTask {

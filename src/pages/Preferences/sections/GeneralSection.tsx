@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,11 @@ export function GeneralSection() {
   const userInfo = useLoginStore((state) => state.userInfo);
   const logout = useLoginStore((state) => state.logout);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  useEffect(() => {
+    console.log('[GeneralSection-debug] userInfo from store =', userInfo);
+    console.log('[GeneralSection-debug] localStorage.userInfo =', localStorage.getItem('userInfo'));
+  }, [userInfo]);
 
   return (
     <div className="p-8 space-y-6 max-w-2xl mx-auto">

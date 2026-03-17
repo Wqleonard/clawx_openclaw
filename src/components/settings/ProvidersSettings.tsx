@@ -38,6 +38,7 @@ import {
   resolveProviderModelForSave,
   shouldShowProviderModelId,
   shouldInvertInDark,
+  BAOWENMAO_PRESET_ACCOUNTS,
 } from '@/lib/providers';
 import {
   buildProviderAccountId,
@@ -318,6 +319,8 @@ function ProviderCard({
   const [validating, setValidating] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const isBaowenmaoPreset = account.vendorId === 'baowenmao'
+    && BAOWENMAO_PRESET_ACCOUNTS.some((p) => p.id === account.id);
   const typeInfo = PROVIDER_TYPE_INFO.find((t) => t.id === account.vendorId);
   const showModelIdField = shouldShowProviderModelId(typeInfo, devModeUnlocked);
   const canEditModelConfig = Boolean(typeInfo?.showBaseUrl || showModelIdField);
@@ -499,15 +502,17 @@ function ProviderCard({
                 <Check className="h-4 w-4" />
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-white dark:hover:bg-card shadow-sm"
-              onClick={onEdit}
-              title={t('aiProviders.card.editKey')}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
+            {!isBaowenmaoPreset && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-white dark:hover:bg-card shadow-sm"
+                onClick={onEdit}
+                title={t('aiProviders.card.editKey')}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
