@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Bot, Check, Plus, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Bot, Check, FolderOpen, Plus, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
+import { invokeIpc } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -128,8 +129,8 @@ export function Agents() {
       {showAddDialog && (
         <AddAgentDialog
           onClose={() => setShowAddDialog(false)}
-          onCreate={async (name) => {
-            await createAgent(name);
+          onCreate={async (name, options) => {
+            await createAgent(name, options);
             setShowAddDialog(false);
             toast.success(t('toast.agentCreated'));
           }}
@@ -268,22 +269,57 @@ function ChannelLogo({ type }: { type: ChannelType }) {
   }
 }
 
+type CreateSource = 'template' | 'agent';
+
 function AddAgentDialog({
   onClose,
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (name: string, options: { templateId?: string; sourceAgentId?: string; workspacePath?: string }) => Promise<void>;
 }) {
   const { t } = useTranslation('agents');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [source, setSource] = useState<CreateSource>('template');
+  const { templates, fetchTemplates, agents } = useAgentsStore();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('default');
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [workspacePath, setWorkspacePath] = useState<string>('');
+
+  useEffect(() => {
+    void fetchTemplates();
+  }, [fetchTemplates]);
+
+  useEffect(() => {
+    if (templates.length > 0 && !templates.find((tmpl) => tmpl.id === selectedTemplateId)) {
+      setSelectedTemplateId(templates[0].id);
+    }
+  }, [templates, selectedTemplateId]);
+
+  useEffect(() => {
+    if (agents.length > 0 && !selectedAgentId) {
+      setSelectedAgentId(agents[0].id);
+    }
+  }, [agents, selectedAgentId]);
+
+  const handlePickFolder = useCallback(async () => {
+    const result = await invokeIpc<{ canceled: boolean; filePaths: string[] }>('dialog:open', {
+      properties: ['openDirectory'],
+    });
+    if (!result.canceled && result.filePaths.length > 0) {
+      setWorkspacePath(result.filePaths[0]);
+    }
+  }, []);
 
   const handleSubmit = async () => {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await onCreate(name.trim());
+      const options = source === 'agent'
+        ? { sourceAgentId: selectedAgentId, workspacePath: workspacePath || undefined }
+        : { templateId: selectedTemplateId, workspacePath: workspacePath || undefined };
+      await onCreate(name.trim(), options);
     } catch (error) {
       toast.error(t('toast.agentCreateFailed', { error: String(error) }));
       setSaving(false);
@@ -291,6 +327,13 @@ function AddAgentDialog({
     }
     setSaving(false);
   };
+
+  const sourceTabClass = (tab: CreateSource) =>
+    `flex-1 py-1.5 text-[12px] font-medium rounded-full transition-colors ${
+      source === tab
+        ? 'bg-foreground text-background'
+        : 'text-foreground/50 hover:text-foreground'
+    }`;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -304,6 +347,7 @@ function AddAgentDialog({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-4 p-6">
+          {/* 名称输入 */}
           <div className="space-y-2.5">
             <Label htmlFor="agent-name" className={labelClasses}>{t('createDialog.nameLabel')}</Label>
             <Input
@@ -314,6 +358,109 @@ function AddAgentDialog({
               className={inputClasses}
             />
           </div>
+
+          {/* 来源切换 */}
+          <div className="space-y-2.5">
+            <Label className={labelClasses}>{t('createDialog.sourceLabel', '提示词来源')}</Label>
+            <div className="flex gap-1 p-1 rounded-full bg-black/5 dark:bg-white/5">
+              <button type="button" className={sourceTabClass('template')} onClick={() => setSource('template')}>
+                {t('createDialog.sourceTemplate', '从模板')}
+              </button>
+              <button type="button" className={sourceTabClass('agent')} onClick={() => setSource('agent')}>
+                {t('createDialog.sourceAgent', '从现有 Agent')}
+              </button>
+            </div>
+          </div>
+
+          {/* 模板列表 */}
+          {source === 'template' && templates.length > 0 && (
+            <div className="space-y-2">
+              {templates.map((tmpl) => (
+                <button
+                  key={tmpl.id}
+                  type="button"
+                  onClick={() => setSelectedTemplateId(tmpl.id)}
+                  className={`w-full text-left rounded-2xl border px-4 py-3 transition-colors ${
+                    selectedTemplateId === tmpl.id
+                      ? 'border-primary/40 bg-primary/5 dark:bg-primary/10'
+                      : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`h-3.5 w-3.5 rounded-full border-2 shrink-0 ${
+                      selectedTemplateId === tmpl.id
+                        ? 'border-primary bg-primary'
+                        : 'border-black/20 dark:border-white/20'
+                    }`} />
+                    <div>
+                      <div className="text-[13px] font-medium text-foreground">{tmpl.name}</div>
+                      {tmpl.description && (
+                        <div className="text-[12px] text-foreground/50 mt-0.5">{tmpl.description}</div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 现有 Agent 列表 */}
+          {source === 'agent' && (
+            <div className="space-y-2">
+              {agents.length === 0 ? (
+                <p className="text-[13px] text-foreground/50 px-1">{t('createDialog.noAgents', '暂无已创建的 Agent')}</p>
+              ) : (
+                agents.map((agent) => (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    onClick={() => setSelectedAgentId(agent.id)}
+                    className={`w-full text-left rounded-2xl border px-4 py-3 transition-colors ${
+                      selectedAgentId === agent.id
+                        ? 'border-primary/40 bg-primary/5 dark:bg-primary/10'
+                        : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`h-3.5 w-3.5 rounded-full border-2 shrink-0 ${
+                        selectedAgentId === agent.id
+                          ? 'border-primary bg-primary'
+                          : 'border-black/20 dark:border-white/20'
+                      }`} />
+                      <div className="text-[13px] font-medium text-foreground">{agent.name}</div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* 工作区选择 */}
+          <div className="space-y-2.5">
+            <Label className={labelClasses}>{t('createDialog.workspaceLabel', '工作区目录（可选）')}</Label>
+            <div className="flex gap-2 items-center">
+              <button
+                type="button"
+                onClick={() => void handlePickFolder()}
+                className="flex items-center gap-2 flex-1 text-left rounded-2xl border border-black/10 dark:border-white/10 px-4 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              >
+                <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className={`text-[13px] truncate ${workspacePath ? 'text-foreground' : 'text-foreground/40'}`}>
+                  {workspacePath || t('createDialog.workspacePlaceholder', '不选择，自动分配')}
+                </span>
+              </button>
+              {workspacePath && (
+                <button
+                  type="button"
+                  onClick={() => setWorkspacePath('')}
+                  className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2">
             <Button
               variant="outline"
@@ -324,7 +471,7 @@ function AddAgentDialog({
             </Button>
             <Button
               onClick={() => void handleSubmit()}
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || (source === 'agent' && !selectedAgentId)}
               className="h-9 text-[13px] font-medium rounded-full px-4 shadow-none"
             >
               {saving ? (

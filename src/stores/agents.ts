@@ -3,15 +3,23 @@ import { hostApiFetch } from '@/lib/host-api';
 import type { ChannelType } from '@/types/channel';
 import type { AgentSummary, AgentsSnapshot } from '@/types/agent';
 
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 interface AgentsState {
   agents: AgentSummary[];
   defaultAgentId: string;
   configuredChannelTypes: string[];
   channelOwners: Record<string, string>;
+  templates: AgentTemplate[];
   loading: boolean;
   error: string | null;
   fetchAgents: () => Promise<void>;
-  createAgent: (name: string) => Promise<void>;
+  fetchTemplates: () => Promise<void>;
+  createAgent: (name: string, options?: { templateId?: string; sourceAgentId?: string; workspacePath?: string }) => Promise<void>;
   updateAgent: (agentId: string, name: string) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
   assignChannel: (agentId: string, channelType: ChannelType) => Promise<void>;
@@ -33,6 +41,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   defaultAgentId: 'main',
   configuredChannelTypes: [],
   channelOwners: {},
+  templates: [],
   loading: false,
   error: null,
 
@@ -49,12 +58,21 @@ export const useAgentsStore = create<AgentsState>((set) => ({
     }
   },
 
-  createAgent: async (name: string) => {
+  fetchTemplates: async () => {
+    try {
+      const result = await hostApiFetch<{ success?: boolean; templates: AgentTemplate[] }>('/api/agents/templates');
+      set({ templates: result.templates ?? [] });
+    } catch {
+      // non-fatal: templates remain empty
+    }
+  },
+
+  createAgent: async (name: string, options?: { templateId?: string; sourceAgentId?: string }) => {
     set({ error: null });
     try {
       const snapshot = await hostApiFetch<AgentsSnapshot & { success?: boolean }>('/api/agents', {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, ...options }),
       });
       set(applySnapshot(snapshot));
     } catch (error) {
