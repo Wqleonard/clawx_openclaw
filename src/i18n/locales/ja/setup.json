@@ -63,6 +63,17 @@
     },
     "provider": {
         "label": "モデルプロバイダー",
+        "connectionMode": "接続モード",
+        "connectionModes": {
+            "personal": "自分の API キーを使用",
+            "personalDesc": "自分のプロバイダー認証情報を設定します。",
+            "managed": "BoomClaw 管理設定を使用",
+            "managedDesc": "組織で設定された OpenClaw 接続情報を使用します。"
+        },
+        "managedConfigLoading": "管理された OpenClaw 設定を読み込み中...",
+        "managedConfigReady": "管理された OpenClaw 設定の準備ができました。",
+        "managedConfigMissing": "管理された OpenClaw 設定が利用できません。管理者に BOOMCLAW_OPENCLAW_BASE_URL と BOOMCLAW_OPENCLAW_API_KEY の設定を依頼してください。",
+        "applyManaged": "管理設定を適用",
         "selectPlaceholder": "プロバイダーを選択...",
         "baseUrl": "ベース URL",
         "modelId": "モデル ID",

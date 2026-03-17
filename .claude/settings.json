@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r provider /Users/leonard/workspace/react_workspace/boom-claw/node_modules/.pnpm/openclaw@*/node_modules/openclaw/dist --include=*.js)",
+      "Bash(find /Users/leonard/workspace/react_workspace/boom-claw/node_modules/.pnpm/openclaw@*/node_modules/openclaw -name *.d.ts)",
+      "Bash(grep -r \"\\\\.jsonl\\\\|appendFile\\\\|writeFile\" /Users/leonard/workspace/react_workspace/boom-claw/node_modules/.pnpm/openclaw@*/node_modules/openclaw/dist --include=*.js)",
+      "Bash(grep -r \"transcript\\\\|session.*write\\\\|message.*write\" /Users/leonard/workspace/react_workspace/boom-claw/node_modules/.pnpm/openclaw@*/node_modules/openclaw/dist --include=*.js)",
+      "Bash(grep -r \"message.*provider\\\\|provider.*message\" /Users/leonard/workspace/react_workspace/boom-claw/node_modules/.pnpm/openclaw@*/node_modules/openclaw/dist --include=*.js)",
+      "Bash(ls /tmp/*.png /tmp/*.jpg /tmp/*.jpeg)",
+      "Bash(ls ~/Desktop/*.png ~/Desktop/*.jpg)",
+      "Bash(ls -la ~/Downloads/*.png ~/Downloads/*.jpg)"
+    ]
+  }
+}

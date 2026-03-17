@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
@@ -12,6 +12,9 @@ import { useChatStore } from '@/stores/chat';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useSettingDialogStore } from '@/stores/setting-dialog';
 import { useSettingsStore } from '@/stores/settings';
+import { useProjectsStore } from '@/stores/projects';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Preferences } from '@/pages/Preferences';
 
 type ProjectItem = {
   path: string;
@@ -143,6 +146,7 @@ export function ProjectsRail() {
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
   const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
   const [pendingWorkspacePath, setPendingWorkspacePath] = useState<string>('');
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const projectItems = useMemo<ProjectItem[]>(
     () =>
@@ -230,7 +234,7 @@ export function ProjectsRail() {
       }
 
       await initProject(selected);
-      addProjectShortcut(selected); 
+      addProjectShortcut(selected);
       if (currentSessionKey) {
         await bindProjectToSession(currentSessionKey, selected);
       }
@@ -291,6 +295,20 @@ export function ProjectsRail() {
             'mt-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
             'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
           )}
+          onClick={() => setPreferencesOpen(true)}
+          title="Preferences"
+          aria-label="Open preferences"
+        >
+          <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
           onClick={openSettingDialog}
           title="settings"
           aria-label="Open settings"
@@ -338,6 +356,12 @@ export function ProjectsRail() {
           toast.success(t('common:status.agentCreated'));
         }}
       />
+
+      <Dialog open={preferencesOpen} onOpenChange={setPreferencesOpen}>
+        <DialogContent className="max-w-[900px] w-[90vw] h-[80vh] p-0 gap-0 overflow-hidden rounded-2xl bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10">
+          <Preferences />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

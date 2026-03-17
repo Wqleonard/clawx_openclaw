@@ -3,6 +3,7 @@
  * Application configuration
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Sun,
   Moon,
@@ -52,6 +53,7 @@ type ControlUiInfo = {
 
 export function Settings() {
   const { t } = useTranslation('settings');
+  const navigate = useNavigate();
   const {
     theme,
     setTheme,
@@ -81,6 +83,9 @@ export function Settings() {
     setDevModeUnlocked,
     telemetryEnabled,
     setTelemetryEnabled,
+    setSetupComplete,
+    // workspaceRoots,
+    // setWorkspaceRoots,
     workspaceRoots,
     setWorkspaceRoots,
   } = useSettingsStore();
@@ -455,6 +460,34 @@ export function Settings() {
     );
   };
 
+
+
+  // const handleReconfigureOpenClaw = () => {
+  //   setSetupComplete(false);
+  //   navigate('/setup');
+  // }
+  // const handlePickWorkspaceRoot = async () => {
+  //   try {
+  //     const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
+  //       properties: ['openDirectory'],
+  //       defaultPath: workspaceRoots[0],
+  //     });
+  //     if (result.canceled || !result.filePaths?.length) return;
+  //     const selected = result.filePaths[0];
+  //     const next = Array.from(new Set([...workspaceRoots, selected]));
+  //     setWorkspaceRoots(next);
+  //     toast.success(t('workspace.saved'));
+  //   } catch (error) {
+  //     toast.error(`${t('workspace.saveFailed')}: ${toUserMessage(error)}`);
+  //   }
+  // };
+
+  // const handleRemoveWorkspaceRoot = (target: string) => {
+  //   const next = workspaceRoots.filter((item) => item !== target);
+  //   setWorkspaceRoots(next);
+  //   toast.success(t('workspace.saved'));
+  // };
+
   const handlePickWorkspaceRoot = async () => {
     try {
       const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
@@ -672,6 +705,23 @@ export function Settings() {
                   checked={gatewayAutoStart}
                   onCheckedChange={setGatewayAutoStart}
                 />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-[15px] font-medium text-foreground">{t('openclawSetup.title')}</Label>
+                  <p className="text-[13px] text-muted-foreground mt-1">
+                    {t('openclawSetup.description')}
+                  </p>
+                </div>
+                {/* <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReconfigureOpenClaw}
+                  className="rounded-full h-8 px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  {t('openclawSetup.action')}
+                </Button> */}
               </div>
 
 

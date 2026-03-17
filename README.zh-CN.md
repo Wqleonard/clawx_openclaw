@@ -161,9 +161,11 @@ pnpm dev
 首次启动 ClawX 时，**设置向导** 将引导你完成以下步骤：
 
 1. **语言与区域** – 配置你的首选语言和地区
-2. **AI 供应商** – 通过 API 密钥或 OAuth（支持浏览器/设备登录的供应商）添加账号
+2. **AI 供应商** – 可选择使用你自己的 API 密钥/OAuth，或使用通过环境变量注入的托管 OpenClaw 配置
 3. **技能包** – 选择适用于常见场景的预配置技能
 4. **验证** – 在进入主界面前测试你的配置
+
+你也可以随时在 **设置 → 网关 → OpenClaw 连接配置** 中重新进入该流程。
 
 > Moonshot（Kimi）说明：ClawX 默认保持开启 Kimi 的 web search。  
 > 当配置 Moonshot 后，ClawX 也会将 OpenClaw 配置中的 Kimi web search 同步到中国区端点（`https://api.moonshot.cn/v1`）。

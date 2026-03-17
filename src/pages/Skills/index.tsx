@@ -391,7 +391,7 @@ function SkillDetailDialog({ skill, isOpen, onClose, onToggle, onUninstall, onOp
   );
 }
 
-export function Skills() {
+export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
   const {
     skills,
     loading,
@@ -604,39 +604,41 @@ export function Skills() {
 
   if (loading) {
     return (
-      <div className="flex flex-col -m-6 dark:bg-background min-h-[calc(100vh-2.5rem)] items-center justify-center">
+      <div className={cn("flex flex-col dark:bg-background items-center justify-center", hideHeader ? "min-h-[400px]" : "-m-6 min-h-[calc(100vh-2.5rem)]")}>
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col -m-6 dark:bg-background overflow-hidden">
-      <div className="w-full max-w-5xl mx-auto flex flex-col h-full p-10 pt-16">
+    <div className={cn("flex flex-col dark:bg-background overflow-hidden", hideHeader ? "" : "-m-6 h-[calc(100vh-2.5rem)]")}>
+      <div className={cn("w-full max-w-5xl mx-auto flex flex-col h-full", hideHeader ? "pt-0" : "p-10 pt-16")}>
 
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 shrink-0 gap-4">
-          <div>
-            <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('title')}
-            </h1>
-            <p className="text-[17px] text-foreground/70 font-medium">
-              {t('subtitle')}
-            </p>
-          </div>
+        {!hideHeader && (
+          <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 shrink-0 gap-4">
+            <div>
+              <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+                {t('title')}
+              </h1>
+              <p className="text-[17px] text-foreground/70 font-medium">
+                {t('subtitle')}
+              </p>
+            </div>
 
-          <div className="flex items-center gap-3 md:mt-2">
-            {hasInstalledSkills && (
-              <button
-                onClick={handleOpenSkillsFolder}
-                className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[13px] font-medium px-4 h-8 rounded-full border border-black/10 dark:border-white/10 flex items-center justify-center text-foreground/80 hover:text-foreground"
-              >
-                <FolderOpen className="h-4 w-4 mr-2" />
-                {t('openFolder')}
-              </button>
-            )}
+            <div className="flex items-center gap-3 md:mt-2">
+              {hasInstalledSkills && (
+                <button
+                  onClick={handleOpenSkillsFolder}
+                  className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[13px] font-medium px-4 h-8 rounded-full border border-black/10 dark:border-white/10 flex items-center justify-center text-foreground/80 hover:text-foreground"
+                >
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  {t('openFolder')}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Gateway Warning */}
         {showGatewayWarning && (
@@ -649,15 +651,16 @@ export function Skills() {
         )}
 
         {/* Sub Navigation and Actions */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-black/10 dark:border-white/10 pb-4 mb-4 shrink-0 gap-4">
-          <div className="flex items-center flex-wrap gap-4 text-[14px]">
-            <div className="relative group flex items-center bg-black/5 dark:bg-white/5 rounded-full px-3 py-1.5 focus-within:bg-black/10 transition-colors border border-transparent focus-within:border-black/10 dark:focus-within:border-white/10 mr-2">
+        <div className="flex flex-col border-b border-black/10 dark:border-white/10 pb-3 mb-4 shrink-0 gap-2">
+          {/* Row 1: Search */}
+          <div className="flex items-center">
+            <div className="relative group flex items-center bg-black/5 dark:bg-white/5 rounded-full px-3 py-1.5 focus-within:bg-black/10 transition-colors border border-transparent focus-within:border-black/10 dark:focus-within:border-white/10 w-56">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input
                 placeholder={t('search')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="ml-2 bg-transparent outline-none w-28 md:w-40 font-normal placeholder:text-foreground/50 text-[13px] text-foreground"
+                className="ml-2 bg-transparent outline-none flex-1 font-normal placeholder:text-foreground/50 text-[13px] text-foreground"
               />
               {searchQuery && (
                 <button
@@ -669,35 +672,41 @@ export function Skills() {
                 </button>
               )}
             </div>
-
-            <div className="flex items-center gap-6">
-              <button
-                onClick={() => setSelectedSource('all')}
-                className={cn("font-medium transition-colors flex items-center gap-1.5", selectedSource === 'all' ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
-              >
-                {t('filter.all', { count: sourceStats.all })}
-              </button>
-              <button
-                onClick={() => setSelectedSource('built-in')}
-                className={cn("font-medium transition-colors flex items-center gap-1.5", selectedSource === 'built-in' ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
-              >
-                {t('filter.builtIn', { count: sourceStats.builtIn })}
-              </button>
-              <button
-                onClick={() => setSelectedSource('marketplace')}
-                className={cn("font-medium transition-colors flex items-center gap-1.5", selectedSource === 'marketplace' ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
-              >
-                {t('filter.marketplace', { count: sourceStats.marketplace })}
-              </button>
-            </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Row 2: Filter tabs (left) + Action buttons (right) */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Filter tabs — pill style */}
+            <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-full p-0.5 gap-0.5">
+              {(['all', 'built-in', 'marketplace'] as const).map((src) => {
+                const label = src === 'all'
+                  ? t('filter.all', { count: sourceStats.all })
+                  : src === 'built-in'
+                  ? t('filter.builtIn', { count: sourceStats.builtIn })
+                  : t('filter.marketplace', { count: sourceStats.marketplace });
+                return (
+                  <button
+                    key={src}
+                    onClick={() => setSelectedSource(src)}
+                    className={cn(
+                      "px-3 py-1 rounded-full text-[13px] font-medium transition-all whitespace-nowrap",
+                      selectedSource === src
+                        ? "bg-white dark:bg-white/15 text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
             <Button
               variant="outline"
               size="sm"
               onClick={() => bulkToggleVisible(true)}
-              className="h-8 text-[13px] font-medium rounded-md px-3 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none"
+              className="h-7 text-[12px] font-medium rounded-md px-2.5 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none whitespace-nowrap"
             >
               {t('actions.enableVisible')}
             </Button>
@@ -705,18 +714,15 @@ export function Skills() {
               variant="outline"
               size="sm"
               onClick={() => bulkToggleVisible(false)}
-              className="h-8 text-[13px] font-medium rounded-md px-3 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none"
+              className="h-7 text-[12px] font-medium rounded-md px-2.5 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none whitespace-nowrap"
             >
               {t('actions.disableVisible')}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setInstallQuery('');
-                setInstallSheetOpen(true);
-              }}
-              className="h-8 text-[13px] font-medium rounded-md px-3 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none"
+              onClick={() => { setInstallQuery(''); setInstallSheetOpen(true); }}
+              className="h-7 text-[12px] font-medium rounded-md px-2.5 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none whitespace-nowrap"
             >
               {t('actions.installSkill')}
             </Button>
@@ -725,12 +731,13 @@ export function Skills() {
               size="icon"
               onClick={fetchSkills}
               disabled={!isGatewayRunning}
-              className="h-8 w-8 ml-1 rounded-md border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-muted-foreground hover:text-foreground"
+              className="h-7 w-7 rounded-md border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-muted-foreground hover:text-foreground"
               title={t('refresh')}
             >
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
             </Button>
           </div>
+        </div>
         </div>
 
         {/* Content Area */}
@@ -746,7 +753,7 @@ export function Skills() {
             </div>
           )}
 
-          <div className="flex flex-col gap-1">
+          <div className={cn("flex flex-col", hideHeader && "rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] overflow-hidden")}>
             {filteredSkills.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                 <Puzzle className="h-10 w-10 mb-4 opacity-50" />
@@ -756,43 +763,33 @@ export function Skills() {
               filteredSkills.map((skill) => (
                 <div
                   key={skill.id}
-                  className="group flex flex-row items-center justify-between py-3.5 px-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer border-b border-black/5 dark:border-white/5 last:border-0"
+                  className="group flex flex-row items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 last:border-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
                   onClick={() => setSelectedSkill(skill)}
                 >
-                  <div className="flex items-start gap-4 flex-1 overflow-hidden pr-4">
-                    <div className="h-10 w-10 shrink-0 flex items-center justify-center text-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl overflow-hidden">
-                      {skill.icon || '🧩'}
-                    </div>
-                    <div className="flex flex-col overflow-hidden">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-[15px] font-semibold text-foreground truncate">{skill.name}</h3>
-                        {skill.isCore ? (
-                          <Lock className="h-3 w-3 text-muted-foreground" />
-                        ) : skill.isBundled ? (
-                          <Puzzle className="h-3 w-3 text-blue-500/70" />
-                        ) : null}
-                        {skill.slug && skill.slug !== skill.name ? (
-                          <span className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 text-muted-foreground">
-                            {skill.slug}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="text-[13.5px] text-muted-foreground line-clamp-1 pr-6 leading-relaxed">
-                        {skill.description}
-                      </p>
-                      <div className="mt-1 flex items-center gap-2 text-[11px] text-foreground/55">
-                        <Badge variant="secondary" className="px-1.5 py-0 h-5 text-[10px] font-medium bg-black/5 dark:bg-white/10 border-0 shadow-none">
-                          {resolveSkillSourceLabel(skill, t)}
-                        </Badge>
-                        <span className="truncate font-mono">
-                          {skill.baseDir || t('detail.pathUnavailable')}
+                  <div className="flex flex-col flex-1 overflow-hidden pr-4 min-w-0">
+                    <div className="flex items-center gap-2 flex-nowrap min-w-0">
+                      <h3 className="text-[14px] font-medium text-foreground truncate shrink-0 max-w-[200px]">{skill.name}</h3>
+                      {skill.isCore ? (
+                        <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                      ) : skill.isBundled ? (
+                        <Puzzle className="h-3 w-3 text-blue-500/70 shrink-0" />
+                      ) : null}
+                      <Badge variant="secondary" className="px-1.5 py-0 h-5 text-[10px] font-medium bg-black/5 dark:bg-white/10 border-0 shadow-none shrink-0 whitespace-nowrap">
+                        {resolveSkillSourceLabel(skill, t)}
+                      </Badge>
+                      {skill.slug && skill.slug !== skill.name ? (
+                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 text-muted-foreground shrink-0 whitespace-nowrap">
+                          {skill.slug}
                         </span>
-                      </div>
+                      ) : null}
                     </div>
+                    <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1 leading-relaxed">
+                      {skill.description}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-6 shrink-0" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
                     {skill.version && (
-                      <span className="text-[13px] font-mono text-muted-foreground">
+                      <span className="text-[12px] font-mono text-muted-foreground">
                         v{skill.version}
                       </span>
                     )}

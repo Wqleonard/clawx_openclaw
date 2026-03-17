@@ -191,7 +191,7 @@ export function ProvidersSettings() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-serif text-foreground font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-          {t('aiProviders.title', 'AI Providers')}
+          {/* {t('aiProviders.title', 'AI Providers')} */}
         </h2>
         <Button onClick={() => setShowAddDialog(true)} className="rounded-full px-5 h-9 shadow-none font-medium text-[13px]">
           <Plus className="h-4 w-4 mr-2" />

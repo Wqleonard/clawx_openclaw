@@ -45,6 +45,29 @@ export async function handleProviderRoutes(
     return true;
   }
 
+  if (url.pathname === '/api/providers/managed-openclaw' && req.method === 'GET') {
+    const baseUrl = process.env.BOOMCLAW_OPENCLAW_BASE_URL?.trim() || null;
+    const apiKey = process.env.BOOMCLAW_OPENCLAW_API_KEY?.trim() || null;
+    const modelId = process.env.BOOMCLAW_OPENCLAW_MODEL_ID?.trim() || null;
+    const apiProtocolEnv = process.env.BOOMCLAW_OPENCLAW_API_PROTOCOL?.trim() || null;
+    const apiProtocol = (
+      apiProtocolEnv === 'openai-responses'
+      || apiProtocolEnv === 'anthropic-messages'
+      || apiProtocolEnv === 'openai-completions'
+    )
+      ? apiProtocolEnv
+      : 'openai-completions';
+
+    sendJson(res, 200, {
+      enabled: Boolean(baseUrl && apiKey),
+      baseUrl,
+      apiKey,
+      modelId,
+      apiProtocol,
+    });
+    return true;
+  }
+
   if (url.pathname === '/api/provider-accounts' && req.method === 'GET') {
     sendJson(res, 200, await providerService.listAccounts());
     return true;

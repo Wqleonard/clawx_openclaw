@@ -8,6 +8,7 @@
         "channels": "チャンネル",
         "dashboard": "ダッシュボード",
         "settings": "設定",
+        "preferences": "環境設定",
         "devConsole": "開発者コンソール",
         "models": "モデル",
         "deleteSessionConfirm": "セッション \"{{label}}\" を削除してもよろしいですか？",
