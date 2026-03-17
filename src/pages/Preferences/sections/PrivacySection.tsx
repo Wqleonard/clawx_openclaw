@@ -2,13 +2,13 @@ import { useTranslation } from 'react-i18next';
 import { Switch } from '@/components/ui/switch';
 // import { cn } from '@/lib/utils';
 import { invokeIpc } from '@/lib/api-client';
-import { useFileSystemStore } from '@/stores/filesystem';
+import { useSettingsStore } from '@/stores/settings';
 import { useState } from 'react';
 
 export function PrivacySection() {
   const { i18n } = useTranslation();
   const isZh = i18n.language?.startsWith('zh');
-  const workspacePath = useFileSystemStore((s) => s.workspacePath);
+  const workspaceRoots = useSettingsStore((s) => s.workspaceRoots);
   const [joinProgram, setJoinProgram] = useState(true);
 
   const openUrl = (url: string) => invokeIpc('shell:openExternal', url);
@@ -37,9 +37,13 @@ export function PrivacySection() {
               <p className="text-[14px] font-medium text-foreground">
                 {isZh ? '工作区路径' : 'Workspace Path'}
               </p>
-              <p className="text-[12px] font-mono text-muted-foreground mt-0.5 truncate">
-                {workspacePath || (isZh ? '未设置' : 'Not set')}
-              </p>
+              {workspaceRoots.length === 0 ? (
+                <p className="text-[12px] font-mono text-muted-foreground mt-0.5">{isZh ? '未设置' : 'Not set'}</p>
+              ) : (
+                workspaceRoots.map((root) => (
+                  <p key={root} className="text-[12px] font-mono text-muted-foreground mt-0.5 truncate">{root}</p>
+                ))
+              )}
             </div>
           </div>
         </div>

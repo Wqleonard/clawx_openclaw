@@ -1,7 +1,9 @@
-import { FolderOpen } from 'lucide-react';
+import { FolderPlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 // import { Switch } from '@/components/ui/switch';
-import { useFileSystemStore } from '@/stores/filesystem';
+import { useSettingsStore } from '@/stores/settings';
+import { invokeIpc } from '@/lib/api-client';
+import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 // import { cn } from '@/lib/utils';
 
@@ -35,10 +37,32 @@ function SectionCard({ title, children }: { title?: string; children: React.Reac
 // }
 
 export function WorkspaceSection() {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation('settings');
   const isZh = i18n.language?.startsWith('zh');
-  const workspacePath = useFileSystemStore((s) => s.workspacePath);
-  const openFolder = useFileSystemStore((s) => s.openFolder);
+  const workspaceRoots = useSettingsStore((s) => s.workspaceRoots);
+  const setWorkspaceRoots = useSettingsStore((s) => s.setWorkspaceRoots);
+
+  const handlePickWorkspaceRoot = async () => {
+    try {
+      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
+        properties: ['openDirectory'],
+        defaultPath: workspaceRoots[0],
+      });
+      if (result.canceled || !result.filePaths?.length) return;
+      const selected = result.filePaths[0];
+      const next = Array.from(new Set([...workspaceRoots, selected]));
+      setWorkspaceRoots(next);
+      toast.success(t('workspace.saved'));
+    } catch {
+      toast.error(t('workspace.saveFailed'));
+    }
+  };
+
+  const handleRemoveWorkspaceRoot = (target: string) => {
+    const next = workspaceRoots.filter((item) => item !== target);
+    setWorkspaceRoots(next);
+    toast.success(t('workspace.saved'));
+  };
 
   return (
     <div className="p-8 space-y-6 max-w-2xl mx-auto">
@@ -51,26 +75,43 @@ export function WorkspaceSection() {
         </p>
       </div>
 
-      {/* Block 1: Default Projects Directory */}
-      <SectionCard title={isZh ? '默认项目目录' : 'Default Projects Directory'}>
-        <div className="px-5 py-4">
-          <p className="text-[12px] text-muted-foreground mb-3">
-            {isZh ? 'BoomClaw 项目和上下文文件的保存位置。' : 'Where your projects and context files are saved.'}
+      {/* Block 1: Workspace Roots */}
+      <SectionCard title={isZh ? '工作区根目录' : 'Workspace Roots'}>
+        <div className="px-5 py-4 space-y-3">
+          <p className="text-[12px] text-muted-foreground">
+            {t('workspace.desc')}
           </p>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 px-3 py-2 text-[12px] text-muted-foreground truncate font-mono">
-              {workspacePath || (isZh ? '未选择工作区' : 'No workspace selected')}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openFolder}
-              className="rounded-xl h-9 px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shrink-0 text-[13px]"
-            >
-              <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
-              {isZh ? '浏览' : 'Browse'}
-            </Button>
+          <div className="space-y-2">
+            {workspaceRoots.length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">{t('workspace.empty')}</p>
+            ) : (
+              workspaceRoots.map((root) => (
+                <div
+                  key={root}
+                  className="flex items-center justify-between rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-3 py-2"
+                >
+                  <span className="text-[12px] font-mono text-foreground truncate flex-1 mr-2">{root}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveWorkspaceRoot(root)}
+                    className="h-7 px-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))
+            )}
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handlePickWorkspaceRoot()}
+            className="rounded-xl h-9 px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 text-[13px]"
+          >
+            <FolderPlus className="h-3.5 w-3.5 mr-1.5" />
+            {t('workspace.pick')}
+          </Button>
         </div>
       </SectionCard>
 

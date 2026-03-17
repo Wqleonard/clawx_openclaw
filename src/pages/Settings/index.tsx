@@ -3,7 +3,6 @@
  * Application configuration
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Sun,
   Moon,
@@ -53,7 +52,6 @@ type ControlUiInfo = {
 
 export function Settings() {
   const { t } = useTranslation('settings');
-  const navigate = useNavigate();
   const {
     theme,
     setTheme,
@@ -83,7 +81,6 @@ export function Settings() {
     setDevModeUnlocked,
     telemetryEnabled,
     setTelemetryEnabled,
-    setSetupComplete,
     // workspaceRoots,
     // setWorkspaceRoots,
     workspaceRoots,
