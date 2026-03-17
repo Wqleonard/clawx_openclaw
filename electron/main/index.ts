@@ -33,6 +33,7 @@ import { deviceOAuthManager } from '../utils/device-oauth';
 import { browserOAuthManager } from '../utils/browser-oauth';
 import { whatsAppLoginManager } from '../utils/whatsapp-login';
 import { syncAllProviderAuthToRuntime } from '../services/providers/provider-runtime-sync';
+import { contentSafetyManager } from '../utils/content-safety-manager';
 
 // Disable GPU hardware acceleration globally for maximum stability across
 // all GPU configurations (no GPU, integrated, discrete).
@@ -162,6 +163,11 @@ async function initialize(): Promise<void> {
 
   // Warm up network optimization (non-blocking)
   void warmupNetworkOptimization();
+
+  // Start content safety worker (non-blocking; checks fail-open until ready)
+  void contentSafetyManager.start().catch((err) => {
+    logger.warn('Failed to start content safety worker:', err);
+  });
 
   // Initialize Telemetry early
   await initTelemetry();
