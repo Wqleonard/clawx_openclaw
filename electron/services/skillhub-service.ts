@@ -121,7 +121,6 @@ export class SkillHubService {
     limit?: number;
     offline?: boolean;
   }): Promise<SkillHubSearchResult[]> {
-    console.log('[SkillHubService] searchSkills params:', params);
     const { query, limit = 20, offline = false } = params;
     if (!offline) {
       const searchParams = new URLSearchParams({

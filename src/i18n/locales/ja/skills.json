@@ -98,14 +98,15 @@
     "marketplace": {
         "title": "マーケットプレイス",
         "installDialogTitle": "スキルをインストール",
-        "installDialogSubtitle": "初期表示は Explore、キーワード入力時は検索します。",
+        "installDialogSubtitle": "初期表示は一覧、キーワードで SkillHub を検索します。",
         "sourceLabel": "ソース",
         "sourceClawHub": "ClawHub",
-        "securityNote": "インストール前にスキルカードをクリックして、ClawHubでドキュメントとセキュリティ情報を確認してください。",
-        "manualInstallHint": "ネットワークに問題がありますか？いつでもClawHub.aiからスキルのZIPをダウンロードし、手動で \"{{path}}\" に展開してインストールできます。",
-        "searching": "ClawHubを検索中...",
+        "sourceSkillHub": "SkillHub",
+        "securityNote": "スキルカードをクリックして詳細を確認し、SkillHub からインストールします。",
+        "manualInstallHint": "ネットワークに問題がありますか？SkillHub からスキルZIPをダウンロードし、手動で \"{{path}}\" に展開できます。",
+        "searching": "SkillHubを検索中...",
         "noResults": "検索に一致するスキルが見つかりません。",
         "emptyPrompt": "新しいスキルを検索して機能を拡張しましょう。",
-        "searchError": "ClawHub検索に失敗しました。接続またはインストールを確認してください。"
+        "searchError": "SkillHub検索に失敗しました。接続を確認してください。"
     }
 }
