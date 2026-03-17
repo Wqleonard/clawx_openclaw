@@ -61,7 +61,7 @@ export function Preferences() {
   const label = (item: NavItem) => isZh ? item.zh : item.en;
 
   return (
-    <div className="flex -m-6 dark:bg-background h-[calc(100vh-2.5rem)] overflow-hidden">
+    <div className="flex h-full overflow-hidden bg-background">
       {/* ── Left sidebar ── */}
       <div className="w-[180px] shrink-0 border-r border-black/5 dark:border-white/5 flex flex-col py-4 px-2 overflow-y-auto bg-black/[0.02] dark:bg-white/[0.02]">
         {NAV_MAIN.map((item) => (

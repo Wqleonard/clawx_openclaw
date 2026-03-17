@@ -651,16 +651,16 @@ export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
         )}
 
         {/* Sub Navigation and Actions */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-black/10 dark:border-white/10 pb-4 mb-4 shrink-0 gap-4">
-          <div className="flex items-center flex-nowrap gap-3 text-[14px] min-w-0">
-            {/* Search */}
-            <div className="relative group flex items-center bg-black/5 dark:bg-white/5 rounded-full px-3 py-1.5 focus-within:bg-black/10 transition-colors border border-transparent focus-within:border-black/10 dark:focus-within:border-white/10 shrink-0">
+        <div className="flex flex-col border-b border-black/10 dark:border-white/10 pb-3 mb-4 shrink-0 gap-2">
+          {/* Row 1: Search */}
+          <div className="flex items-center">
+            <div className="relative group flex items-center bg-black/5 dark:bg-white/5 rounded-full px-3 py-1.5 focus-within:bg-black/10 transition-colors border border-transparent focus-within:border-black/10 dark:focus-within:border-white/10 w-56">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input
                 placeholder={t('search')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="ml-2 bg-transparent outline-none w-20 font-normal placeholder:text-foreground/50 text-[13px] text-foreground"
+                className="ml-2 bg-transparent outline-none flex-1 font-normal placeholder:text-foreground/50 text-[13px] text-foreground"
               />
               {searchQuery && (
                 <button
@@ -672,7 +672,10 @@ export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
                 </button>
               )}
             </div>
+          </div>
 
+          {/* Row 2: Filter tabs (left) + Action buttons (right) */}
+          <div className="flex items-center justify-between gap-3">
             {/* Filter tabs — pill style */}
             <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-full p-0.5 gap-0.5">
               {(['all', 'built-in', 'marketplace'] as const).map((src) => {
@@ -697,7 +700,6 @@ export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
                 );
               })}
             </div>
-          </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
             <Button
@@ -735,6 +737,7 @@ export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
             </Button>
           </div>
+        </div>
         </div>
 
         {/* Content Area */}

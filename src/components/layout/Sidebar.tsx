@@ -28,9 +28,11 @@ import { useAgentsStore } from '@/stores/agents';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { hostApiFetch } from '@/lib/host-api';
 import { useTranslation } from 'react-i18next';
 import logoSvg from '@/assets/logo.svg';
+import { Preferences } from '@/pages/Preferences';
 
 type SessionBucketKey =
   | 'today'
@@ -114,6 +116,7 @@ function getAgentIdFromSessionKey(sessionKey: string): string {
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed);
   const setSidebarCollapsed = useSettingsStore((state) => state.setSidebarCollapsed);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const sessions = useChatStore((s) => s.sessions);
   const currentSessionKey = useChatStore((s) => s.currentSessionKey);
@@ -333,26 +336,19 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="p-2 mt-auto">
-        <NavLink
-            to="/preferences"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors',
-                'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80',
-                isActive && 'bg-black/5 dark:bg-white/10 text-foreground',
-                sidebarCollapsed ? 'justify-center px-0' : ''
-              )
-            }
-          >
-          {({ isActive }) => (
-            <>
-              <div className={cn("flex shrink-0 items-center justify-center", isActive ? "text-foreground" : "text-muted-foreground")}>
-                <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={2} />
-              </div>
-              {!sidebarCollapsed && <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{t('sidebar.preferences')}</span>}
-            </>
+        <button
+          onClick={() => setPreferencesOpen(true)}
+          className={cn(
+            'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors w-full',
+            'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80',
+            sidebarCollapsed ? 'justify-center px-0' : ''
           )}
-        </NavLink>
+        >
+          <div className="flex shrink-0 items-center justify-center text-muted-foreground">
+            <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={2} />
+          </div>
+          {!sidebarCollapsed && <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{t('sidebar.preferences')}</span>}
+        </button>
 
         <NavLink
             to="/settings"
@@ -411,6 +407,12 @@ export function Sidebar() {
         }}
         onCancel={() => setSessionToDelete(null)}
       />
+
+      <Dialog open={preferencesOpen} onOpenChange={setPreferencesOpen}>
+        <DialogContent className="max-w-[900px] w-[90vw] h-[80vh] p-0 gap-0 overflow-hidden rounded-2xl">
+          <Preferences />
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }
