@@ -191,8 +191,63 @@ export function Chat() {
 
   return (
     <div ref={containerRef} className={cn("flex -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
+      {/* File Tree Panel */}
+      <div className="shrink-0 overflow-hidden" style={{ width: FILE_TREE_WIDTH }}>
+        <FileTree className="h-full" />
+      </div>
 
-      {/* Chat Panel */}
+      {/* Editor Panel */}
+      {editorOpen && (
+        <div className="flex shrink-0 overflow-hidden" style={{ width: editorWidth }}>
+          <div className="flex flex-col flex-1 overflow-hidden bg-card border-r border-border">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <div className="min-w-0">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {activeFileName || '编辑器'}
+                  {isActiveDirty ? ' *' : ''}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleSaveActive}
+                  disabled={!activeFile}
+                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={activeFile ? '保存 (Cmd/Ctrl+S)' : '未选择文件'}
+                >
+                  <Save className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorOpen(false)}
+                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="关闭编辑器"
+                >
+                  <PanelLeftClose className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            <FileTabs
+              openFiles={openFiles}
+              activeFile={activeFile}
+              dirtyFiles={dirtyFiles}
+              onSelectFile={setActiveFile}
+              onCloseFile={closeFile}
+            />
+            <div className="flex-1 overflow-hidden bg-card">
+              <TiptapEditor content={editorContent} onChange={handleEditorChange} className="h-full" />
+            </div>
+          </div>
+          {/* Drag handle */}
+          <div
+            onMouseDown={onDragStart}
+            className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors bg-border/50"
+            title="拖动调整宽度"
+          />
+        </div>
+      )}
+
+      {/* Chat Panel (right) */}
       <div className="relative flex flex-1 flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-between px-4 py-2">
@@ -295,63 +350,6 @@ export function Chat() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Editor Panel */}
-      {editorOpen && (
-        <div className="flex shrink-0 overflow-hidden" style={{ width: editorWidth }}>
-          <div className="flex flex-col flex-1 overflow-hidden bg-card border-r border-border">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-              <div className="min-w-0">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {activeFileName || '编辑器'}
-                  {isActiveDirty ? ' *' : ''}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={handleSaveActive}
-                  disabled={!activeFile}
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={activeFile ? '保存 (Cmd/Ctrl+S)' : '未选择文件'}
-                >
-                  <Save className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditorOpen(false)}
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  title="关闭编辑器"
-                >
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-            <FileTabs
-              openFiles={openFiles}
-              activeFile={activeFile}
-              dirtyFiles={dirtyFiles}
-              onSelectFile={setActiveFile}
-              onCloseFile={closeFile}
-            />
-            <div className="flex-1 overflow-hidden bg-card">
-              <TiptapEditor content={editorContent} onChange={handleEditorChange} className="h-full" />
-            </div>
-          </div>
-          {/* Drag handle */}
-          <div
-            onMouseDown={onDragStart}
-            className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors bg-border/50"
-            title="拖动调整宽度"
-          />
-        </div>
-      )}
-
-
-      {/* File Tree Panel */}
-      <div className="shrink-0 overflow-hidden" style={{ width: FILE_TREE_WIDTH }}>
-        <FileTree className="h-full" />
       </div>
     </div>
   );
