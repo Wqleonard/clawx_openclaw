@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { verifyTicket, getNewbieMission, completeNewbieMissionReq, type GuideTask } from '@/api/users'
 import { getInsiteNotification, type NotificationItem } from '@/api/insite-notification'
+import { hostApiFetch } from '@/lib/host-api'
+import type { ProviderAccount } from '@/lib/providers'
+import { useSettingsStore } from '@/stores/settings'
 import type {
   UserInfo,
   AvatarData,
@@ -12,6 +15,102 @@ export type { UserInfo, AvatarData, Message, InterceptedAction, LoginStore } fro
 
 const NEWBIE_TOUR_STORAGE_KEY = 'hasNewbieTourShowed'
 const READED_IDS_KEY = 'readedMessageIds'
+const BAOWENMAO_PROVIDER_ID = 'custom-baowenmao'
+const BAOWENMAO_PROVIDER_LABEL = '爆文猫'
+const BAOWENMAO_MODEL_ID = 'ep-20260123143950-zm9zl'
+const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions'
+
+function resolveBusinessApiBaseUrl(): string {
+  const raw = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? ''
+  return raw.replace(/\/+$/, '')
+}
+
+function extractAuthToken(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null
+  const obj = payload as Record<string, unknown>
+
+  return (
+    (typeof obj.access_token === 'string' && obj.access_token)
+    || (typeof obj.token === 'string' && obj.token)
+    || (typeof obj.accessToken === 'string' && obj.accessToken)
+    || (
+      obj.data && typeof obj.data === 'object'
+        ? (
+          ((obj.data as Record<string, unknown>).access_token as string | undefined)
+          || ((obj.data as Record<string, unknown>).token as string | undefined)
+        )
+        : undefined
+    )
+    || null
+  )
+}
+
+async function ensureBaowenmaoProvider(apiKey: string): Promise<void> {
+  const baseUrl = resolveBusinessApiBaseUrl()
+  if (!baseUrl) {
+    throw new Error('VITE_BUSINESS_API_BASE_URL is not configured')
+  }
+
+  const now = new Date().toISOString()
+  const accountPayload: ProviderAccount = {
+    id: BAOWENMAO_PROVIDER_ID,
+    vendorId: 'custom',
+    label: BAOWENMAO_PROVIDER_LABEL,
+    authMode: 'api_key',
+    baseUrl,
+    apiProtocol: BAOWENMAO_PROTOCOL,
+    model: BAOWENMAO_MODEL_ID,
+    enabled: true,
+    isDefault: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts')
+  const existing = accounts.find((account) => account.id === BAOWENMAO_PROVIDER_ID)
+
+  if (existing) {
+    const updateResult = await hostApiFetch<{ success: boolean; error?: string }>(
+      `/api/provider-accounts/${encodeURIComponent(BAOWENMAO_PROVIDER_ID)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          updates: {
+            label: BAOWENMAO_PROVIDER_LABEL,
+            authMode: 'api_key',
+            baseUrl,
+            apiProtocol: BAOWENMAO_PROTOCOL,
+            model: BAOWENMAO_MODEL_ID,
+            enabled: true,
+          },
+          apiKey,
+        }),
+      }
+    )
+    if (!updateResult.success) {
+      throw new Error(updateResult.error || 'Failed to update 爆文猫 provider')
+    }
+  } else {
+    const createResult = await hostApiFetch<{ success: boolean; error?: string }>('/api/provider-accounts', {
+      method: 'POST',
+      body: JSON.stringify({ account: accountPayload, apiKey }),
+    })
+    if (!createResult.success) {
+      throw new Error(createResult.error || 'Failed to create 爆文猫 provider')
+    }
+  }
+
+  const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
+    '/api/provider-accounts/default',
+    {
+      method: 'PUT',
+      body: JSON.stringify({ accountId: BAOWENMAO_PROVIDER_ID }),
+    }
+  )
+  if (!defaultResult.success) {
+    throw new Error(defaultResult.error || 'Failed to set 爆文猫 as default provider')
+  }
+}
 
 function loadReadedMessageIdsFromStorage(): string[] {
   try {
@@ -165,7 +264,8 @@ export const useLoginStore = create<LoginStore>((set, get) => {
     },
 
     updateLoginStatus: () => {
-      set({ isLoggedIn: !!localStorage.getItem('token') })
+      const hasToken = !!localStorage.getItem('token')
+      set({ isLoggedIn: hasToken })
     },
 
     saveUserInfo: (info) => {
@@ -289,20 +389,45 @@ export const useLoginStore = create<LoginStore>((set, get) => {
       set({ isLoading: true })
       const invitationCode = localStorage.getItem('invitation_code_new') ?? ''
       try {
-        const req: any = await verifyTicket(ticket, invitationCode)
-        if (req?.token) {
-          localStorage.setItem('token', req.token)
+        const req = await verifyTicket(ticket, invitationCode) as unknown
+        const token = extractAuthToken(req)
+        if (!token) {
+          return {
+            success: false,
+            message: '登录失败：未获取到登录凭证',
+          }
         }
-        if (req?.user) {
-          get().saveUserInfo(req.user)
+
+        localStorage.setItem('token', token)
+        try {
+          await ensureBaowenmaoProvider(token)
+          useSettingsStore.getState().markSetupComplete()
+        } catch (providerError) {
+          console.error('Auto-configure Baowenmao provider failed:', providerError)
+        }
+        const user = (
+          req && typeof req === 'object' && 'user' in req
+            ? (req as { user?: UserInfo }).user
+            : undefined
+        )
+        if (user) {
+          get().saveUserInfo(user)
         }
         get().updateLoginStatus()
         return { success: true, message: '登录成功' }
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const rawErrMsg = (
+          err && typeof err === 'object'
+            && 'response' in err
+            && (err as { response?: { data?: { message?: unknown } } }).response?.data?.message
+        )
+        const errMsg = typeof rawErrMsg === 'string' && rawErrMsg.trim()
+          ? rawErrMsg
+          : '登录失败'
         console.error('Login Error:', err)
         return {
           success: false,
-          message: err?.response?.data?.message ?? '登录失败',
+          message: errMsg,
         }
       } finally {
         set({ isLoading: false })

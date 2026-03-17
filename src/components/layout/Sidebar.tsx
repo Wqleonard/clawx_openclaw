@@ -15,8 +15,6 @@ import {
   PanelLeftClose,
   PanelLeft,
   Plus,
-  Terminal,
-  ExternalLink,
   Trash2,
   Cpu,
 } from 'lucide-react';
@@ -29,7 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { hostApiFetch } from '@/lib/host-api';
+// import { hostApiFetch } from '@/lib/host-api';
 import { useTranslation } from 'react-i18next';
 import logoSvg from '@/assets/logo.svg';
 import { Preferences } from '@/pages/Preferences';
@@ -153,22 +151,22 @@ export function Sidebar() {
   const getSessionLabel = (key: string, displayName?: string, label?: string) =>
     sessionLabels[key] ?? label ?? displayName ?? key;
 
-  const openDevConsole = async () => {
-    try {
-      const result = await hostApiFetch<{
-        success: boolean;
-        url?: string;
-        error?: string;
-      }>('/api/gateway/control-ui');
-      if (result.success && result.url) {
-        window.electron.openExternal(result.url);
-      } else {
-        console.error('Failed to get Dev Console URL:', result.error);
-      }
-    } catch (err) {
-      console.error('Error opening Dev Console:', err);
-    }
-  };
+  // const openDevConsole = async () => {
+  //   try {
+  //     const result = await hostApiFetch<{
+  //       success: boolean;
+  //       url?: string;
+  //       error?: string;
+  //     }>('/api/gateway/control-ui');
+  //     if (result.success && result.url) {
+  //       window.electron.openExternal(result.url);
+  //     } else {
+  //       console.error('Failed to get Dev Console URL:', result.error);
+  //     }
+  //   } catch (err) {
+  //     console.error('Error opening Dev Console:', err);
+  //   }
+  // };
 
   const { t } = useTranslation(['common', 'chat']);
   const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(null);
@@ -335,6 +333,7 @@ export function Sidebar() {
       )}
 
       {/* Footer */}
+
       <div className="p-2 mt-auto">
         <button
           onClick={() => setPreferencesOpen(true)}
@@ -349,6 +348,7 @@ export function Sidebar() {
           </div>
           {!sidebarCollapsed && <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{t('sidebar.preferences')}</span>}
         </button>
+        </div>
 
         <NavLink
             to="/settings"
@@ -371,6 +371,8 @@ export function Sidebar() {
           )}
         </NavLink>
 
+
+      {/* <div className="p-2 mt-auto">
         <Button
           variant="ghost"
           className={cn(
@@ -390,7 +392,7 @@ export function Sidebar() {
             </>
           )}
         </Button>
-      </div>
+      </div> */}
 
       <ConfirmDialog
         open={!!sessionToDelete}

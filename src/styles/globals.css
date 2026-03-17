@@ -1,161 +1,168 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* #f1ede1 */
-    --background: 45 36.4% 91.4%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 40 82% 62%;
-    --primary-foreground: 30 20% 15%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 40 82% 62%;
-    --radius: 0.5rem;
-  }
+    :root {
+        /* #f1ede1 */
+        --background: 45 36.4% 91.4%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 222.2 84% 4.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+        --primary: 40 82% 62%;
+        --primary-foreground: 30 20% 15%;
+        --secondary: 210 40% 96.1%;
+        --secondary-foreground: 222.2 47.4% 11.2%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 210 40% 98%;
+        --border: 214.3 5.91% 70.87%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 40 82% 62%;
+        --radius: 0.5rem;
+        --tab-active: 0 0.4% 99.6%;
+        --workspace-active-border:#494644;
+    }
 
-  /* Neutral deep-gray dark palette */
-  .dark {
-    --background: 240 4% 11%;
-    --foreground: 210 20% 96%;
-    --card: 240 3% 14%;
-    --card-foreground: 210 20% 96%;
-    --popover: 240 3% 14%;
-    --popover-foreground: 210 20% 96%;
-    --primary: 40 82% 62%;
-    --primary-foreground: 30 20% 15%;
-    --secondary: 240 3% 18%;
-    --secondary-foreground: 210 20% 96%;
-    --muted: 240 3% 18%;
-    --muted-foreground: 220 8% 72%;
-    --accent: 240 3% 22%;
-    --accent-foreground: 210 20% 96%;
-    --destructive: 0 65% 42%;
-    --destructive-foreground: 210 20% 96%;
-    --border: 240 3% 24%;
-    --input: 240 3% 18%;
-    --ring: 40 82% 62%;
-  }
+    /* Neutral deep-gray dark palette */
+    .dark {
+        --background: 240 4% 11%;
+        --foreground: 210 20% 96%;
+        --card: 240 3% 14%;
+        --card-foreground: 210 20% 96%;
+        --popover: 240 3% 14%;
+        --popover-foreground: 210 20% 96%;
+        --primary: 40 82% 62%;
+        --primary-foreground: 30 20% 15%;
+        --secondary: 240 3% 18%;
+        --secondary-foreground: 210 20% 96%;
+        --muted: 240 3% 18%;
+        --muted-foreground: 220 8% 72%;
+        --accent: 240 3% 22%;
+        --accent-foreground: 210 20% 96%;
+        --destructive: 0 65% 42%;
+        --destructive-foreground: 210 20% 96%;
+        --border: 240 3% 24%;
+        --input: 240 3% 18%;
+        --ring: 40 82% 62%;
+        --tab-active: 0 0.4% 99.6%;
+        --workspace-active-border: #ede8e4;
+    }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+    * {
+        @apply border-border;
+    }
 
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
+    body {
+        @apply bg-background text-foreground;
+        font-feature-settings: "rlig" 1, "calt" 1;
+    }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+    width: 8px;
+    height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+    @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-border rounded-full;
+    @apply bg-border rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/30;
+    @apply bg-muted-foreground/30;
 }
 
 /* macOS traffic light spacing */
 .drag-region {
-  -webkit-app-region: drag;
+    -webkit-app-region: drag;
 }
 
 .no-drag {
-  -webkit-app-region: no-drag;
+    -webkit-app-region: no-drag;
 }
 
 /* Smooth transitions */
 .transition-theme {
-  @apply transition-colors duration-200;
+    @apply transition-colors duration-200;
 }
 
 /* Focus ring */
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+    @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
 }
 
 /* Prose styling for markdown */
 .prose {
-  line-height: 1.6;
+    line-height: 1.6;
 }
 
 .prose p {
-  margin-bottom: 0.75em;
+    margin-bottom: 0.75em;
 }
 
 .prose p:last-child {
-  margin-bottom: 0;
+    margin-bottom: 0;
 }
 
 .prose ul,
 .prose ol {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-  padding-left: 1.5em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    padding-left: 1.5em;
 }
 
 .prose li {
-  margin-bottom: 0.25em;
+    margin-bottom: 0.25em;
 }
 
 .prose pre {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
 }
 
 .prose blockquote {
-  border-left: 3px solid hsl(var(--border));
-  padding-left: 1em;
-  margin: 0.5em 0;
-  color: hsl(var(--muted-foreground));
+    border-left: 3px solid hsl(var(--border));
+    padding-left: 1em;
+    margin: 0.5em 0;
+    color: hsl(var(--muted-foreground));
 }
 
 .prose table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0.5em 0;
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5em 0;
 }
 
 .prose th,
 .prose td {
-  border: 1px solid hsl(var(--border));
-  padding: 0.5em;
-  text-align: left;
+    border: 1px solid hsl(var(--border));
+    padding: 0.5em;
+    text-align: left;
 }
 
 .prose th {
-  background: hsl(var(--muted));
+    background: hsl(var(--muted));
 }
 
 /* Tiptap editor styles */
 .tiptap.ProseMirror {
-  outline: none;
-  min-height: 100%;
+    outline: none;
+    min-height: 100%;
 }
 
 .tiptap.ProseMirror h1 { font-size: 1.5em; font-weight: 700; margin: 0.75em 0 0.25em; }
@@ -176,13 +183,13 @@
 /* Typing indicator animation */
 @keyframes bounce {
 
-  0%,
-  60%,
-  100% {
-    transform: translateY(0);
-  }
+    0%,
+    60%,
+    100% {
+        transform: translateY(0);
+    }
 
-  30% {
-    transform: translateY(-4px);
-  }
+    30% {
+        transform: translateY(-4px);
+    }
 }

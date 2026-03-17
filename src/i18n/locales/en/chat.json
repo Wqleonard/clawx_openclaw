@@ -37,5 +37,33 @@
         "withinTwoWeeks": "Within 2 Weeks",
         "withinMonth": "Within 1 Month",
         "older": "Older than 1 Month"
+    },
+    "fileTree": {
+        "title": "Files",
+        "noWorkspace": "No workspace selected",
+        "emptyFolder": "Folder is empty",
+        "openFolder": "Open Folder",
+        "refresh": "Refresh",
+        "newFile": "New File",
+        "newMarkdownFile": "New Markdown File",
+        "newFolder": "New Folder",
+        "rename": "Rename",
+        "openInFileManager": "Open in File Manager",
+        "moveTo": "Move to...",
+        "delete": "Delete",
+        "createNamePrompt": "Input name",
+        "renamePrompt": "Input new name",
+        "movePrompt": "Input new path (relative to workspace allowed)",
+        "deleteConfirm": "Delete this item?",
+        "cut": "Cut",
+        "copy": "Copy",
+        "paste": "Paste",
+        "cancel": "Cancel",
+        "confirm": "Confirm",
+        "operationFailed": "Operation failed",
+        "targetExists": "Target path already exists",
+        "addToContext": "Add to Context",
+        "removeFromContext": "Remove from Context",
+        "defaultNewFolderName": "new-folder"
     }
 }

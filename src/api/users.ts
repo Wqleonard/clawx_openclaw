@@ -94,11 +94,14 @@ const updatePassword = (oldPassword: string, newPassword: string) => {
   });
 };
 
-const verifyTicket = (ticket: string, invitationCode: string = '') => {
-  return apiClient.post('/api/users/verify-ticket', {
+const verifyTicket = async (ticket: string, invitationCode: string = '') => {
+  // 注意：/auth/login 返回的是原始 token 对象（非 { code, message, data } 包装），
+  // 这里需要直接使用底层 axios 实例拿到 response.data。
+  const response = await apiClient.api.post('/auth/login', {
     ticket,
     invitationCode,
   });
+  return response.data;
 };
 
 export interface GuideTask {

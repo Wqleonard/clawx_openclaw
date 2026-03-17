@@ -94,9 +94,9 @@ function SkillDetailDialog({ skill, isOpen, onClose, onToggle, onUninstall, onOp
     }
   }, [skill]);
 
-  const handleOpenClawhub = async () => {
+  const handleOpenSkillHub = () => {
+    // SkillHub 无公开技能页链接，仅展示来源标识
     if (!skill?.slug) return;
-    await invokeIpc('shell:openExternal', `https://clawhub.ai/s/${skill.slug}`);
   };
 
   const handleOpenEditor = async () => {
@@ -339,9 +339,9 @@ function SkillDetailDialog({ skill, isOpen, onClose, onToggle, onUninstall, onOp
             {/* External Links */}
             {skill.slug && !skill.isBundled && !skill.isCore && (
               <div className="flex gap-2 justify-center pt-8">
-                <Button variant="outline" size="sm" className="h-[28px] text-[11px] font-medium px-3 gap-1.5 rounded-full border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-foreground/70" onClick={handleOpenClawhub}>
+                <Button variant="outline" size="sm" className="h-[28px] text-[11px] font-medium px-3 gap-1.5 rounded-full border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-foreground/70" onClick={handleOpenSkillHub}>
                   <Globe className="h-[12px] w-[12px]" />
-                  ClawHub
+                  {t('marketplace.sourceSkillHub')}
                 </Button>
                 <Button variant="outline" size="sm" className="h-[28px] text-[11px] font-medium px-3 gap-1.5 rounded-full border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-foreground/70" onClick={handleOpenEditor}>
                   <FileCode className="h-[12px] w-[12px]" />
@@ -838,7 +838,7 @@ export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
                 disabled
                 className="h-10 rounded-xl border-black/10 dark:border-white/10 bg-transparent text-muted-foreground"
               >
-                {t('marketplace.sourceLabel')}: {t('marketplace.sourceClawHub')}
+                {t('marketplace.sourceLabel')}: {t('marketplace.sourceSkillHub')}
               </Button>
             </div>
           </div>
@@ -865,14 +865,16 @@ export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
             {!searching && searchResults.length > 0 && (
               <div className="flex flex-col gap-1">
                 {searchResults.map((skill) => {
-                  const isInstalled = safeSkills.some(s => s.id === skill.slug || s.name === skill.name);
+                  const norm = (x: string) => (x || '').trim().toLowerCase();
+                  const isInstalled = safeSkills.some(
+                    s => s.id === skill.slug || s.slug === skill.slug || norm(s.slug || s.id) === norm(skill.slug) || s.name === skill.name
+                  );
                   const isInstallLoading = !!installing[skill.slug];
 
                   return (
                     <div
                       key={skill.slug}
                       className="group flex flex-row items-center justify-between py-3.5 px-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer border-b border-black/5 dark:border-white/5 last:border-0"
-                      onClick={() => invokeIpc('shell:openExternal', `https://clawhub.ai/s/${skill.slug}`)}
                     >
                       <div className="flex items-start gap-4 flex-1 overflow-hidden pr-4">
                         <div className="h-10 w-10 shrink-0 flex items-center justify-center text-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl overflow-hidden">

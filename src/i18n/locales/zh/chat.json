@@ -37,5 +37,33 @@
         "withinTwoWeeks": "两周内",
         "withinMonth": "一个月内",
         "older": "一个月之前"
+    },
+    "fileTree": {
+        "title": "文件",
+        "noWorkspace": "未选择工作目录",
+        "emptyFolder": "当前目录为空",
+        "openFolder": "打开目录",
+        "refresh": "刷新",
+        "newFile": "新建文件",
+        "newMarkdownFile": "新建 Markdown 文件",
+        "newFolder": "新建文件夹",
+        "rename": "重命名",
+        "openInFileManager": "在文件管理器中打开",
+        "moveTo": "移动到...",
+        "delete": "删除",
+        "createNamePrompt": "请输入名称",
+        "renamePrompt": "请输入新名称",
+        "movePrompt": "请输入新路径（可相对工作目录）",
+        "deleteConfirm": "确认删除此项？",
+        "cut": "剪切",
+        "copy": "复制",
+        "paste": "粘贴",
+        "cancel": "取消",
+        "confirm": "确认",
+        "operationFailed": "操作失败",
+        "targetExists": "目标路径已存在",
+        "addToContext": "添加到上下文",
+        "removeFromContext": "从上下文移除",
+        "defaultNewFolderName": "新建文件夹"
     }
 }

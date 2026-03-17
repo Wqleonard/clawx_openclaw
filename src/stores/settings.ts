@@ -39,7 +39,6 @@ interface SettingsState {
   showToolCalls: boolean;
   workspaceRoots: string[];
 
-
   // Setup
   setupComplete: boolean;
 
