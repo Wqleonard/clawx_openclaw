@@ -323,10 +323,9 @@ export function Chat() {
 
       <div
           onMouseDown={onDragStart}
-          className=" left-0 top-0 z-10 h-full w-2 -translate-x-1 cursor-col-resize"
+          className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
           title="拖动调整宽度"
         >
-          <div className="mx-auto h-full w-1 rounded bg-border/50 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-primary/40 active:bg-primary/60" />
         </div>
 
       {/* Markdown Viewer Panel */}
@@ -401,7 +400,7 @@ export function Chat() {
       >
         <DrawerContent
           hideOverlay
-          className="border-l border-border p-0 data-[vaul-drawer-direction=right]:w-[260px] data-[vaul-drawer-direction=right]:max-w-[260px] data-[vaul-drawer-direction=right]:rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:bottom-0"
+          className="border-l border-t border-border p-0 data-[vaul-drawer-direction=right]:w-[260px] data-[vaul-drawer-direction=right]:max-w-[260px] data-[vaul-drawer-direction=right]:rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:bottom-0"
         >
           <FileTree className="h-full" />
         </DrawerContent>

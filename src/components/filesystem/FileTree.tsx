@@ -475,7 +475,7 @@ export function FileTree({ className }: FileTreeProps) {
 
   return (
     <section className={cn('flex h-full min-h-0 flex-col border-r bg-[#eae8e1]/45 dark:bg-background', className)}>
-      <div className="flex items-center justify-between border-b px-2 py-2">
+      <div className="flex items-center justify-between border-b px-2 py-2 h-11">
         <div className="flex items-center gap-2">
           <FolderPlus className="h-4 w-4 text-muted-foreground" />
           <span className="text-xs font-medium text-muted-foreground">{labels.title}</span>
