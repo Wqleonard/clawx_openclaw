@@ -60,13 +60,14 @@ export function Chat() {
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
+  const workspacePath = useFileSystemStore((s) => s.projectPath);
   const activeFile = useFileSystemStore((s) => s.activeFile);
   const openFiles = useFileSystemStore((s) => s.openFiles);
   const fileContents = useFileSystemStore((s) => s.fileContents);
   const dirtyFiles = useFileSystemStore((s) => s.dirtyFiles);
   const setActiveFile = useFileSystemStore((s) => s.setActiveFile);
   const closeFile = useFileSystemStore((s) => s.closeFile);
-  const applyWorkspaceForSession = useFileSystemStore((s) => s.applyWorkspaceForSession);
+  const applyProjectForSession = useFileSystemStore((s) => s.applyProjectForSession);
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
@@ -94,8 +95,8 @@ export function Chat() {
   }, [fetchAgents]);
 
   useEffect(() => {
-    void applyWorkspaceForSession(currentSessionKey);
-  }, [currentSessionKey, applyWorkspaceForSession]);
+    void applyProjectForSession(currentSessionKey);
+  }, [currentSessionKey, applyProjectForSession]);
 
   // Update timestamp when sending starts
   useEffect(() => {
@@ -392,7 +393,7 @@ export function Chat() {
           isFileTreeDrawerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
         )}
       >
-        <FileTree className="h-full" />
+        <FileTree key={workspacePath ?? '__no-workspace__'} className="h-full" />
       </div>
     </div>
   );

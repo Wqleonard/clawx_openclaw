@@ -41,6 +41,7 @@
         "running": "Running",
         "stopped": "Stopped",
         "error": "Error",
+        "agentCreated": "Agent created successfully",
         "connected": "Connected",
         "disconnected": "Disconnected",
         "enabled": "Enabled",

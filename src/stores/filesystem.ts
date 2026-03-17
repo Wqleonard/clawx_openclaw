@@ -5,9 +5,10 @@ import { hostApiFetch } from '@/lib/host-api';
 import type { FileNode } from '@/types/electron';
 
 type FileSystemState = {
-  workspacePath: string | null;
-  defaultWorkspacePath: string | null;
-  workspaceBindings: Record<string, string>;
+  projectPath: string | null;
+  defaultProjectPath: string | null;
+  projectBindings: Record<string, string>;
+  projectShortcuts: string[];
   tree: FileNode | null;
   openFiles: string[];
   activeFile: string | null;
@@ -18,10 +19,14 @@ type FileSystemState = {
   lastError: string | null;
 
   openFolder: () => Promise<string | null>;
-  bindWorkspaceToSession: (sessionKey: string, workspacePath: string) => Promise<void>;
-  applyWorkspaceForSession: (sessionKey: string) => Promise<void>;
-  initWorkspace: (workspacePath: string) => Promise<void>;
-  clearWorkspace: () => Promise<void>;
+  initProjectShortcuts: () => void;
+  addProjectShortcut: (path: string) => void;
+  replaceProjectShortcut: (fromPath: string, toPath: string) => void;
+  removeProjectShortcut: (path: string) => void;
+  bindProjectToSession: (sessionKey: string, projectPath: string) => Promise<void>;
+  applyProjectForSession: (sessionKey: string) => Promise<void>;
+  initProject: (projectPath: string) => Promise<void>;
+  clearProject: () => Promise<void>;
   refreshTree: (dirPath?: string) => Promise<void>;
   openFile: (filePath: string) => Promise<void>;
   closeFile: (filePath: string) => void;
@@ -57,6 +62,20 @@ const HIDDEN_RUNTIME_FILES = new Set([
   'README.md',
   'READMR.md',
 ]);
+const LEGACY_WORKSPACE_SHORTCUTS_KEY = 'clawx:workspace-shortcuts';
+
+function readLegacyProjectShortcuts(): string[] {
+  if (typeof window === 'undefined') return [];
+  const raw = window.localStorage.getItem(LEGACY_WORKSPACE_SHORTCUTS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
+}
 
 function resolveAgentIdFromSessionKey(sessionKey: string): string {
   if (!sessionKey.startsWith('agent:')) {
@@ -66,22 +85,22 @@ function resolveAgentIdFromSessionKey(sessionKey: string): string {
   return (agentId || DEFAULT_AGENT_ID).trim() || DEFAULT_AGENT_ID;
 }
 
-async function syncAgentWorkspaceBinding(sessionKey: string, workspacePath: string): Promise<void> {
+async function syncAgentProjectBinding(sessionKey: string, projectPath: string): Promise<void> {
   const agentId = resolveAgentIdFromSessionKey(sessionKey);
   await hostApiFetch<{ success: boolean; changed?: boolean }>(
     `/api/agents/${encodeURIComponent(agentId)}`,
     {
       method: 'PUT',
-      body: JSON.stringify({ workspace: workspacePath }),
+      body: JSON.stringify({ workspace: projectPath }),
     },
   );
 }
 
 function sanitizeTreeForUi(
   tree: FileNode,
-  workspacePath: string | null,
+  projectPath: string | null,
 ): FileNode {
-  if (!workspacePath || tree.type !== 'folder' || tree.path !== workspacePath) {
+  if (!projectPath || tree.type !== 'folder' || tree.path !== projectPath) {
     return tree;
   }
 
@@ -100,15 +119,15 @@ function isWorkspaceNotSelectedError(error: unknown): boolean {
   return message.includes('Workspace is not selected');
 }
 
-async function ensureMainWorkspaceSynced(
+async function ensureMainProjectSynced(
   get: () => FileSystemState,
 ): Promise<string | null> {
-  const localWorkspace = get().workspacePath;
-  if (!localWorkspace) return null;
+  const localProject = get().projectPath;
+  if (!localProject) return null;
   const mainWorkspace = await invokeIpc<string | null>('fs:get-workspace');
-  if (mainWorkspace === localWorkspace) return localWorkspace;
-  await invokeIpc<string>('fs:set-workspace', localWorkspace);
-  return localWorkspace;
+  if (mainWorkspace === localProject) return localProject;
+  await invokeIpc<string>('fs:set-workspace', localProject);
+  return localProject;
 }
 
 function setStoreError(
@@ -122,9 +141,10 @@ function setStoreError(
 export const useFileSystemStore = create<FileSystemState>()(
   persist(
     (set, get) => ({
-      workspacePath: null,
-      defaultWorkspacePath: null,
-      workspaceBindings: {},
+      projectPath: null,
+      defaultProjectPath: null,
+      projectBindings: {},
+      projectShortcuts: [],
       tree: null,
       openFiles: [],
       activeFile: null,
@@ -138,7 +158,7 @@ export const useFileSystemStore = create<FileSystemState>()(
         try {
           const selected = await invokeIpc<string | null>('fs:open-folder');
           if (!selected) return null;
-          await get().initWorkspace(selected);
+          await get().initProject(selected);
           return selected;
         } catch (error) {
           setStoreError(set, error);
@@ -146,40 +166,92 @@ export const useFileSystemStore = create<FileSystemState>()(
         }
       },
 
-      bindWorkspaceToSession: async (sessionKey, workspacePath) => {
-        if (!sessionKey || !workspacePath) return;
+      initProjectShortcuts: () => {
+        const legacyShortcuts = readLegacyProjectShortcuts();
+        if (legacyShortcuts.length === 0) return;
         set((state) => ({
-          workspaceBindings: {
-            ...state.workspaceBindings,
-            [sessionKey]: workspacePath,
+          projectShortcuts: Array.from(new Set([...state.projectShortcuts, ...legacyShortcuts])),
+        }));
+        window.localStorage.removeItem(LEGACY_WORKSPACE_SHORTCUTS_KEY);
+      },
+
+      addProjectShortcut: (path) => {
+        if (!path) return;
+        set((state) => ({
+          projectShortcuts: state.projectShortcuts.includes(path)
+            ? state.projectShortcuts
+            : [path, ...state.projectShortcuts],
+        }));
+      },
+
+      replaceProjectShortcut: (fromPath, toPath) => {
+        if (!fromPath || !toPath) return;
+        set((state) => ({
+          projectShortcuts: Array.from(
+            new Set(state.projectShortcuts.map((item) => (item === fromPath ? toPath : item))),
+          ),
+          projectBindings: Object.fromEntries(
+            Object.entries(state.projectBindings).map(([sessionKey, boundPath]) => [
+              sessionKey,
+              boundPath === fromPath ? toPath : boundPath,
+            ]),
+          ),
+          defaultProjectPath: state.defaultProjectPath === fromPath ? toPath : state.defaultProjectPath,
+        }));
+      },
+
+      removeProjectShortcut: (path) => {
+        if (!path) return;
+        set((state) => {
+          const nextShortcuts = state.projectShortcuts.filter((item) => item !== path);
+          const nextBindings = Object.fromEntries(
+            Object.entries(state.projectBindings).filter(([, boundPath]) => boundPath !== path),
+          );
+          const nextDefaultProjectPath = state.defaultProjectPath === path
+            ? (nextShortcuts[0] ?? null)
+            : state.defaultProjectPath;
+          return {
+            projectShortcuts: nextShortcuts,
+            projectBindings: nextBindings,
+            defaultProjectPath: nextDefaultProjectPath,
+          };
+        });
+      },
+
+      bindProjectToSession: async (sessionKey, projectPath) => {
+        if (!sessionKey || !projectPath) return;
+        set((state) => ({
+          projectBindings: {
+            ...state.projectBindings,
+            [sessionKey]: projectPath,
           },
-          defaultWorkspacePath: workspacePath,
+          defaultProjectPath: projectPath,
         }));
         try {
-          await syncAgentWorkspaceBinding(sessionKey, workspacePath);
+          await syncAgentProjectBinding(sessionKey, projectPath);
         } catch (error) {
           setStoreError(set, error);
         }
       },
 
-      applyWorkspaceForSession: async (sessionKey) => {
+      applyProjectForSession: async (sessionKey) => {
         if (!sessionKey) return;
         const state = get();
-        const boundPath = state.workspaceBindings[sessionKey] || state.defaultWorkspacePath;
+        const boundPath = state.projectBindings[sessionKey] || state.defaultProjectPath;
         if (boundPath) {
           try {
-            await get().initWorkspace(boundPath);
-            await syncAgentWorkspaceBinding(sessionKey, boundPath);
+            await get().initProject(boundPath);
+            await syncAgentProjectBinding(sessionKey, boundPath);
           } catch {
             // ignore error
           }
         }
       },
 
-      initWorkspace: async (workspacePath) => {
-        await invokeIpc<string>('fs:set-workspace', workspacePath);
+      initProject: async (projectPath) => {
+        await invokeIpc<string>('fs:set-workspace', projectPath);
         set({
-          workspacePath,
+          projectPath,
           tree: null,
           openFiles: [],
           activeFile: null,
@@ -191,7 +263,7 @@ export const useFileSystemStore = create<FileSystemState>()(
         await get().refreshTree();
       },
 
-      clearWorkspace: async () => {
+      clearProject: async () => {
         try {
           await invokeIpc<boolean>('fs:watch-stop');
         } catch {
@@ -204,7 +276,7 @@ export const useFileSystemStore = create<FileSystemState>()(
         }
 
         set({
-          workspacePath: null,
+          projectPath: null,
           tree: null,
           openFiles: [],
           activeFile: null,
@@ -218,9 +290,9 @@ export const useFileSystemStore = create<FileSystemState>()(
 
       refreshTree: async (dirPath) => {
         try {
-          await ensureMainWorkspaceSynced(get);
+          await ensureMainProjectSynced(get);
           const tree = await invokeIpc<FileNode>('fs:read-tree', dirPath);
-          const sanitizedTree = sanitizeTreeForUi(tree, get().workspacePath);
+          const sanitizedTree = sanitizeTreeForUi(tree, get().projectPath);
           set({ tree: sanitizedTree, lastError: null });
         } catch (error) {
           setStoreError(set, error);
@@ -426,8 +498,8 @@ export const useFileSystemStore = create<FileSystemState>()(
 
       loadContextFiles: async (agentId) => {
         try {
-          const workspace = await ensureMainWorkspaceSynced(get);
-          if (!workspace) {
+          const project = await ensureMainProjectSynced(get);
+          if (!project) {
             set({ contextFiles: [], lastError: null });
             return;
           }
@@ -444,8 +516,8 @@ export const useFileSystemStore = create<FileSystemState>()(
             removeFsChangedListener();
             removeFsChangedListener = null;
           }
-          const workspace = await ensureMainWorkspaceSynced(get);
-          if (!workspace) {
+          const project = await ensureMainProjectSynced(get);
+          if (!project) {
             set({ isWatching: false, lastError: null });
             return;
           }
@@ -455,13 +527,13 @@ export const useFileSystemStore = create<FileSystemState>()(
           });
           set({ isWatching: true, lastError: null });
         } catch (error) {
-          // App restart can keep persisted workspacePath in renderer while main process has no selected workspace yet.
+          // App restart can keep persisted projectPath in renderer while main process has no selected workspace yet.
           // Try one more sync silently before reporting an error.
           if (isWorkspaceNotSelectedError(error)) {
-            const workspace = get().workspacePath;
-            if (workspace) {
+            const project = get().projectPath;
+            if (project) {
               try {
-                await invokeIpc<string>('fs:set-workspace', workspace);
+                await invokeIpc<string>('fs:set-workspace', project);
                 await invokeIpc<boolean>('fs:watch-start');
                 removeFsChangedListener = window.electron.fs.onChanged(() => {
                   void get().refreshTree();
@@ -474,7 +546,7 @@ export const useFileSystemStore = create<FileSystemState>()(
             }
             // No workspace available locally: degrade quietly.
             set({
-              workspacePath: null,
+              projectPath: null,
               tree: null,
               openFiles: [],
               activeFile: null,
@@ -509,10 +581,37 @@ export const useFileSystemStore = create<FileSystemState>()(
     }),
     {
       name: 'filesystem-store',
+      version: 2,
+      migrate: (persistedState) => {
+        const state = (persistedState ?? {}) as Partial<{
+          workspacePath: string | null;
+          defaultWorkspacePath: string | null;
+          workspaceBindings: Record<string, string>;
+          projectPath: string | null;
+          defaultProjectPath: string | null;
+          projectBindings: Record<string, string>;
+          projectShortcuts: string[];
+        }>;
+        const legacyShortcuts = readLegacyProjectShortcuts();
+        const mergedShortcuts = Array.from(
+          new Set([...(state.projectShortcuts ?? []), ...legacyShortcuts]),
+        );
+        if (legacyShortcuts.length > 0 && typeof window !== 'undefined') {
+          window.localStorage.removeItem(LEGACY_WORKSPACE_SHORTCUTS_KEY);
+        }
+        return {
+          ...state,
+          projectPath: state.projectPath ?? state.workspacePath ?? null,
+          defaultProjectPath: state.defaultProjectPath ?? state.defaultWorkspacePath ?? null,
+          projectBindings: state.projectBindings ?? state.workspaceBindings ?? {},
+          projectShortcuts: mergedShortcuts,
+        } satisfies Partial<FileSystemState>;
+      },
       partialize: (state) => ({
-        workspacePath: state.workspacePath,
-        defaultWorkspacePath: state.defaultWorkspacePath,
-        workspaceBindings: state.workspaceBindings,
+        projectPath: state.projectPath,
+        defaultProjectPath: state.defaultProjectPath,
+        projectBindings: state.projectBindings,
+        projectShortcuts: state.projectShortcuts,
       }),
     },
   ),

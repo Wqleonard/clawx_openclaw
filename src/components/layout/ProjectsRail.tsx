@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
 import { AddAgentDialog } from './AddAgentDialog';
 import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
+import { useChatStore } from '@/stores/chat';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useSettingDialogStore } from '@/stores/setting-dialog';
 import { useSettingsStore } from '@/stores/settings';
-import { useProjectsStore } from '@/stores/projects';
 
 type ProjectItem = {
   path: string;
@@ -24,13 +25,13 @@ type ProjectItem = {
   isActive: boolean;
 };
 
-type WorkspaceBadgeTheme = {
+type ProjectBadgeTheme = {
   bg: string;
   text: string;
   border: string;
 };
 
-const WORKSPACE_THEMES: WorkspaceBadgeTheme[] = [
+const PROJECT_THEMES: ProjectBadgeTheme[] = [
   { bg: '#e1fbf4', text: '#147d7c', border: '#b9efe4' },
   { bg: '#e8f1ff', text: '#1d4ed8', border: '#c9dcff' },
   { bg: '#fff1e5', text: '#b45309', border: '#ffd9b2' },
@@ -72,10 +73,10 @@ function hashFromSeed(seed: string): number {
   return Math.abs(hash);
 }
 
-function getWorkspaceTheme(workspacePath: string): WorkspaceBadgeTheme {
+function getWorkspaceTheme(workspacePath: string): ProjectBadgeTheme {
   const initial = getWorkspaceInitial(workspacePath);
-  const themeIndex = hashFromSeed(`${initial}:${workspacePath}`) % WORKSPACE_THEMES.length;
-  return WORKSPACE_THEMES[themeIndex];
+  const themeIndex = hashFromSeed(`${initial}:${workspacePath}`) % PROJECT_THEMES.length;
+  return PROJECT_THEMES[themeIndex];
 }
 
 function normalizeComparePath(inputPath: string): string {
@@ -121,21 +122,23 @@ function WorkspaceShortcutButton({
 }
 
 export function ProjectsRail() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
-  const projectPath = useFileSystemStore((state) => state.workspacePath);
-  const initWorkspace = useFileSystemStore((state) => state.initWorkspace);
-  const clearWorkspace = useFileSystemStore((state) => state.clearWorkspace);
+  const projectPath = useFileSystemStore((state) => state.projectPath);
+  const initProject = useFileSystemStore((state) => state.initProject);
+  const clearProject = useFileSystemStore((state) => state.clearProject);
+  const bindProjectToSession = useFileSystemStore((state) => state.bindProjectToSession);
+  const projectShortcuts = useFileSystemStore((state) => state.projectShortcuts);
+  const initProjectShortcuts = useFileSystemStore((state) => state.initProjectShortcuts);
+  const addProjectShortcut = useFileSystemStore((state) => state.addProjectShortcut);
+  const removeProjectShortcut = useFileSystemStore((state) => state.removeProjectShortcut);
   const workspaceRoots = useSettingsStore((state) => {
     const workspaceState = state as { workspaceRoots?: string[] };
     return workspaceState.workspaceRoots ?? [];
   });
-  const projectShortcuts = useProjectsStore((state) => state.workspaceShortcuts);
-  const initProjectShortcuts = useProjectsStore((state) => state.initWorkspaceShortcuts);
-  const addProjectShortcut = useProjectsStore((state) => state.addWorkspaceShortcut);
-  const replaceProjectShortcut = useProjectsStore((state) => state.replaceWorkspaceShortcut);
-  const removeProjectShortcut = useProjectsStore((state) => state.removeWorkspaceShortcut);
   const createAgent = useAgentsStore((state) => state.createAgent);
+  const currentSessionKey = useChatStore((state) => state.currentSessionKey);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
   const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
@@ -193,11 +196,14 @@ export function ProjectsRail() {
   };
 
   const handleActivateProject = async (targetPath: string) => {
-    if (!targetPath || targetPath === useFileSystemStore.getState().workspacePath) {
+    if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
       navigate('/chat');
       return;
     }
-    await initWorkspace(targetPath);
+    await initProject(targetPath);
+    if (currentSessionKey) {
+      await bindProjectToSession(currentSessionKey, targetPath);
+    }
     navigate('/chat');
   };
 
@@ -223,42 +229,15 @@ export function ProjectsRail() {
         return;
       }
 
-      await initWorkspace(selected);
+      await initProject(selected);
       addProjectShortcut(selected); 
+      if (currentSessionKey) {
+        await bindProjectToSession(currentSessionKey, selected);
+      }
       setPendingWorkspacePath(selected);
       setShowAddAgentDialog(true);
     } finally {
       setIsAddingWorkspace(false);
-    }
-  };
-
-  const handleEdit = async () => {
-    if (!menuState) return;
-    const targetPath = menuState.workspacePath;
-    setMenuState(null);
-
-    const allowedRoots = Array.from(new Set(workspaceRoots));
-    if (allowedRoots.length === 0) {
-      toast.error('请先在设置中配置可用工作区');
-      return;
-    }
-
-    const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
-      properties: ['openDirectory'],
-      defaultPath: targetPath,
-    });
-    if (result.canceled || !result.filePaths?.length) return;
-
-    const selected = result.filePaths[0];
-    const isAllowed = allowedRoots.some((root) => isSameOrSubFolder(selected, root));
-    if (!isAllowed) {
-      toast.error('只能选择已设置工作区及其子文件夹');
-      return;
-    }
-
-    replaceProjectShortcut(targetPath, selected);
-    if (projectPath === targetPath) {
-      await initWorkspace(selected);
     }
   };
 
@@ -270,12 +249,15 @@ export function ProjectsRail() {
     removeProjectShortcut(target);
 
     if (projectPath === target && nextShortcuts.length > 0) {
-      await initWorkspace(nextShortcuts[0]);
+      await initProject(nextShortcuts[0]);
+      if (currentSessionKey) {
+        await bindProjectToSession(currentSessionKey, nextShortcuts[0]);
+      }
       return;
     }
 
     if (projectPath === target && nextShortcuts.length === 0) {
-      await clearWorkspace();
+      await clearProject();
     }
   };
 
@@ -323,19 +305,19 @@ export function ProjectsRail() {
           style={{ left: menuState.x, top: menuState.y }}
           onMouseDown={(event) => event.stopPropagation()}
         >
-          <button
+          {/* <button
             type="button"
             onClick={() => void handleEdit()}
             className="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
           >
             编辑
-          </button>
+          </button> */}
           <button
             type="button"
             onClick={() => void handleClose()}
             className="w-full rounded px-2 py-1.5 text-left font-bold text-sm hover:bg-black/5 dark:hover:bg-white/10"
           >
-            关闭
+            {t('common:actions.close')}
           </button>
         </div>
       )}
@@ -353,7 +335,7 @@ export function ProjectsRail() {
           await createAgent(name, { ...options, workspacePath });
           setShowAddAgentDialog(false);
           setPendingWorkspacePath('');
-          toast.success('Agent 创建成功');
+          toast.success(t('common:status.agentCreated'));
         }}
       />
     </>

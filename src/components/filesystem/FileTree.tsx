@@ -29,6 +29,8 @@ type FileTreeProps = {
   className?: string;
 };
 
+const expandedByWorkspaceCache = new Map<string, string[]>();
+
 type MenuAction =
   | 'new_file'
   | 'new_md_file'
@@ -217,7 +219,7 @@ function FileTreeNode({
 
 export function FileTree({ className }: FileTreeProps) {
   const { t } = useTranslation('chat');
-  const workspacePath = useFileSystemStore((s) => s.workspacePath);
+  const workspacePath = useFileSystemStore((s) => s.projectPath);
   const tree = useFileSystemStore((s) => s.tree);
   const contextFiles = useFileSystemStore((s) => s.contextFiles);
   const lastError = useFileSystemStore((s) => s.lastError);
@@ -237,7 +239,11 @@ export function FileTree({ className }: FileTreeProps) {
   const loadContextFiles = useFileSystemStore((s) => s.loadContextFiles);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
 
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    if (!workspacePath) return new Set();
+    const cached = expandedByWorkspaceCache.get(workspacePath);
+    return new Set(cached ?? []);
+  });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [clipboardItem, setClipboardItem] = useState<ClipboardItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null);
@@ -452,6 +458,20 @@ export function FileTree({ className }: FileTreeProps) {
   useEffect(() => {
     setDialogContainer(document.body);
   }, []);
+
+  useEffect(() => {
+    if (!workspacePath) {
+      setExpanded(new Set());
+      return;
+    }
+    const cached = expandedByWorkspaceCache.get(workspacePath);
+    setExpanded(new Set(cached ?? []));
+  }, [workspacePath]);
+
+  useEffect(() => {
+    if (!workspacePath) return;
+    expandedByWorkspaceCache.set(workspacePath, Array.from(expanded));
+  }, [workspacePath, expanded]);
 
   useEffect(() => {
     if (!workspacePath) return;
