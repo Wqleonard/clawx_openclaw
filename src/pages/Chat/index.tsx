@@ -5,7 +5,8 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
 import { useChatLayoutStore } from '@/stores/chat-layout';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 import { FileTabs, FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
@@ -27,7 +29,42 @@ import { MarkdownEditor } from '@/components/markdownEditor';
 const EDITOR_MIN_WIDTH = 260;
 const EDITOR_MAX_WIDTH = 900;
 const EDITOR_DEFAULT_WIDTH = 560;
+const LIST_MIN_WIDTH = 220;
+const LIST_MAX_WIDTH = 520;
+const LIST_DEFAULT_WIDTH = 280;
 const CHAT_MIN_WIDTH = 420;
+const INITIAL_NOW_MS = Date.now();
+
+type SessionBucketKey =
+  | 'today'
+  | 'yesterday'
+  | 'withinWeek'
+  | 'withinTwoWeeks'
+  | 'withinMonth'
+  | 'older';
+
+function getSessionBucket(activityMs: number, nowMs: number): SessionBucketKey {
+  if (!activityMs || activityMs <= 0) return 'older';
+
+  const now = new Date(nowMs);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+
+  if (activityMs >= startOfToday) return 'today';
+  if (activityMs >= startOfYesterday) return 'yesterday';
+
+  const daysAgo = (startOfToday - activityMs) / (24 * 60 * 60 * 1000);
+  if (daysAgo <= 7) return 'withinWeek';
+  if (daysAgo <= 14) return 'withinTwoWeeks';
+  if (daysAgo <= 30) return 'withinMonth';
+  return 'older';
+}
+
+function getAgentIdFromSessionKey(sessionKey: string): string {
+  if (!sessionKey.startsWith('agent:')) return 'main';
+  const [, agentId] = sessionKey.split(':');
+  return agentId || 'main';
+}
 
 function isMarkdownFile(filePath: string): boolean {
   const lower = filePath.toLowerCase();
@@ -36,17 +73,25 @@ function isMarkdownFile(filePath: string): boolean {
 
 export function Chat() {
   const { t } = useTranslation('chat');
+  const navigate = useNavigate();
   const [mdViewMode, setMdViewMode] = useState<'source' | 'rendered'>('rendered');
+  const [listWidth, setListWidth] = useState(LIST_DEFAULT_WIDTH);
   const [editorWidth, setEditorWidth] = useState(EDITOR_DEFAULT_WIDTH);
-  const isDragging = useRef(false);
-  const dragStartX = useRef(0);
-  const dragStartWidth = useRef(0);
+  const isListDragging = useRef(false);
+  const listDragStartX = useRef(0);
+  const listDragStartWidth = useRef(0);
+  const isEditorDragging = useRef(false);
+  const editorDragStartX = useRef(0);
+  const editorDragStartWidth = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
 
   const messages = useChatStore((s) => s.messages);
+  const sessions = useChatStore((s) => s.sessions);
   const currentSessionKey = useChatStore((s) => s.currentSessionKey);
+  const sessionLabels = useChatStore((s) => s.sessionLabels);
+  const sessionLastActivity = useChatStore((s) => s.sessionLastActivity);
   const loading = useChatStore((s) => s.loading);
   const sending = useChatStore((s) => s.sending);
   const error = useChatStore((s) => s.error);
@@ -57,10 +102,18 @@ export function Chat() {
   const sendMessage = useChatStore((s) => s.sendMessage);
   const abortRun = useChatStore((s) => s.abortRun);
   const clearError = useChatStore((s) => s.clearError);
+  const switchSession = useChatStore((s) => s.switchSession);
+  const newSession = useChatStore((s) => s.newSession);
+  const deleteSession = useChatStore((s) => s.deleteSession);
+  const loadSessions = useChatStore((s) => s.loadSessions);
+  const loadHistory = useChatStore((s) => s.loadHistory);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
+  const agents = useAgentsStore((s) => s.agents);
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
   const workspacePath = useFileSystemStore((s) => s.projectPath);
+  const bindProjectToSession = useFileSystemStore((s) => s.bindProjectToSession);
+  const projectBindings = useFileSystemStore((s) => s.projectBindings);
   const activeFile = useFileSystemStore((s) => s.activeFile);
   const openFiles = useFileSystemStore((s) => s.openFiles);
   const fileContents = useFileSystemStore((s) => s.fileContents);
@@ -72,6 +125,8 @@ export function Chat() {
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(null);
+  const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
   const minLoading = useMinLoading(loading && messages.length > 0);
@@ -93,6 +148,27 @@ export function Chat() {
   useEffect(() => {
     void fetchAgents();
   }, [fetchAgents]);
+
+  useEffect(() => {
+    if (!isGatewayRunning) return;
+    let cancelled = false;
+    const hasExistingMessages = useChatStore.getState().messages.length > 0;
+    (async () => {
+      await loadSessions();
+      if (cancelled) return;
+      await loadHistory(hasExistingMessages);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isGatewayRunning, loadHistory, loadSessions]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     void applyProjectForSession(currentSessionKey);
@@ -136,6 +212,39 @@ export function Chat() {
       hasStreamToolStatus);
   const hasAnyStreamContent =
     hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
+  const getSessionLabel = useCallback(
+    (key: string, displayName?: string, label?: string) => sessionLabels[key] ?? label ?? displayName ?? key,
+    [sessionLabels],
+  );
+  const agentNameById = useMemo(
+    () => Object.fromEntries(agents.map((agent) => [agent.id, agent.name])),
+    [agents],
+  );
+  const projectSessions = useMemo(() => {
+    if (!workspacePath) return [];
+    return sessions.filter((session) => projectBindings[session.key] === workspacePath);
+  }, [workspacePath, sessions, projectBindings]);
+  const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = useMemo(() => {
+    const buckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [
+      { key: 'today', label: t('historyBuckets.today'), sessions: [] },
+      { key: 'yesterday', label: t('historyBuckets.yesterday'), sessions: [] },
+      { key: 'withinWeek', label: t('historyBuckets.withinWeek'), sessions: [] },
+      { key: 'withinTwoWeeks', label: t('historyBuckets.withinTwoWeeks'), sessions: [] },
+      { key: 'withinMonth', label: t('historyBuckets.withinMonth'), sessions: [] },
+      { key: 'older', label: t('historyBuckets.older'), sessions: [] },
+    ];
+    const bucketMap = Object.fromEntries(buckets.map((bucket) => [bucket.key, bucket])) as Record<
+      SessionBucketKey,
+      (typeof buckets)[number]
+    >;
+    for (const session of [...projectSessions].sort(
+      (a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0),
+    )) {
+      const bucketKey = getSessionBucket(sessionLastActivity[session.key] ?? 0, nowMs);
+      bucketMap[bucketKey].sessions.push(session);
+    }
+    return buckets;
+  }, [t, projectSessions, sessionLastActivity, nowMs]);
 
   const isEmpty = messages.length === 0 && !sending;
   const markdownOpenFiles = useMemo(
@@ -184,29 +293,31 @@ export function Chat() {
     [activeFile, updateFileContent]
   );
 
-  // Drag-to-resize editor while preserving chat page behavior from main branch.
-  const onDragStart = useCallback(
+  const onListDragStart = useCallback(
     (e: React.MouseEvent) => {
-      isDragging.current = true;
-      dragStartX.current = e.clientX;
-      dragStartWidth.current = editorWidth;
+      isListDragging.current = true;
+      listDragStartX.current = e.clientX;
+      listDragStartWidth.current = listWidth;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
       const onMove = (ev: MouseEvent) => {
-        if (!isDragging.current) return;
-        const delta = ev.clientX - dragStartX.current;
+        if (!isListDragging.current) return;
+        const delta = ev.clientX - listDragStartX.current;
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-        const maxByContainer = Math.max(EDITOR_MIN_WIDTH, containerWidth - CHAT_MIN_WIDTH);
-        const dynamicMaxWidth = Math.min(EDITOR_MAX_WIDTH, maxByContainer);
+        const maxByContainer = containerWidth - CHAT_MIN_WIDTH - editorWidth - 8;
+        const dynamicMaxWidth = Math.max(
+          LIST_MIN_WIDTH,
+          Math.min(LIST_MAX_WIDTH, maxByContainer),
+        );
         const next = Math.min(
           dynamicMaxWidth,
-          Math.max(EDITOR_MIN_WIDTH, dragStartWidth.current - delta)
+          Math.max(LIST_MIN_WIDTH, listDragStartWidth.current + delta),
         );
-        setEditorWidth(next);
+        setListWidth(next);
       };
       const onUp = () => {
-        isDragging.current = false;
+        isListDragging.current = false;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
         window.removeEventListener('mousemove', onMove);
@@ -215,20 +326,160 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth]
+    [editorWidth, listWidth],
   );
+
+  // Drag-to-resize editor while preserving chat page behavior from main branch.
+  const onEditorDragStart = useCallback(
+    (e: React.MouseEvent) => {
+      isEditorDragging.current = true;
+      editorDragStartX.current = e.clientX;
+      editorDragStartWidth.current = editorWidth;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      const onMove = (ev: MouseEvent) => {
+        if (!isEditorDragging.current) return;
+        const delta = ev.clientX - editorDragStartX.current;
+        const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
+        const maxByContainer = Math.max(
+          EDITOR_MIN_WIDTH,
+          containerWidth - CHAT_MIN_WIDTH - listWidth - 8,
+        );
+        const dynamicMaxWidth = Math.min(EDITOR_MAX_WIDTH, maxByContainer);
+        const next = Math.min(
+          dynamicMaxWidth,
+          Math.max(EDITOR_MIN_WIDTH, editorDragStartWidth.current - delta),
+        );
+        setEditorWidth(next);
+      };
+      const onUp = () => {
+        isEditorDragging.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [editorWidth, listWidth]
+  );
+
+  const handleNewProjectSession = useCallback(async () => {
+    if (!workspacePath) return;
+    const current = useChatStore.getState();
+    if (current.messages.length > 0) {
+      newSession();
+      const newSessionKey = useChatStore.getState().currentSessionKey;
+      if (newSessionKey) {
+        await bindProjectToSession(newSessionKey, workspacePath);
+      }
+    } else if (current.currentSessionKey) {
+      await bindProjectToSession(current.currentSessionKey, workspacePath);
+    }
+  }, [workspacePath, newSession, bindProjectToSession]);
 
   return (
     <div
       ref={containerRef}
       className={cn('flex h-full transition-colors duration-500 dark:bg-background')}
     >
+      {/* Chat List Panel */}
+      <div
+        className="shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
+        style={{ width: listWidth }}
+      >
+        {workspacePath && (
+          <>
+            <button
+              onClick={() => void handleNewProjectSession()}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
+                'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground',
+              )}
+            >
+              <div className="flex shrink-0 items-center justify-center text-foreground/80">
+                <Plus className="h-[18px] w-[18px]" strokeWidth={2} />
+              </div>
+              <span className="flex-1 text-left overflow-hidden text-ellipsis whitespace-nowrap">
+                {t('common:sidebar.newChat')}
+              </span>
+            </button>
+
+            {sessionBuckets.map((bucket) =>
+              bucket.sessions.length > 0 ? (
+                <div key={bucket.key} className="pt-2">
+                  <div className="px-2.5 pb-1 text-[11px] font-medium text-muted-foreground/60 tracking-tight">
+                    {bucket.label}
+                  </div>
+                  {bucket.sessions.map((session) => {
+                    const agentId = getAgentIdFromSessionKey(session.key);
+                    const agentName = agentNameById[agentId] || agentId;
+                    return (
+                      <div key={session.key} className="group relative flex items-center">
+                        <button
+                          onClick={() => {
+                            switchSession(session.key);
+                            navigate('/');
+                          }}
+                          className={cn(
+                            'w-full text-left rounded-lg px-2.5 py-1.5 text-[13px] transition-colors pr-7',
+                            'hover:bg-black/5 dark:hover:bg-white/5',
+                            currentSessionKey === session.key
+                              ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
+                              : 'text-foreground/75',
+                          )}
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/70 dark:bg-white/[0.08]">
+                              {agentName}
+                            </span>
+                            <span className="truncate">
+                              {getSessionLabel(session.key, session.displayName, session.label)}
+                            </span>
+                          </div>
+                        </button>
+                        <button
+                          aria-label="Delete session"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSessionToDelete({
+                              key: session.key,
+                              label: getSessionLabel(session.key, session.displayName, session.label),
+                            });
+                          }}
+                          className={cn(
+                            'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
+                            'opacity-0 group-hover:opacity-100',
+                            'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
+                          )}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null,
+            )}
+          </>
+        )}
+      </div>
+
+      <div
+        onMouseDown={onListDragStart}
+        className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
+        title="拖动调整宽度"
+      ></div>
+
       {/* Chat Panel */}
-      <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex flex-1 flex-col overflow-hidden rounded-ss-lg border-l">
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />
         </div>
+
 
         {/* Messages Area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
@@ -321,7 +572,7 @@ export function Chat() {
       </div>
 
       <div
-        onMouseDown={onDragStart}
+        onMouseDown={onEditorDragStart}
         className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
         title="拖动调整宽度"
       ></div>
@@ -397,6 +648,24 @@ export function Chat() {
           <FileTree key={workspacePath} className="h-full" />
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!sessionToDelete}
+        title={t('common:actions.confirm')}
+        message={t('common:sidebar.deleteSessionConfirm', { label: sessionToDelete?.label })}
+        confirmLabel={t('common:actions.delete')}
+        cancelLabel={t('common:actions.cancel')}
+        variant="destructive"
+        onConfirm={async () => {
+          if (!sessionToDelete) return;
+          await deleteSession(sessionToDelete.key);
+          if (currentSessionKey === sessionToDelete.key) {
+            navigate('/');
+          }
+          setSessionToDelete(null);
+        }}
+        onCancel={() => setSessionToDelete(null)}
+      />
     </div>
   );
 }

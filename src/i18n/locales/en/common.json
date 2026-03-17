@@ -36,7 +36,8 @@
         "restart": "Restart",
         "show": "Show",
         "hide": "Hide",
-        "clear": "Clear"
+        "clear": "Clear",
+        "openDevTools": "Open DevTools"
     },
     "status": {
         "running": "Running",
