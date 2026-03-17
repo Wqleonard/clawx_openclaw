@@ -3,8 +3,9 @@
  * TitleBar at top, then sidebar + content below.
  */
 import { Outlet } from 'react-router-dom';
-import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
+import { ProjectsRail } from './ProjectsRail';
+import { SettingDialog } from '@/components/settingDialog';
 
 export function MainLayout() {
   return (
@@ -14,11 +15,15 @@ export function MainLayout() {
 
       {/* Below the title bar: sidebar + content */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <main className="flex-1 overflow-auto p-6">
+        {/* Workspace Rail */}
+        <ProjectsRail />
+
+        {/* <Sidebar /> */}
+        <main className="flex-1 overflow-auto border rounded-ss-xl">
           <Outlet />
         </main>
       </div>
+      <SettingDialog />
     </div>
   );
 }

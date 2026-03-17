@@ -3,12 +3,10 @@
  * Session selector, new session, refresh, and thinking toggle.
  * Rendered in the Header when on the Chat page.
  */
-import { useMemo } from 'react';
-import { RefreshCw, Brain, Bot } from 'lucide-react';
+import { RefreshCw, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useChatStore } from '@/stores/chat';
-import { useAgentsStore } from '@/stores/agents';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 
@@ -17,20 +15,20 @@ export function ChatToolbar() {
   const loading = useChatStore((s) => s.loading);
   const showThinking = useChatStore((s) => s.showThinking);
   const toggleThinking = useChatStore((s) => s.toggleThinking);
-  const currentAgentId = useChatStore((s) => s.currentAgentId);
-  const agents = useAgentsStore((s) => s.agents);
+  // const currentAgentId = useChatStore((s) => s.currentAgentId);
+  // const agents = useAgentsStore((s) => s.agents);
   const { t } = useTranslation('chat');
-  const currentAgentName = useMemo(
-    () => agents.find((agent) => agent.id === currentAgentId)?.name ?? currentAgentId,
-    [agents, currentAgentId],
-  );
+  // const currentAgentName = useMemo(
+  //   () => agents.find((agent) => agent.id === currentAgentId)?.name ?? currentAgentId,
+  //   [agents, currentAgentId],
+  // );
 
   return (
     <div className="flex items-center gap-2">
-      <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-[12px] font-medium text-foreground/80 dark:border-white/10 dark:bg-white/5">
-        <Bot className="h-3.5 w-3.5 text-primary" />
-        <span>{t('toolbar.currentAgent', { agent: currentAgentName })}</span>
-      </div>
+      {/*<div className="hidden sm:flex items-center gap-1.5 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-[12px] font-medium text-foreground/80 dark:border-white/10 dark:bg-white/5">*/}
+      {/*  <Bot className="h-3.5 w-3.5 text-primary" />*/}
+      {/*  <span>{t('toolbar.currentAgent', { agent: currentAgentName })}</span>*/}
+      {/*</div>*/}
       {/* Refresh */}
       <Tooltip>
         <TooltipTrigger asChild>

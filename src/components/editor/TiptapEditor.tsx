@@ -55,7 +55,7 @@ export function TiptapEditor({ content = '', onChange, className }: TiptapEditor
   return (
     <div className={cn('flex flex-col h-full overflow-hidden', className)}>
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-border shrink-0">
+      {/* <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-border shrink-0">
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           active={editor.isActive('bold')}
@@ -108,7 +108,7 @@ export function TiptapEditor({ content = '', onChange, className }: TiptapEditor
         >
           <Code className="h-3.5 w-3.5" />
         </ToolbarButton>
-      </div>
+      </div> */}
 
       {/* Editor content */}
       <div className="flex-1 overflow-y-auto">

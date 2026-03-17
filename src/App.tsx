@@ -9,20 +9,13 @@ import { Toaster } from 'sonner';
 import i18n from './i18n';
 import { MainLayout } from './components/layout/MainLayout';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Models } from './pages/Models';
 import { Chat } from './pages/Chat';
-import { Agents } from './pages/Agents';
-import { Channels } from './pages/Channels';
-import { Skills } from './pages/Skills';
-import { Cron } from './pages/Cron';
-import { Settings } from './pages/Settings';
 import { Setup } from './pages/Setup';
 import { Login } from './pages/Login';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
 import { useLoginStore } from './stores/loginStore';
 import { applyGatewayTransportPreference } from './lib/api-client';
-
 
 /**
  * Error Boundary to catch and display React rendering errors
@@ -47,28 +40,35 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          padding: '40px',
-          color: '#f87171',
-          background: '#0f172a',
-          minHeight: '100vh',
-          fontFamily: 'monospace'
-        }}>
+        <div
+          style={{
+            padding: '40px',
+            color: '#f87171',
+            background: '#0f172a',
+            minHeight: '100vh',
+            fontFamily: 'monospace',
+          }}
+        >
           <h1 style={{ fontSize: '24px', marginBottom: '16px' }}>Something went wrong</h1>
-          <pre style={{
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-all',
-            background: '#1e293b',
-            padding: '16px',
-            borderRadius: '8px',
-            fontSize: '14px'
-          }}>
+          <pre
+            style={{
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              background: '#1e293b',
+              padding: '16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+            }}
+          >
             {this.state.error?.message}
             {'\n\n'}
             {this.state.error?.stack}
           </pre>
           <button
-            onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            }}
             style={{
               marginTop: '16px',
               padding: '8px 16px',
@@ -76,7 +76,7 @@ class ErrorBoundary extends Component<
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Reload
@@ -186,22 +186,12 @@ function App() {
           {/* Main application routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Chat />} />
-            <Route path="/models" element={<Models />} />
-            <Route path="/agents" element={<Agents />} />
-            <Route path="/channels" element={<Channels />} />
-            <Route path="/skills" element={<Skills />} />
-            <Route path="/cron" element={<Cron />} />
-            <Route path="/settings/*" element={<Settings />} />
+            <Route path="/chat" element={<Chat />} />
           </Route>
         </Routes>
 
         {/* Global toast notifications */}
-        <Toaster
-          position="bottom-right"
-          richColors
-          closeButton
-          style={{ zIndex: 99999 }}
-        />
+        <Toaster position="bottom-right" richColors closeButton style={{ zIndex: 99999 }} />
       </TooltipProvider>
     </ErrorBoundary>
   );

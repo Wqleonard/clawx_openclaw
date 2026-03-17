@@ -37,5 +37,33 @@
         "withinTwoWeeks": "2週間以内",
         "withinMonth": "1か月以内",
         "older": "1か月より前"
+    },
+    "fileTree": {
+        "title": "ファイル",
+        "noWorkspace": "ワークスペースが選択されていません",
+        "emptyFolder": "フォルダーは空です",
+        "openFolder": "フォルダーを開く",
+        "refresh": "更新",
+        "newFile": "新しいファイル",
+        "newMarkdownFile": "新しい Markdown ファイル",
+        "newFolder": "新しいフォルダー",
+        "rename": "名前を変更",
+        "openInFileManager": "ファイルマネージャーで開く",
+        "moveTo": "移動先...",
+        "delete": "削除",
+        "createNamePrompt": "名前を入力してください",
+        "renamePrompt": "新しい名前を入力してください",
+        "movePrompt": "新しいパスを入力してください（ワークスペース相対可）",
+        "deleteConfirm": "この項目を削除しますか？",
+        "cut": "切り取り",
+        "copy": "コピー",
+        "paste": "貼り付け",
+        "cancel": "キャンセル",
+        "confirm": "確認",
+        "operationFailed": "操作に失敗しました",
+        "targetExists": "対象のパスは既に存在します",
+        "addToContext": "コンテキストに追加",
+        "removeFromContext": "コンテキストから削除",
+        "defaultNewFolderName": "新しいフォルダー"
     }
 }

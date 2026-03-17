@@ -7,7 +7,20 @@
  * are sent with the message (no base64 over WebSocket).
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { SendHorizontal, Square, X, Paperclip, FileText, Film, Music, FileArchive, File, Loader2, AtSign } from 'lucide-react';
+import {
+  SendHorizontal,
+  Square,
+  X,
+  Paperclip,
+  FileText,
+  Film,
+  Music,
+  FileArchive,
+  File,
+  Loader2,
+  AtSign,
+  Bot,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { hostApiFetch } from '@/lib/host-api';
@@ -394,6 +407,12 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
       onDrop={handleDrop}
     >
       <div className="w-full">
+        <div className="bg-black/5 pb-2 -mb-2 rounded-ss-lg rounded-se-lg">
+          <div className='flex items-center gap-2 px-3 h-7 leading-7 '>
+            <Bot className="h-3.5 w-3.5 text-primary" />
+            <span className="text-sm">{t('toolbar.currentAgent', { agent: currentAgentName })}</span>
+          </div>
+        </div>
         {/* Attachment Previews */}
         {attachments.length > 0 && (
           <div className="flex gap-2 mb-3 flex-wrap">
@@ -408,7 +427,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
         )}
 
         {/* Input Row */}
-        <div className={`relative bg-white dark:bg-card rounded-[28px] shadow-sm border p-1.5 transition-all ${dragOver ? 'border-primary ring-1 ring-primary' : 'border-black/10 dark:border-white/10'}`}>
+        <div className={`relative bg-white dark:bg-card rounded-lg shadow-sm border p-1.5 transition-all ${dragOver ? 'border-primary ring-1 ring-primary' : 'border-black/10 dark:border-white/10'}`}>
           {selectedTarget && (
             <div className="px-2.5 pt-2 pb-1">
               <button

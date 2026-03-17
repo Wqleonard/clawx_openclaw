@@ -1,15 +1,8 @@
-/**
- * Utility Functions
- * Common utility functions for the application
- */
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-/**
- * Merge class names with Tailwind CSS classes
- */
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return twMerge(clsx(inputs))
 }
 
 /**
@@ -23,7 +16,7 @@ export function formatRelativeTime(date: string | Date): string {
   const diffMin = Math.floor(diffSec / 60);
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
-  
+
   if (diffSec < 60) {
     return 'just now';
   } else if (diffMin < 60) {
@@ -44,7 +37,7 @@ export function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-  
+
   if (hours > 0) {
     return `${hours}h ${minutes}m`;
   } else if (minutes > 0) {

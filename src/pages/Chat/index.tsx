@@ -4,8 +4,8 @@
  * via gateway:rpc IPC. Session selector, thinking toggle, and refresh
  * are in the toolbar; messages render with markdown + streaming.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Loader2, Save, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
@@ -19,25 +19,24 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
+import { useChatLayoutStore } from '@/stores/chat-layout';
 
-import { TiptapEditor } from '@/components/editor/TiptapEditor';
 import { FileTabs, FileTree } from '@/components/filesystem';
+import { MarkdownEditor } from '@/components/markdownEditor';
 
 const EDITOR_MIN_WIDTH = 260;
 const EDITOR_MAX_WIDTH = 900;
 const EDITOR_DEFAULT_WIDTH = 560;
-const FILE_TREE_WIDTH = 260;
+const CHAT_MIN_WIDTH = 420;
 
-function baseName(filePath: string | null): string {
-  if (!filePath) return '';
-  const parts = filePath.split(/[\\/]/);
-  return parts[parts.length - 1] || filePath;
+function isMarkdownFile(filePath: string): boolean {
+  const lower = filePath.toLowerCase();
+  return lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdx');
 }
 
 export function Chat() {
   const { t } = useTranslation('chat');
-  const [editorOpen, setEditorOpen] = useState(true);
-  const [scratchEditorContent, setScratchEditorContent] = useState('');
+  const [mdViewMode, setMdViewMode] = useState<'source' | 'rendered'>('rendered');
   const [editorWidth, setEditorWidth] = useState(EDITOR_DEFAULT_WIDTH);
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
@@ -69,7 +68,9 @@ export function Chat() {
   const closeFile = useFileSystemStore((s) => s.closeFile);
   const applyWorkspaceForSession = useFileSystemStore((s) => s.applyWorkspaceForSession);
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
-  const saveCurrentFile = useFileSystemStore((s) => s.saveFile);
+  const saveFile = useFileSystemStore((s) => s.saveFile);
+  const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
   const minLoading = useMinLoading(loading && messages.length > 0);
@@ -108,10 +109,15 @@ export function Chat() {
 
   // Gateway not running block has been completely removed so the UI always renders.
 
-  const streamMsg = streamingMessage && typeof streamingMessage === 'object'
-    ? streamingMessage as unknown as { role?: string; content?: unknown; timestamp?: number }
-    : null;
-  const streamText = streamMsg ? extractText(streamMsg) : (typeof streamingMessage === 'string' ? streamingMessage : '');
+  const streamMsg =
+    streamingMessage && typeof streamingMessage === 'object'
+      ? (streamingMessage as unknown as { role?: string; content?: unknown; timestamp?: number })
+      : null;
+  const streamText = streamMsg
+    ? extractText(streamMsg)
+    : typeof streamingMessage === 'string'
+      ? streamingMessage
+      : '';
   const hasStreamText = streamText.trim().length > 0;
   const streamThinking = streamMsg ? extractThinking(streamMsg) : null;
   const hasStreamThinking = showThinking && !!streamThinking && streamThinking.trim().length > 0;
@@ -120,147 +126,106 @@ export function Chat() {
   const streamImages = streamMsg ? extractImages(streamMsg) : [];
   const hasStreamImages = streamImages.length > 0;
   const hasStreamToolStatus = streamingTools.length > 0;
-  const shouldRenderStreaming = sending && (hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus);
-  const hasAnyStreamContent = hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
+  const shouldRenderStreaming =
+    sending &&
+    (hasStreamText ||
+      hasStreamThinking ||
+      hasStreamTools ||
+      hasStreamImages ||
+      hasStreamToolStatus);
+  const hasAnyStreamContent =
+    hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
 
   const isEmpty = messages.length === 0 && !sending;
-  const activeFileName = baseName(activeFile);
-  const isActiveDirty = !!activeFile && dirtyFiles.includes(activeFile);
-  const editorContent = activeFile
-    ? (fileContents[activeFile] ?? '')
-    : scratchEditorContent;
-
-  const handleEditorChange = useCallback((content: string) => {
-    if (activeFile) {
-      updateFileContent(activeFile, content);
-      return;
+  const markdownOpenFiles = useMemo(
+    () => openFiles.filter((filePath) => isMarkdownFile(filePath)),
+    [openFiles]
+  );
+  const activeMarkdownFile = useMemo(() => {
+    if (activeFile && isMarkdownFile(activeFile)) {
+      return activeFile;
     }
-    setScratchEditorContent(content);
-  }, [activeFile, updateFileContent]);
-
-  const handleSaveActive = useCallback(() => {
-    if (!activeFile) return;
-    void saveCurrentFile(activeFile);
-  }, [activeFile, saveCurrentFile]);
+    return markdownOpenFiles[markdownOpenFiles.length - 1] ?? null;
+  }, [activeFile, markdownOpenFiles]);
+  const activeMarkdownContent = activeMarkdownFile ? (fileContents[activeMarkdownFile] ?? '') : '';
+  const markdownDirtyFiles = useMemo(
+    () => dirtyFiles.filter((filePath) => isMarkdownFile(filePath)),
+    [dirtyFiles]
+  );
+  const handleMarkdownChange = useCallback(
+    (nextMarkdown: string) => {
+      if (!activeMarkdownFile) return;
+      updateFileContent(activeMarkdownFile, nextMarkdown);
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      autoSaveTimerRef.current = setTimeout(() => {
+        void saveFile(activeMarkdownFile);
+      }, 200);
+    },
+    [activeMarkdownFile, saveFile, updateFileContent]
+  );
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-        event.preventDefault();
-        handleSaveActive();
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [handleSaveActive]);
+  }, []);
 
-  const handleImportToEditor = useCallback((content: string) => {
-    if (activeFile) {
-      updateFileContent(activeFile, content);
-      return;
-    }
-    setScratchEditorContent(content);
-  }, [activeFile, updateFileContent]);
+  const handleImportToEditor = useCallback(
+    (content: string) => {
+      if (activeFile) {
+        updateFileContent(activeFile, content);
+      }
+    },
+    [activeFile, updateFileContent]
+  );
 
   // Drag-to-resize editor while preserving chat page behavior from main branch.
-  const onDragStart = useCallback((e: React.MouseEvent) => {
-    isDragging.current = true;
-    dragStartX.current = e.clientX;
-    dragStartWidth.current = editorWidth;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
+  const onDragStart = useCallback(
+    (e: React.MouseEvent) => {
+      isDragging.current = true;
+      dragStartX.current = e.clientX;
+      dragStartWidth.current = editorWidth;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
 
-    const onMove = (ev: MouseEvent) => {
-      if (!isDragging.current) return;
-      const delta = ev.clientX - dragStartX.current;
-      const next = Math.min(EDITOR_MAX_WIDTH, Math.max(EDITOR_MIN_WIDTH, dragStartWidth.current + delta));
-      setEditorWidth(next);
-    };
-    const onUp = () => {
-      isDragging.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }, [editorWidth]);
+      const onMove = (ev: MouseEvent) => {
+        if (!isDragging.current) return;
+        const delta = ev.clientX - dragStartX.current;
+        const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
+        const maxByContainer = Math.max(EDITOR_MIN_WIDTH, containerWidth - CHAT_MIN_WIDTH);
+        const dynamicMaxWidth = Math.min(EDITOR_MAX_WIDTH, maxByContainer);
+        const next = Math.min(
+          dynamicMaxWidth,
+          Math.max(EDITOR_MIN_WIDTH, dragStartWidth.current - delta)
+        );
+        setEditorWidth(next);
+      };
+      const onUp = () => {
+        isDragging.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [editorWidth]
+  );
 
   return (
-    <div ref={containerRef} className={cn("flex -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
-      {/* File Tree Panel */}
-      <div className="shrink-0 overflow-hidden" style={{ width: FILE_TREE_WIDTH }}>
-        <FileTree className="h-full" />
-      </div>
-
-      {/* Editor Panel */}
-      {editorOpen && (
-        <div className="flex shrink-0 overflow-hidden" style={{ width: editorWidth }}>
-          <div className="flex flex-col flex-1 overflow-hidden bg-card border-r border-border">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-              <div className="min-w-0">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {activeFileName || '编辑器'}
-                  {isActiveDirty ? ' *' : ''}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={handleSaveActive}
-                  disabled={!activeFile}
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={activeFile ? '保存 (Cmd/Ctrl+S)' : '未选择文件'}
-                >
-                  <Save className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditorOpen(false)}
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  title="关闭编辑器"
-                >
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-            <FileTabs
-              openFiles={openFiles}
-              activeFile={activeFile}
-              dirtyFiles={dirtyFiles}
-              onSelectFile={setActiveFile}
-              onCloseFile={closeFile}
-            />
-            <div className="flex-1 overflow-hidden bg-card">
-              <TiptapEditor content={editorContent} onChange={handleEditorChange} className="h-full" />
-            </div>
-          </div>
-          {/* Drag handle */}
-          <div
-            onMouseDown={onDragStart}
-            className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors bg-border/50"
-            title="拖动调整宽度"
-          />
-        </div>
-      )}
-
-      {/* Chat Panel (right) */}
+    <div
+      ref={containerRef}
+      className={cn('flex h-full transition-colors duration-500 dark:bg-background')}
+    >
+      {/* Chat Panel */}
       <div className="relative flex flex-1 flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="flex shrink-0 items-center justify-between px-4 py-2">
-          {!editorOpen ? (
-            <button
-              type="button"
-              onClick={() => setEditorOpen(true)}
-              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              title="打开编辑器"
-            >
-              <PanelLeftOpen className="h-3.5 w-3.5" />
-            </button>
-          ) : <div />}
+        <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />
         </div>
 
@@ -283,18 +248,22 @@ export function Chat() {
                 {/* Streaming message */}
                 {shouldRenderStreaming && (
                   <ChatMessage
-                    message={(streamMsg
-                      ? {
-                          ...(streamMsg as Record<string, unknown>),
-                          role: (typeof streamMsg.role === 'string' ? streamMsg.role : 'assistant') as RawMessage['role'],
-                          content: streamMsg.content ?? streamText,
-                          timestamp: streamMsg.timestamp ?? streamingTimestamp,
-                        }
-                      : {
-                          role: 'assistant',
-                          content: streamText,
-                          timestamp: streamingTimestamp,
-                        }) as RawMessage}
+                    message={
+                      (streamMsg
+                        ? {
+                            ...(streamMsg as Record<string, unknown>),
+                            role: (typeof streamMsg.role === 'string'
+                              ? streamMsg.role
+                              : 'assistant') as RawMessage['role'],
+                            content: streamMsg.content ?? streamText,
+                            timestamp: streamMsg.timestamp ?? streamingTimestamp,
+                          }
+                        : {
+                            role: 'assistant',
+                            content: streamText,
+                            timestamp: streamingTimestamp,
+                          }) as RawMessage
+                    }
                     showThinking={showThinking}
                     isStreaming
                     streamingTools={streamingTools}
@@ -308,9 +277,7 @@ export function Chat() {
                 )}
 
                 {/* Typing indicator */}
-                {sending && !pendingFinal && !hasAnyStreamContent && (
-                  <TypingIndicator />
-                )}
+                {sending && !pendingFinal && !hasAnyStreamContent && <TypingIndicator />}
               </>
             )}
           </div>
@@ -351,6 +318,82 @@ export function Chat() {
           </div>
         )}
       </div>
+
+      <div
+        onMouseDown={onDragStart}
+        className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
+        title="拖动调整宽度"
+      ></div>
+
+      {/* Markdown Viewer Panel */}
+      <div
+        className="group relative border-l flex shrink-0 overflow-hidden"
+        style={{ width: editorWidth }}
+      >
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-border">
+          <FileTabs
+            openFiles={markdownOpenFiles}
+            activeFile={activeMarkdownFile}
+            dirtyFiles={markdownDirtyFiles}
+            onSelectFile={setActiveFile}
+            onCloseFile={closeFile}
+          />
+
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {!activeMarkdownFile ? (
+              <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                点击文件树中的 `.md` 文件后，会在这里新增标签页并显示内容
+              </div>
+            ) : (
+              <div className="w-full h-full">
+                <div className="w-full flex items-center justify-start gap-2 px-4 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setMdViewMode('source')}
+                    className={cn(
+                      'rounded px-2 py-1 text-xs transition-colors',
+                      mdViewMode === 'source'
+                        ? 'bg-muted text-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                    title="切换到源码视图"
+                  >
+                    源码
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMdViewMode('rendered')}
+                    className={cn(
+                      'rounded px-2 py-1 text-xs transition-colors',
+                      mdViewMode === 'rendered'
+                        ? 'bg-muted text-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                    title="切换到渲染视图"
+                  >
+                    渲染
+                  </button>
+                </div>
+                <MarkdownEditor
+                  className="h-full"
+                  value={activeMarkdownContent}
+                  mode={mdViewMode}
+                  onChange={handleMarkdownChange}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          'fixed right-0 top-10 bottom-0 z-40 w-[260px] border-l border-t border-border bg-background transition-transform duration-200 ease-out will-change-transform',
+          isFileTreeDrawerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
+        )}
+      >
+        <FileTree className="h-full" />
+      </div>
     </div>
   );
 }
@@ -367,13 +410,16 @@ function WelcomeScreen() {
 
   return (
     <div className="flex flex-col items-center justify-center text-center h-[60vh]">
-      <h1 className="text-4xl md:text-5xl font-serif text-foreground/80 mb-8 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+      <h1
+        className="text-4xl md:text-5xl font-serif text-foreground/80 mb-8 font-normal tracking-tight"
+        style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
+      >
         {t('welcome.subtitle')}
       </h1>
 
       <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-lg w-full">
         {quickActions.map(({ key, label }) => (
-          <button 
+          <button
             key={key}
             className="px-4 py-1.5 rounded-full border border-black/10 dark:border-white/10 text-[13px] font-medium text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5 transition-colors bg-black/[0.02]"
           >
@@ -395,9 +441,18 @@ function TypingIndicator() {
       </div>
       <div className="bg-black/5 dark:bg-white/5 text-foreground rounded-2xl px-4 py-3">
         <div className="flex gap-1">
-          <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-          <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-          <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '0ms' }}
+          />
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '300ms' }}
+          />
         </div>
       </div>
     </div>
