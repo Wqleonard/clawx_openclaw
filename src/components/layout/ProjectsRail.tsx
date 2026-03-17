@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { invokeIpc } from '@/lib/api-client';
@@ -9,6 +9,8 @@ import { useFileSystemStore } from '@/stores/filesystem';
 import { useSettingDialogStore } from '@/stores/setting-dialog';
 import { useSettingsStore } from '@/stores/settings';
 import { useProjectsStore } from '@/stores/projects';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Preferences } from '@/pages/Preferences';
 
 type ProjectItem = {
   path: string;
@@ -132,6 +134,7 @@ export function ProjectsRail() {
   const removeProjectShortcut = useProjectsStore((state) => state.removeWorkspaceShortcut);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const projectItems = useMemo<ProjectItem[]>(
     () =>
@@ -299,6 +302,20 @@ export function ProjectsRail() {
             'mt-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
             'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
           )}
+          onClick={() => setPreferencesOpen(true)}
+          title="Preferences"
+          aria-label="Open preferences"
+        >
+          <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
           onClick={openSettingDialog}
           title="settings"
           aria-label="Open settings"
@@ -329,6 +346,12 @@ export function ProjectsRail() {
           </button>
         </div>
       )}
+
+      <Dialog open={preferencesOpen} onOpenChange={setPreferencesOpen}>
+        <DialogContent className="max-w-[900px] w-[90vw] h-[80vh] p-0 gap-0 overflow-hidden rounded-2xl bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10">
+          <Preferences />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

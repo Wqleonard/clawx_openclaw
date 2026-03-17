@@ -3,7 +3,7 @@
  * Manage messaging channel connections with configuration UI
  */
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Trash2, AlertCircle } from 'lucide-react';
+import { Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -32,7 +32,7 @@ import feishuIcon from '@/assets/channels/feishu.svg';
 import wecomIcon from '@/assets/channels/wecom.svg';
 import qqIcon from '@/assets/channels/qq.svg';
 
-export function Channels() {
+export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const { t } = useTranslation('channels');
   const { channels, loading, error, fetchChannels, deleteChannel } = useChannelsStore();
   const gatewayStatus = useGatewayStore((state) => state.status);
@@ -81,20 +81,28 @@ export function Channels() {
 
   const displayedChannelTypes = getPrimaryChannels();
 
-  const handleRefresh = () => {
-    void Promise.all([fetchChannels(), fetchConfiguredTypes()]);
-  };
+  // const handleRefresh = () => {
+  //   void Promise.all([fetchChannels(), fetchConfiguredTypes()]);
+  // };
 
   if (loading) {
     return (
-      <div className="flex flex-col -m-6 dark:bg-background min-h-[calc(100vh-2.5rem)] items-center justify-center">
+      <div className={cn("flex flex-col dark:bg-background items-center justify-center", hideHeader ? "min-h-[200px]" : "-m-6 min-h-[calc(100vh-2.5rem)]")}>
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
+  // hideHeader 模式下只显示 qqbot，其他渠道暂时注释
+  const visibleChannelTypes: ChannelType[] = hideHeader
+    ? ['qqbot']
+    : displayedChannelTypes;
+    /* 暂时注释掉的其他渠道（hideHeader 模式）：
+       'telegram', 'discord', 'whatsapp', 'dingtalk', 'feishu', 'wecom'
+    */
+
   const safeChannels = Array.isArray(channels) ? channels : [];
-  const configuredPlaceholderChannels: Channel[] = displayedChannelTypes
+  const configuredPlaceholderChannels: Channel[] = visibleChannelTypes
     .filter((type) => configuredTypes.includes(type) && !safeChannels.some((channel) => channel.type === type))
     .map((type) => ({
       id: `${type}-default`,
@@ -102,37 +110,45 @@ export function Channels() {
       name: CHANNEL_NAMES[type] || CHANNEL_META[type].name,
       status: 'disconnected',
     }));
-  const availableChannels = [...safeChannels, ...configuredPlaceholderChannels];
+  const availableChannels = [
+    ...safeChannels.filter((ch) => visibleChannelTypes.includes(ch.type)),
+    ...configuredPlaceholderChannels,
+  ];
 
   return (
-    <div className="flex flex-col -m-6 dark:bg-background overflow-hidden">
-      <div className="w-full max-w-5xl mx-auto flex flex-col h-full p-10 pt-16">
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-12 shrink-0 gap-4">
-          <div>
-            <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('title')}
-            </h1>
-            <p className="text-[17px] text-foreground/70 font-medium">
-              {t('subtitle')}
-            </p>
-          </div>
+    <div className={cn("flex flex-col dark:bg-background overflow-hidden", hideHeader ? "" : "-m-6 h-[calc(100vh-2.5rem)]")}>
+      <div className={cn("w-full max-w-5xl mx-auto flex flex-col h-full", hideHeader ? "pt-0" : "p-10 pt-16")}>
 
-          <div className="flex items-center gap-3 md:mt-2">
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={gatewayStatus.state !== 'running'}
-              className="h-9 text-[13px] font-medium rounded-full px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-foreground/80 hover:text-foreground transition-colors"
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-2", loading && "animate-spin")} />
-              {t('refresh')}
-            </Button>
+        {/* 大标题 + 刷新按钮（hideHeader 时隐藏） */}
+        {!hideHeader && (
+          <div className="flex flex-col md:flex-row md:items-start justify-between mb-12 shrink-0 gap-4">
+            <div>
+              <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+                {t('title')}
+              </h1>
+              <p className="text-[17px] text-foreground/70 font-medium">
+                {t('subtitle')}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 md:mt-2">
+              {/* 刷新按钮（hideHeader 时注释掉）
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={gatewayStatus.state !== 'running'}
+                className="h-9 text-[13px] font-medium rounded-full px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-foreground/80 hover:text-foreground transition-colors"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5 mr-2", loading && "animate-spin")} />
+                {t('refresh')}
+              </Button>
+              */}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="flex-1 overflow-y-auto pr-2 pb-10 min-h-0 -mr-2">
+        <div className={cn("flex-1 overflow-y-auto min-h-0", hideHeader ? "" : "pr-2 pb-10 -mr-2")}>
           {gatewayStatus.state !== 'running' && (
-            <div className="mb-8 p-4 rounded-xl border border-yellow-500/50 bg-yellow-500/10 flex items-center gap-3">
+            <div className="mb-4 p-4 rounded-xl border border-yellow-500/50 bg-yellow-500/10 flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
               <span className="text-yellow-700 dark:text-yellow-400 text-sm font-medium">
                 {t('gatewayWarning')}
@@ -141,7 +157,7 @@ export function Channels() {
           )}
 
           {error && (
-            <div className="mb-8 p-4 rounded-xl border border-destructive/50 bg-destructive/10 flex items-center gap-3">
+            <div className="mb-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-destructive" />
               <span className="text-destructive text-sm font-medium">
                 {error}
@@ -149,16 +165,20 @@ export function Channels() {
             </div>
           )}
 
+          {/* 已配置的渠道 */}
           {availableChannels.length > 0 && (
-            <div className="mb-12">
-              <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-                {t('availableChannels')}
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <div className={cn(hideHeader ? "mb-4" : "mb-12")}>
+              {!hideHeader && (
+                <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+                  {t('availableChannels')}
+                </h2>
+              )}
+              <div className={cn("rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] overflow-hidden", !hideHeader && "grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 rounded-none border-0 bg-transparent")}>
                 {availableChannels.map((channel) => (
                   <ChannelCard
                     key={channel.id}
                     channel={channel}
+                    hideHeader={hideHeader}
                     onClick={() => {
                       setSelectedChannelType(channel.type);
                       setShowAddDialog(true);
@@ -170,13 +190,19 @@ export function Channels() {
             </div>
           )}
 
-          <div className="mb-8">
-            <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('supportedChannels')}
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-              {displayedChannelTypes.map((type) => {
+          {/* 未配置的渠道列表 */}
+          <div className={cn(hideHeader ? "" : "mb-8")}>
+            {!hideHeader && (
+              <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+                {t('supportedChannels')}
+              </h2>
+            )}
+            <div className={cn(
+              hideHeader
+                ? "rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] overflow-hidden"
+                : "grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"
+            )}>
+              {visibleChannelTypes.map((type) => {
                 const meta = CHANNEL_META[type];
                 const isAvailable = availableChannels.some((channel) => channel.type === type);
                 if (isAvailable) return null;
@@ -189,25 +215,44 @@ export function Channels() {
                       setShowAddDialog(true);
                     }}
                     className={cn(
-                      'group flex items-start gap-4 p-4 rounded-2xl transition-all text-left border relative overflow-hidden bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5'
+                      hideHeader
+                        ? 'flex items-center justify-between w-full px-5 py-4 border-b border-black/5 dark:border-white/5 last:border-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-left'
+                        : 'group flex items-start gap-4 p-4 rounded-2xl transition-all text-left border relative overflow-hidden bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5'
                     )}
                   >
-                    <div className="h-[46px] w-[46px] shrink-0 flex items-center justify-center text-foreground bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-full shadow-sm mb-3">
-                      <ChannelLogo type={type} />
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0 py-0.5 mt-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-[16px] font-semibold text-foreground truncate">{meta.name}</h3>
-                        {meta.isPlugin && (
-                          <Badge variant="secondary" className="font-mono text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] border-0 shadow-none text-foreground/70">
-                            {t('pluginBadge')}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-[13.5px] text-muted-foreground line-clamp-2 leading-[1.5]">
-                        {t(meta.description.replace('channels:', ''))}
-                      </p>
-                    </div>
+                    {hideHeader ? (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 shrink-0 flex items-center justify-center bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-full">
+                            <ChannelLogo type={type} />
+                          </div>
+                          <div>
+                            <p className="text-[14px] font-medium text-foreground">{meta.name}</p>
+                            <p className="text-[12px] text-muted-foreground mt-0.5">{t(meta.description.replace('channels:', ''))}</p>
+                          </div>
+                        </div>
+                        <span className="text-[12px] text-muted-foreground shrink-0">{t('configure', '配置')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="h-[46px] w-[46px] shrink-0 flex items-center justify-center text-foreground bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-full shadow-sm mb-3">
+                          <ChannelLogo type={type} />
+                        </div>
+                        <div className="flex flex-col flex-1 min-w-0 py-0.5 mt-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-[16px] font-semibold text-foreground truncate">{meta.name}</h3>
+                            {meta.isPlugin && (
+                              <Badge variant="secondary" className="font-mono text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] border-0 shadow-none text-foreground/70">
+                                {t('pluginBadge')}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[13.5px] text-muted-foreground line-clamp-2 leading-[1.5]">
+                            {t(meta.description.replace('channels:', ''))}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </button>
                 );
               })}
@@ -276,13 +321,65 @@ function ChannelLogo({ type }: { type: ChannelType }) {
 
 interface ChannelCardProps {
   channel: Channel;
+  hideHeader?: boolean;
   onClick: () => void;
   onDelete: () => void;
 }
 
-function ChannelCard({ channel, onClick, onDelete }: ChannelCardProps) {
+function ChannelCard({ channel, hideHeader = false, onClick, onDelete }: ChannelCardProps) {
   const { t } = useTranslation('channels');
   const meta = CHANNEL_META[channel.type];
+
+  if (hideHeader) {
+    return (
+      <div
+        onClick={onClick}
+        className="group flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 last:border-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
+      >
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 shrink-0 flex items-center justify-center bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-full">
+            <ChannelLogo type={channel.type} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-[14px] font-medium text-foreground">{channel.name}</p>
+              <div
+                className={cn(
+                  'w-2 h-2 rounded-full shrink-0',
+                  channel.status === 'connected'
+                    ? 'bg-green-500'
+                    : channel.status === 'connecting'
+                      ? 'bg-yellow-500 animate-pulse'
+                      : channel.status === 'error'
+                        ? 'bg-destructive'
+                        : 'bg-muted-foreground'
+                )}
+                title={channel.status}
+              />
+            </div>
+            {channel.error ? (
+              <p className="text-[12px] text-destructive mt-0.5">{channel.error}</p>
+            ) : (
+              <p className="text-[12px] text-muted-foreground mt-0.5">
+                {meta ? t(meta.description.replace('channels:', '')) : CHANNEL_NAMES[channel.type]}
+              </p>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="opacity-0 group-hover:opacity-100 h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div

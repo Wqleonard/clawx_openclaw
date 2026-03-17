@@ -10,7 +10,14 @@ import i18n from './i18n';
 import { MainLayout } from './components/layout/MainLayout';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Chat } from './pages/Chat';
+import { Agents } from './pages/Agents';
+import { Channels } from './pages/Channels';
+import { Skills } from './pages/Skills';
+import { Cron } from './pages/Cron';
+import { Settings } from './pages/Settings';
+import { Preferences } from './pages/Preferences';
 import { Setup } from './pages/Setup';
+import { Models } from './pages/Models';
 import { Login } from './pages/Login';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
@@ -186,6 +193,13 @@ function App() {
           {/* Main application routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Chat />} />
+            <Route path="/models" element={<Models />} />
+            <Route path="/agents" element={<Agents />} />
+            <Route path="/channels" element={<Channels />} />
+            <Route path="/skills" element={<Skills />} />
+            <Route path="/cron" element={<Cron />} />
+            <Route path="/settings/*" element={<Settings />} />
+            <Route path="/preferences" element={<Preferences />} />
             <Route path="/chat" element={<Chat />} />
           </Route>
         </Routes>

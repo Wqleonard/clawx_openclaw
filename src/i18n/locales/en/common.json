@@ -8,6 +8,7 @@
         "channels": "Channels",
         "dashboard": "Dashboard",
         "settings": "Settings",
+        "preferences": "Preferences",
         "devConsole": "Developer Console",
         "models": "Models",
         "deleteSessionConfirm": "Are you sure you want to delete session \"{{label}}\"?",

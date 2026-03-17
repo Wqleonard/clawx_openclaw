@@ -1,4 +1,5 @@
-import apiClient from "./index";
+import apiClient from './index';
+import { hostApiFetch } from '@/lib/host-api';
 
 interface RegisterInfo {
   phone: string | number;
@@ -13,7 +14,7 @@ interface LoginInfo {
 }
 
 const createNewUserReq = (registerInfo: RegisterInfo) => {
-  return apiClient.post("/api/users/register", {
+  return apiClient.post('/api/users/register', {
     phone: registerInfo.phone,
     password: registerInfo.password,
     invitationCode: registerInfo.invitationCode,
@@ -22,43 +23,57 @@ const createNewUserReq = (registerInfo: RegisterInfo) => {
 };
 
 const loginReq = (loginInfo: LoginInfo) => {
-  return apiClient.post("/api/users/login", {
+  return apiClient.post('/api/users/login', {
     phone: loginInfo.phone,
     password: loginInfo.password,
   });
 };
 
+// 测试模拟登录
+const loginWithTestReq = () => {
+  const rawBase = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? '';
+  const baseUrl = rawBase.replace(/\/+$/, '');
+  return hostApiFetch('/api/app/mock-login', {
+    method: 'POST',
+    body: JSON.stringify({
+      baseUrl,
+      username: 'southwind',
+      password: '123456',
+    }),
+  });
+};
+
 const postSuggestsReq = (suggest: string, contactNumber?: string) => {
-  return apiClient.post("/api/users/suggests", {
+  return apiClient.post('/api/users/suggests', {
     content: suggest,
     contactNumber: contactNumber ? contactNumber : undefined,
   });
 };
 
 const getUserInfoReq = () => {
-  return apiClient.get("/api/users");
+  return apiClient.get('/api/users');
 };
 
 const getUserBalanceReq = () => {
-  return apiClient.get("/api/users/balance");
+  return apiClient.get('/api/users/balance');
 };
 
 const getInvitationCodeReq = () => {
-  return apiClient.get("/api/users/invitation-code");
+  return apiClient.get('/api/users/invitation-code');
 };
 
 const useInvitationCodeReq = (invitationCode: string) => {
-  return apiClient.post("/api/users/invitation-code", {
+  return apiClient.post('/api/users/invitation-code', {
     invitationCode,
   });
 };
 
 const getFrozenUserEmailReq = () => {
-  return apiClient.get("/api/users/is-have-frozen-user-email");
+  return apiClient.get('/api/users/is-have-frozen-user-email');
 };
 
 const postFrozenUserEmailReq = (email: string) => {
-  return apiClient.post("/api/users/frozen-user-email", {
+  return apiClient.post('/api/users/frozen-user-email', {
     email,
   });
 };
@@ -69,21 +84,24 @@ interface UserInfo {
 }
 
 const updateUserInfo = (data: Partial<UserInfo>) => {
-  return apiClient.put("/api/users", data);
+  return apiClient.put('/api/users', data);
 };
 
 const updatePassword = (oldPassword: string, newPassword: string) => {
-  return apiClient.put("/api/users/password", {
+  return apiClient.put('/api/users/password', {
     oldPassword,
     newPassword,
   });
 };
 
-const verifyTicket = (ticket: string, invitationCode: string = "") => {
-  return apiClient.post("/api/users/verify-ticket", {
+const verifyTicket = async (ticket: string, invitationCode: string = '') => {
+  // 注意：/auth/login 返回的是原始 token 对象（非 { code, message, data } 包装），
+  // 这里需要直接使用底层 axios 实例拿到 response.data。
+  const response = await apiClient.api.post('/auth/login', {
     ticket,
     invitationCode,
   });
+  return response.data;
 };
 
 export interface GuideTask {
@@ -103,7 +121,7 @@ export interface GetNewbieMissionData {
 }
 
 const getNewbieMission = () => {
-  return apiClient.get<GetNewbieMissionData>("/api/users/guide/tasks");
+  return apiClient.get<GetNewbieMissionData>('/api/users/guide/tasks');
 };
 
 const completeNewbieMissionReq = (taskId: number) => {
@@ -125,4 +143,5 @@ export {
   getFrozenUserEmailReq,
   getNewbieMission,
   completeNewbieMissionReq,
+  loginWithTestReq,
 };
