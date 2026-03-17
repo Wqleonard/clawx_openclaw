@@ -12,7 +12,6 @@ import { useChatStore } from '@/stores/chat';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useSettingDialogStore } from '@/stores/setting-dialog';
 import { useSettingsStore } from '@/stores/settings';
-import { useProjectsStore } from '@/stores/projects';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Preferences } from '@/pages/Preferences';
 
