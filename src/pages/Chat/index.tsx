@@ -731,8 +731,8 @@ export function Chat() {
       {workspacePath && (
         <div
           className={cn(
-            'fixed right-0 top-10 bottom-0 z-40 w-[260px] border-l border-t border-border bg-background transition-transform duration-200 ease-out will-change-transform',
-            isFileTreeDrawerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
+            'shrink-0 overflow-hidden  border-border bg-background transition-[width] duration-200 ease-out',
+            isFileTreeDrawerOpen ? 'w-[260px]' : 'w-0 pointer-events-none border-l-0 border-t-0'
           )}
         >
           <FileTree key={workspacePath} className="h-full" />

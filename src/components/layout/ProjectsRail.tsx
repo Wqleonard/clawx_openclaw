@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings as SettingsIcon, SlidersHorizontal, Terminal } from 'lucide-react';
+import { SlidersHorizontal, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
 import { useFileSystemStore } from '@/stores/filesystem';
-import { useSettingDialogStore } from '@/stores/setting-dialog';
 import { useSettingsStore } from '@/stores/settings';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Preferences } from '@/pages/Preferences';
@@ -128,7 +127,7 @@ export function ProjectsRail() {
   const isDev = import.meta.env.DEV;
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
+  // const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
   const projectPath = useFileSystemStore((state) => state.projectPath);
   const initProject = useFileSystemStore((state) => state.initProject);
   const clearProject = useFileSystemStore((state) => state.clearProject);
@@ -362,19 +361,19 @@ export function ProjectsRail() {
           <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
         </Button>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
-            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
-          )}
-          onClick={openSettingDialog}
-          title="settings"
-          aria-label="Open settings"
-        >
-          <SettingsIcon className="h-4 w-4" strokeWidth={2} />
-        </Button>
+        {/*<Button*/}
+        {/*  variant="ghost"*/}
+        {/*  size="icon"*/}
+        {/*  className={cn(*/}
+        {/*    'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',*/}
+        {/*    'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'*/}
+        {/*  )}*/}
+        {/*  onClick={openSettingDialog}*/}
+        {/*  title="settings"*/}
+        {/*  aria-label="Open settings"*/}
+        {/*>*/}
+        {/*  <SettingsIcon className="h-4 w-4" strokeWidth={2} />*/}
+        {/*</Button>*/}
 
         {isDev && (
           <Button
