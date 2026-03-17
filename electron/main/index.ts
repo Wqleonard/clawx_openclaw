@@ -16,6 +16,7 @@ import { warmupNetworkOptimization } from '../utils/uv-env';
 import { initTelemetry } from '../utils/telemetry';
 
 import { ClawHubService } from '../gateway/clawhub';
+import { SkillHubService } from '../services/skillhub-service';
 import { ensureClawXContext, repairClawXOnlyBootstrapFiles } from '../utils/openclaw-workspace';
 import { autoInstallCliIfNeeded, generateCompletionCache, installCompletionToProfile } from '../utils/openclaw-cli';
 import { isQuitting, setQuitting } from './app-state';
@@ -70,6 +71,7 @@ if (!gotTheLock) {
 let mainWindow: BrowserWindow | null = null;
 const gatewayManager = new GatewayManager();
 const clawHubService = new ClawHubService();
+const skillHubService = new SkillHubService();
 const hostEventBus = new HostEventBus();
 let hostApiServer: Server | null = null;
 
@@ -206,6 +208,7 @@ async function initialize(): Promise<void> {
   hostApiServer = startHostApiServer({
     gatewayManager,
     clawHubService,
+    skillHubService,
     eventBus: hostEventBus,
     mainWindow,
   });
