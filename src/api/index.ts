@@ -200,22 +200,22 @@ export function createApiClient(options: ApiClientOptions = {}) {
   // ==============
   async function post<T = any>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
     const response = await api.post<ApiResponse<T>>(url, data, config);
-    return response.data.data;
+    return response.data as T;
   }
 
   async function get<T = unknown>(url: string, params?: unknown, config?: RequestConfig): Promise<T> {
     const response = await api.get<ApiResponse<T>>(url, { params, ...config });
-    return response.data.data;
+    return response.data as T;
   }
 
   async function put<T = any>(url: string, data?: any, config?: RequestConfig): Promise<T> {
     const response = await api.put<ApiResponse<T>>(url, data, config);
-    return response.data.data;
+    return response.data as T;
   }
 
   async function del<T = any>(url: string, config?: RequestConfig): Promise<T> {
     const response = await api.delete<ApiResponse<T>>(url, config);
-    return response.data.data;
+    return response.data as T;
   }
 
   async function upload<T = any>(url: string, file: File, config?: RequestConfig): Promise<T> {
@@ -225,7 +225,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       headers: { "Content-Type": "multipart/form-data" },
       ...config,
     });
-    return response.data.data;
+    return response.data as T;
   }
 
   // ==============

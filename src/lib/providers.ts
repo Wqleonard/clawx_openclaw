@@ -96,6 +96,13 @@ export interface ProviderVendorInfo extends ProviderTypeInfo {
   supportsMultipleAccounts: boolean;
 }
 
+export interface BaowenmaoPresetAccount {
+  id: string;
+  model: string;
+  label: string;
+  isDefault?: boolean;
+}
+
 export interface ProviderAccount {
   id: string;
   vendorId: ProviderType;
@@ -166,6 +173,31 @@ export const PROVIDER_TYPE_INFO: ProviderTypeInfo[] = [
   { id: 'qwen-portal', name: 'Qwen', icon: '☁️', placeholder: 'sk-...', model: 'Qwen', requiresApiKey: false, isOAuth: true, defaultModelId: 'coder-model' },
   { id: 'ollama', name: 'Ollama', icon: '🦙', placeholder: 'Not required', requiresApiKey: false, defaultBaseUrl: 'http://localhost:11434/v1', showBaseUrl: true, showModelId: true, modelIdPlaceholder: 'qwen3:latest' },
   { id: 'custom', name: 'Custom', icon: '⚙️', placeholder: 'API key...', requiresApiKey: true, showBaseUrl: true, showModelId: true, modelIdPlaceholder: 'your-provider/model-id' },
+];
+
+/** Preconfigured Baowenmao accounts that are auto-managed by the app */
+export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
+  {
+    id: 'ark:custom-baowenmao',
+    model: 'ark:ep-20260123143950-zm9zl',
+    label: '爆文猫 (ark)',
+  },
+  {
+    id: 'qwen3-max:custom-baowenmao',
+    model: 'aliyun:qwen3-max',
+    label: '爆文猫 (qwen3-max)',
+    isDefault: true,
+  },
+  {
+    id: 'glm:custom-baowenmao',
+    model: 'aliyun:glm-5',
+    label: '爆文猫 (glm-5)',
+  },
+  {
+    id: 'kimi:custom-baowenmao',
+    model: 'aliyun:kimi-k2.5',
+    label: '爆文猫 (kimi-k2.5)',
+  },
 ];
 
 /** Get the SVG logo URL for a provider type, falls back to undefined */

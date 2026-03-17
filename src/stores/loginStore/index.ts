@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import { verifyTicket, getNewbieMission, completeNewbieMissionReq, type GuideTask } from '@/api/users'
+import { verifyTicket, getNewbieMission, completeNewbieMissionReq, getUserInfoReq, type GuideTask } from '@/api/users'
 import { getInsiteNotification, type NotificationItem } from '@/api/insite-notification'
 import { hostApiFetch } from '@/lib/host-api'
 import type { ProviderAccount } from '@/lib/providers'
+import { BAOWENMAO_PRESET_ACCOUNTS } from '@/lib/providers'
 import { useSettingsStore } from '@/stores/settings'
 import type {
   UserInfo,
@@ -15,11 +16,6 @@ export type { UserInfo, AvatarData, Message, InterceptedAction, LoginStore } fro
 
 const NEWBIE_TOUR_STORAGE_KEY = 'hasNewbieTourShowed'
 const READED_IDS_KEY = 'readedMessageIds'
-const BAOWENMAO_PROVIDER_ID_HS = 'ark:custom-baowenmao'
-const BAOWENMAO_PROVIDER_ID_AL = 'aliyun:custom-baowenmao'
-const BAOWENMAO_PROVIDER_LABEL = '爆文猫'
-const BAOWENMAO_MODEL_ID_HS = 'ark:ep-20260123143950-zm9zl'
-const BAOWENMAO_MODEL_ID_AL = 'aliyun:qwen3-max'
 const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions'
 
 
@@ -105,17 +101,17 @@ async function ensureBaowenmaoProvider(apiKey: string): Promise<void> {
     }
   }
 
-  // 火山 Ark 版本
-  await upsertAccount(BAOWENMAO_PROVIDER_ID_HS, BAOWENMAO_MODEL_ID_HS, `${BAOWENMAO_PROVIDER_LABEL} (Ark)`)
-  // 阿里云 Qwen 版本
-  await upsertAccount(BAOWENMAO_PROVIDER_ID_AL, BAOWENMAO_MODEL_ID_AL, `${BAOWENMAO_PROVIDER_LABEL} (Aliyun)`)
+  for (const preset of BAOWENMAO_PRESET_ACCOUNTS) {
+    await upsertAccount(preset.id, preset.model, preset.label)
+  }
 
-  // 默认选中阿里云 qwen3-max
+  // 默认选中 isDefault 标记的账号（当前是 qwen3-max）
+  const defaultPreset = BAOWENMAO_PRESET_ACCOUNTS.find((p) => p.isDefault) ?? BAOWENMAO_PRESET_ACCOUNTS[0]
   const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
     '/api/provider-accounts/default',
     {
       method: 'PUT',
-      body: JSON.stringify({ accountId: BAOWENMAO_PROVIDER_ID_AL }),
+      body: JSON.stringify({ accountId: defaultPreset.id }),
     }
   )
   if (!defaultResult.success) {
@@ -237,7 +233,7 @@ function renderAvatarFromData(
 
 function getAvatarDataUrl(userInfo: UserInfo | null): string {
   return renderAvatarFromData(
-    makeRandomAvatar(userInfo?.phone ?? '13600008888')
+    makeRandomAvatar(userInfo?.username ?? '13600008888')
   )
 }
 
@@ -416,14 +412,30 @@ export const useLoginStore = create<LoginStore>((set, get) => {
         } catch (providerError) {
           console.error('Auto-configure Baowenmao provider failed:', providerError)
         }
-        const user = (
-          req && typeof req === 'object' && 'user' in req
-            ? (req as { user?: UserInfo }).user
-            : undefined
-        )
-        if (user) {
-          get().saveUserInfo(user)
+
+        // 尝试从业务接口获取并规范化用户信息
+        try {
+          const profile = await getUserInfoReq() as unknown
+          if (profile && typeof profile === 'object') {
+            const p = profile as Record<string, unknown>
+            const points =
+              typeof p.points === 'number'
+                ? p.points
+                : Number(p.points ?? 0)
+            const normalized: UserInfo = {
+              id: String(p.id ?? p.userId ?? ''),
+              username: String(p.username ?? p.phone ?? p.mobile ?? ''),
+              points: Number.isFinite(points) ? points : 0,
+              role: String(p.role ?? 'user'),
+            }
+            if (normalized.username) {
+              get().saveUserInfo(normalized)
+            }
+          }
+        } catch (profileError) {
+          console.error('Failed to fetch user profile after login:', profileError)
         }
+
         get().updateLoginStatus()
         return { success: true, message: '登录成功' }
       } catch (err: unknown) {

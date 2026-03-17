@@ -2,10 +2,9 @@ import type { GuideTask } from '@/api/users'
 
 export interface UserInfo {
   id: string
-  createdTime?: string
-  phone: string
-  nickName: string
-  limitStatus?: number
+  username: string
+  points: number
+  role: string
 }
 
 export interface AvatarData {
@@ -22,7 +21,7 @@ export interface Message {
   isReaded: boolean
 }
 
-export type InterceptedAction = (...args: any[]) => void | Promise<void>
+export type InterceptedAction = (...args: unknown[]) => void | Promise<void>
 
 export interface LoginState {
   isLoggedIn: boolean
@@ -55,7 +54,7 @@ export interface LoginActions {
   loginWithTicket: (ticket: string) => Promise<{ success: boolean; message: string }>
   logout: () => void
   initUserInfo: () => void
-  requireLogin: <T extends any[]>(action: (...args: T) => void | Promise<void>, ...args: T) => Promise<void>
+  requireLogin: <T extends unknown[]>(action: (...args: T) => void | Promise<void>, ...args: T) => Promise<void>
   clearInterceptedActions: () => void
   executeInterceptedActions: () => Promise<void>
   consumeLoginDialogRequest: () => number

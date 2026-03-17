@@ -1173,10 +1173,10 @@ export function Settings() {
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-[15px] font-medium text-foreground">
-                  {userInfo?.nickName || userInfo?.phone || t('account.guest')}
+                  {userInfo?.username || t('account.guest')}
                 </Label>
-                {userInfo?.nickName && userInfo?.phone && (
-                  <p className="text-[13px] text-muted-foreground mt-1">{userInfo.phone}</p>
+                {userInfo?.role && (
+                  <p className="text-[13px] text-muted-foreground mt-1">{userInfo.role}</p>
                 )}
               </div>
               <Button

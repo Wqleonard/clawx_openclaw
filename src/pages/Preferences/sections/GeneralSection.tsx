@@ -69,7 +69,7 @@ export function GeneralSection() {
               {isZh ? '手机号' : 'Phone'}
             </p>
             <p className="text-[14px] text-muted-foreground">
-              {userInfo?.phone ? maskPhone(userInfo.phone) : '—'}
+              {userInfo?.username ? maskPhone(userInfo.username) : '—'}
             </p>
           </div>
           {/* 注销账号 */}
