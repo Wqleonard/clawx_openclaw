@@ -67,7 +67,10 @@ export const useAgentsStore = create<AgentsState>((set) => ({
     }
   },
 
-  createAgent: async (name: string, options?: { templateId?: string; sourceAgentId?: string }) => {
+  createAgent: async (
+    name: string,
+    options?: { templateId?: string; sourceAgentId?: string; workspacePath?: string }
+  ) => {
     set({ error: null });
     try {
       const snapshot = await hostApiFetch<AgentsSnapshot & { success?: boolean }>('/api/agents', {

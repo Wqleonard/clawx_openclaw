@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
+import { AddAgentDialog } from './AddAgentDialog';
 import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { useAgentsStore } from '@/stores/agents';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useSettingDialogStore } from '@/stores/setting-dialog';
 import { useSettingsStore } from '@/stores/settings';
@@ -124,14 +126,20 @@ export function ProjectsRail() {
   const projectPath = useFileSystemStore((state) => state.workspacePath);
   const initWorkspace = useFileSystemStore((state) => state.initWorkspace);
   const clearWorkspace = useFileSystemStore((state) => state.clearWorkspace);
-  const workspaceRoots = useSettingsStore((state) => state.workspaceRoots);
+  const workspaceRoots = useSettingsStore((state) => {
+    const workspaceState = state as { workspaceRoots?: string[] };
+    return workspaceState.workspaceRoots ?? [];
+  });
   const projectShortcuts = useProjectsStore((state) => state.workspaceShortcuts);
   const initProjectShortcuts = useProjectsStore((state) => state.initWorkspaceShortcuts);
   const addProjectShortcut = useProjectsStore((state) => state.addWorkspaceShortcut);
   const replaceProjectShortcut = useProjectsStore((state) => state.replaceWorkspaceShortcut);
   const removeProjectShortcut = useProjectsStore((state) => state.removeWorkspaceShortcut);
+  const createAgent = useAgentsStore((state) => state.createAgent);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
+  const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
+  const [pendingWorkspacePath, setPendingWorkspacePath] = useState<string>('');
 
   const projectItems = useMemo<ProjectItem[]>(
     () =>
@@ -184,7 +192,7 @@ export function ProjectsRail() {
     });
   };
 
-  const handleActivateWorkspace = async (targetPath: string) => {
+  const handleActivateProject = async (targetPath: string) => {
     if (!targetPath || targetPath === useFileSystemStore.getState().workspacePath) {
       navigate('/chat');
       return;
@@ -193,7 +201,7 @@ export function ProjectsRail() {
     navigate('/chat');
   };
 
-  const handleAddWorkspace = async () => {
+  const handleAddProject = async () => {
     const allowedRoots = Array.from(new Set(workspaceRoots));
     if (allowedRoots.length === 0) {
       toast.error('请先在设置中配置可用工作区');
@@ -216,7 +224,9 @@ export function ProjectsRail() {
       }
 
       await initWorkspace(selected);
-      addProjectShortcut(selected);
+      addProjectShortcut(selected); 
+      setPendingWorkspacePath(selected);
+      setShowAddAgentDialog(true);
     } finally {
       setIsAddingWorkspace(false);
     }
@@ -276,7 +286,7 @@ export function ProjectsRail() {
           <WorkspaceShortcutButton
             key={workspace.path}
             workspace={workspace}
-            onActivate={handleActivateWorkspace}
+            onActivate={handleActivateProject}
             onContextMenu={handleContextMenu}
           />
         ))}
@@ -285,7 +295,7 @@ export function ProjectsRail() {
           size="icon"
           className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
           disabled={isAddingWorkspace}
-          onClick={() => void handleAddWorkspace()}
+          onClick={() => void handleAddProject()}
           title="Add Project"
           aria-label="Add Project"
         >
@@ -329,6 +339,23 @@ export function ProjectsRail() {
           </button>
         </div>
       )}
+
+      <AddAgentDialog
+        open={showAddAgentDialog}
+        onClose={() => {
+          setShowAddAgentDialog(false);
+          setPendingWorkspacePath('');
+        }}
+        initialWorkspacePath={pendingWorkspacePath}
+        hideWorkspaceSelector
+        onCreate={async (name, options) => {
+          const workspacePath = options.workspacePath || pendingWorkspacePath;
+          await createAgent(name, { ...options, workspacePath });
+          setShowAddAgentDialog(false);
+          setPendingWorkspacePath('');
+          toast.success('Agent 创建成功');
+        }}
+      />
     </>
   );
 }
