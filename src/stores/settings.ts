@@ -37,6 +37,8 @@ interface SettingsState {
   sidebarCollapsed: boolean;
   devModeUnlocked: boolean;
   showToolCalls: boolean;
+  workspaceRoots: string[];
+
 
   // Setup
   setupComplete: boolean;
@@ -63,6 +65,7 @@ interface SettingsState {
   setDevModeUnlocked: (value: boolean) => void;
   setShowToolCalls: (value: boolean) => void;
   setSetupComplete: (value: boolean) => void;
+  setWorkspaceRoots: (value: string[]) => void;
   markSetupComplete: () => void;
   resetSettings: () => void;
 }
@@ -92,6 +95,7 @@ const defaultSettings = {
   sidebarCollapsed: false,
   devModeUnlocked: false,
   showToolCalls: false,
+  workspaceRoots: [],
   setupComplete: false,
 };
 
@@ -166,6 +170,13 @@ export const useSettingsStore = create<SettingsState>()(
       setDevModeUnlocked: (devModeUnlocked) => set({ devModeUnlocked }),
       setShowToolCalls: (showToolCalls) => set({ showToolCalls }),
       setSetupComplete: (setupComplete) => set({ setupComplete }),
+      setWorkspaceRoots: (workspaceRoots) => {
+        set({ workspaceRoots });
+        void hostApiFetch('/api/settings/workspaceRoots', {
+          method: 'PUT',
+          body: JSON.stringify({ value: workspaceRoots }),
+        }).catch(() => { });
+      },
       markSetupComplete: () => set({ setupComplete: true }),
       resetSettings: () => set(defaultSettings),
     }),

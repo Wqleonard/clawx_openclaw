@@ -17,6 +17,16 @@
     "launchAtStartup": "Launch at system startup",
     "launchAtStartupDesc": "Automatically launch BoomClaw when you log in"
   },
+  "workspace": {
+    "title": "Workspace",
+    "desc": "Configure allowed workspace root folders. Sidebar workspace picker can only choose these roots or their subfolders.",
+    "placeholder": "Enter workspace root path",
+    "add": "Add",
+    "pick": "Pick Folder",
+    "empty": "No workspace roots configured yet",
+    "saved": "Workspace settings saved",
+    "saveFailed": "Failed to save workspace settings"
+  },
   "aiProviders": {
     "title": "AI Providers",
     "description": "Configure your AI model providers and API keys",
