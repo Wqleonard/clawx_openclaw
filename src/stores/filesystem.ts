@@ -22,6 +22,7 @@ type FileSystemState = {
   applyWorkspaceForSession: (sessionKey: string) => Promise<void>;
   ensureDefaultWorkspaceForSession: (sessionKey: string) => Promise<void>;
   initWorkspace: (workspacePath: string) => Promise<void>;
+  clearWorkspace: () => Promise<void>;
   refreshTree: (dirPath?: string) => Promise<void>;
   openFile: (filePath: string) => Promise<void>;
   closeFile: (filePath: string) => void;
@@ -202,6 +203,31 @@ export const useFileSystemStore = create<FileSystemState>()(
           lastError: null,
         });
         await get().refreshTree();
+      },
+
+      clearWorkspace: async () => {
+        try {
+          await invokeIpc<boolean>('fs:watch-stop');
+        } catch {
+          // Ignore watcher stop failures during workspace clear.
+        }
+
+        if (removeFsChangedListener) {
+          removeFsChangedListener();
+          removeFsChangedListener = null;
+        }
+
+        set({
+          workspacePath: null,
+          tree: null,
+          openFiles: [],
+          activeFile: null,
+          fileContents: {},
+          dirtyFiles: [],
+          contextFiles: [],
+          isWatching: false,
+          lastError: null,
+        });
       },
 
       refreshTree: async (dirPath) => {

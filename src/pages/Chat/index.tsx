@@ -320,18 +320,16 @@ export function Chat() {
       </div>
 
       <div
-          onMouseDown={onDragStart}
-          className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
-          title="拖动调整宽度"
-        >
-        </div>
+        onMouseDown={onDragStart}
+        className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
+        title="拖动调整宽度"
+      ></div>
 
       {/* Markdown Viewer Panel */}
       <div
         className="group relative border-l flex shrink-0 overflow-hidden"
         style={{ width: editorWidth }}
       >
-        
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-border">
           <FileTabs
             openFiles={markdownOpenFiles}
@@ -348,8 +346,7 @@ export function Chat() {
               </div>
             ) : (
               <div className="w-full h-full">
-                <div className="w-full flex items-center justify-end gap-1 px-4 py-1">
-                  <div>
+                <div className="w-full flex items-center justify-start gap-2 px-4 py-1">
                   <button
                     type="button"
                     onClick={() => setMdViewMode('source')}
@@ -376,7 +373,6 @@ export function Chat() {
                   >
                     渲染
                   </button>
-                  </div>
                 </div>
                 <MarkdownEditor
                   className="h-full"

@@ -1,8 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, FilePlus, FileText, Folder, FolderOpen, FolderPlus, RefreshCcw } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  FilePlus,
+  FileText,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  RefreshCcw,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -14,7 +28,19 @@ type FileTreeProps = {
   className?: string;
 };
 
-type MenuAction = 'new_file' | 'new_md_file' | 'new_folder' | 'rename' | 'delete' | 'open_in_file_manager' | 'cut' | 'copy' | 'paste' | 'move_to' | 'add_to_context' | 'remove_from_context';
+type MenuAction =
+  | 'new_file'
+  | 'new_md_file'
+  | 'new_folder'
+  | 'rename'
+  | 'delete'
+  | 'open_in_file_manager'
+  | 'cut'
+  | 'copy'
+  | 'paste'
+  | 'move_to'
+  | 'add_to_context'
+  | 'remove_from_context';
 type InputAction = 'new_file' | 'new_folder' | 'rename' | 'move_to';
 
 type ContextMenuState = {
@@ -113,13 +139,55 @@ function dirnamePath(pathValue: string): string {
   return idx <= 0 ? pathValue : pathValue.slice(0, idx);
 }
 
+function splitFileName(inputName: string): { stem: string; ext: string } {
+  const trimmed = inputName.trim();
+  const dotIndex = trimmed.lastIndexOf('.');
+  if (dotIndex <= 0 || dotIndex === trimmed.length - 1) {
+    return { stem: trimmed, ext: '' };
+  }
+  return {
+    stem: trimmed.slice(0, dotIndex),
+    ext: trimmed.slice(dotIndex),
+  };
+}
+
+function resolveUniqueName(
+  targetDir: string,
+  rawName: string,
+  entryType: 'file' | 'folder',
+  existingPathSet: Set<string>,
+): string {
+  const normalizedName = rawName.trim();
+  if (!normalizedName) return normalizedName;
+
+  const { stem, ext } = splitFileName(normalizedName);
+  const baseName = entryType === 'file' ? stem : normalizedName;
+  const extension = entryType === 'file' ? ext : '';
+  const buildName = (suffix?: number) =>
+    suffix === undefined ? `${baseName}${extension}` : `${baseName}${suffix}${extension}`;
+
+  let candidate = buildName();
+  let candidatePath = joinPath(targetDir, candidate);
+  if (!existingPathSet.has(candidatePath)) {
+    return candidate;
+  }
+
+  let counter = 1;
+  while (true) {
+    candidate = buildName(counter);
+    candidatePath = joinPath(targetDir, candidate);
+    if (!existingPathSet.has(candidatePath)) {
+      return candidate;
+    }
+    counter += 1;
+  }
+}
+
 function FileTreeNode({
   node,
   level,
   expanded,
   toggleExpanded,
-  activeFile,
-  selectedPath,
   contextPathSet,
   onSelectNode,
   onOpenFile,
@@ -129,8 +197,6 @@ function FileTreeNode({
   level: number;
   expanded: Set<string>;
   toggleExpanded: (path: string) => void;
-  activeFile: string | null;
-  selectedPath: string | null;
   contextPathSet: Set<string>;
   onSelectNode: (node: FileNode) => void;
   onOpenFile: (filePath: string) => void;
@@ -139,8 +205,6 @@ function FileTreeNode({
   const isFolder = node.type === 'folder';
   const isOpen = expanded.has(node.path);
   const hasChildren = !!node.children?.length;
-  const isActive = !isFolder && activeFile === node.path;
-  const isSelected = selectedPath === node.path;
   const isInContext = !isFolder && contextPathSet.has(node.path);
 
   return (
@@ -158,9 +222,7 @@ function FileTreeNode({
         onContextMenu={(event) => onContextMenu(event, node)}
         className={cn(
           'flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors',
-          'hover:bg-black/5 dark:hover:bg-white/5',
-          isSelected && 'ring-1 ring-border',
-          isActive && 'bg-black/5 dark:bg-white/10 text-foreground',
+          'hover:bg-black/5 dark:hover:bg-white/5'
         )}
         style={{ paddingLeft: `${8 + level * 14}px` }}
       >
@@ -188,24 +250,26 @@ function FileTreeNode({
           <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         )}
 
-        <span className={cn('truncate text-foreground/80', isInContext && 'text-primary')}>{node.name}</span>
+        <span className={cn('truncate text-foreground/80', isInContext && 'text-primary')}>
+          {node.name}
+        </span>
       </button>
 
-      {isFolder && isOpen && node.children?.map((child) => (
-        <FileTreeNode
-          key={child.path}
-          node={child}
-          level={level + 1}
-          expanded={expanded}
-          toggleExpanded={toggleExpanded}
-          activeFile={activeFile}
-          selectedPath={selectedPath}
-          contextPathSet={contextPathSet}
-          onSelectNode={onSelectNode}
-          onOpenFile={onOpenFile}
-          onContextMenu={onContextMenu}
-        />
-      ))}
+      {isFolder &&
+        isOpen &&
+        node.children?.map((child) => (
+          <FileTreeNode
+            key={child.path}
+            node={child}
+            level={level + 1}
+            expanded={expanded}
+            toggleExpanded={toggleExpanded}
+            contextPathSet={contextPathSet}
+            onSelectNode={onSelectNode}
+            onOpenFile={onOpenFile}
+            onContextMenu={onContextMenu}
+          />
+        ))}
     </div>
   );
 }
@@ -213,11 +277,8 @@ function FileTreeNode({
 export function FileTree({ className }: FileTreeProps) {
   const workspacePath = useFileSystemStore((s) => s.workspacePath);
   const tree = useFileSystemStore((s) => s.tree);
-  const activeFile = useFileSystemStore((s) => s.activeFile);
   const contextFiles = useFileSystemStore((s) => s.contextFiles);
   const lastError = useFileSystemStore((s) => s.lastError);
-  const openFolder = useFileSystemStore((s) => s.openFolder);
-  const bindWorkspaceToSession = useFileSystemStore((s) => s.bindWorkspaceToSession);
   const refreshTree = useFileSystemStore((s) => s.refreshTree);
   const openFile = useFileSystemStore((s) => s.openFile);
   const clearError = useFileSystemStore((s) => s.clearError);
@@ -233,14 +294,15 @@ export function FileTree({ className }: FileTreeProps) {
   const removeFromContext = useFileSystemStore((s) => s.removeFromContext);
   const loadContextFiles = useFileSystemStore((s) => s.loadContextFiles);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
-  const currentSessionKey = useChatStore((s) => s.currentSessionKey);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [clipboardItem, setClipboardItem] = useState<ClipboardItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null);
   const [selectedNode, setSelectedNode] = useState<FileNode | null>(null);
+  const fileTreeRef = useRef<HTMLElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const [dialogContainer, setDialogContainer] = useState<HTMLElement | null>(null);
   const [inputModal, setInputModal] = useState<InputModalState>({
     open: false,
     action: 'new_file',
@@ -251,7 +313,7 @@ export function FileTree({ className }: FileTreeProps) {
   });
 
   const labels = useMemo(() => labelsForLanguage(navigator.language || 'en'), []);
-  const rootChildren = tree?.type === 'folder' ? (tree.children || []) : [];
+  const rootChildren = tree?.type === 'folder' ? tree.children || [] : [];
   const contextPathSet = useMemo(() => new Set(contextFiles), [contextFiles]);
   const pathSet = useMemo(() => {
     const set = new Set<string>();
@@ -273,28 +335,39 @@ export function FileTree({ className }: FileTreeProps) {
     });
   };
 
-  const openInputModal = useCallback((action: InputAction, targetPath: string, defaultValue = '') => {
-    const titleByAction: Record<InputAction, string> = {
-      new_file: labels.newFile,
-      new_folder: labels.newFolder,
-      rename: labels.rename,
-      move_to: labels.moveTo,
-    };
-    const placeholderByAction: Record<InputAction, string> = {
-      new_file: labels.createNamePrompt,
-      new_folder: labels.createNamePrompt,
-      rename: labels.renamePrompt,
-      move_to: labels.movePrompt,
-    };
-    setInputModal({
-      open: true,
-      action,
-      title: titleByAction[action],
-      placeholder: placeholderByAction[action],
-      value: defaultValue,
-      targetPath,
-    });
-  }, [labels.createNamePrompt, labels.movePrompt, labels.moveTo, labels.newFile, labels.newFolder, labels.rename, labels.renamePrompt]);
+  const openInputModal = useCallback(
+    (action: InputAction, targetPath: string, defaultValue = '') => {
+      const titleByAction: Record<InputAction, string> = {
+        new_file: labels.newFile,
+        new_folder: labels.newFolder,
+        rename: labels.rename,
+        move_to: labels.moveTo,
+      };
+      const placeholderByAction: Record<InputAction, string> = {
+        new_file: labels.createNamePrompt,
+        new_folder: labels.createNamePrompt,
+        rename: labels.renamePrompt,
+        move_to: labels.movePrompt,
+      };
+      setInputModal({
+        open: true,
+        action,
+        title: titleByAction[action],
+        placeholder: placeholderByAction[action],
+        value: defaultValue,
+        targetPath,
+      });
+    },
+    [
+      labels.createNamePrompt,
+      labels.movePrompt,
+      labels.moveTo,
+      labels.newFile,
+      labels.newFolder,
+      labels.rename,
+      labels.renamePrompt,
+    ]
+  );
 
   const closeInputModal = () => setInputModal((prev) => ({ ...prev, open: false, value: '' }));
 
@@ -302,13 +375,22 @@ export function FileTree({ className }: FileTreeProps) {
     event.preventDefault();
     event.stopPropagation();
     setSelectedNode(node);
-    setContextMenu({ x: event.clientX, y: event.clientY, node });
+    const boundary = fileTreeRef.current?.getBoundingClientRect();
+    const fixedX = (boundary?.left ?? 0) + 8;
+    setContextMenu({
+      x: fixedX,
+      y: event.clientY - 44,
+      node,
+    });
   };
 
-  const alertError = useCallback((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    window.alert(`${labels.operationFailed}: ${message}`);
-  }, [labels.operationFailed]);
+  const alertError = useCallback(
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      window.alert(`${labels.operationFailed}: ${message}`);
+    },
+    [labels.operationFailed]
+  );
 
   const runMenuAction = async (action: MenuAction) => {
     const menu = contextMenu;
@@ -366,16 +448,20 @@ export function FileTree({ className }: FileTreeProps) {
     const value = inputModal.value.trim();
     if (!value) return;
     try {
-      if (inputModal.action === 'new_file') await createFile(joinPath(inputModal.targetPath, value));
-      else if (inputModal.action === 'new_folder') await createFolder(joinPath(inputModal.targetPath, value));
+      if (inputModal.action === 'new_file') {
+        const uniqueName = resolveUniqueName(inputModal.targetPath, value, 'file', pathSet);
+        await createFile(joinPath(inputModal.targetPath, uniqueName));
+      } else if (inputModal.action === 'new_folder') {
+        const uniqueName = resolveUniqueName(inputModal.targetPath, value, 'folder', pathSet);
+        await createFolder(joinPath(inputModal.targetPath, uniqueName));
+      }
       else if (inputModal.action === 'rename') {
         const renameTargetPath = joinPath(dirnamePath(inputModal.targetPath), value);
         if (pathSet.has(renameTargetPath) && renameTargetPath !== inputModal.targetPath) {
           throw new Error(labels.targetExists);
         }
         await renameNode(inputModal.targetPath, renameTargetPath);
-      }
-      else if (inputModal.action === 'move_to') {
+      } else if (inputModal.action === 'move_to') {
         if (!workspacePath) return;
         const nextPath = /^[A-Za-z]:\\|^\//.test(value) ? value : joinPath(workspacePath, value);
         if (pathSet.has(nextPath) && nextPath !== inputModal.targetPath) {
@@ -388,6 +474,10 @@ export function FileTree({ className }: FileTreeProps) {
       alertError(error);
     }
   };
+
+  useEffect(() => {
+    setDialogContainer(document.body);
+  }, []);
 
   useEffect(() => {
     if (!workspacePath) return;
@@ -403,22 +493,55 @@ export function FileTree({ className }: FileTreeProps) {
   }, [workspacePath, startWatching, stopWatching]);
 
   useEffect(() => {
-    const closeMenuOnOutsidePointerDown = (event: PointerEvent) => {
-      if (!contextMenu) return;
+    if (!contextMenu) return;
+
+    const closeMenu = () => setContextMenu(null);
+    const closeMenuOnOutsideMouseDown = (event: MouseEvent) => {
       // Keep context menu stable when right-clicking to reopen on another node.
       if (event.button === 2) return;
       const target = event.target as Node | null;
       if (target && contextMenuRef.current?.contains(target)) return;
       setContextMenu(null);
     };
-    window.addEventListener('pointerdown', closeMenuOnOutsidePointerDown, true);
-    return () => window.removeEventListener('pointerdown', closeMenuOnOutsidePointerDown, true);
+    const closeMenuOnKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setContextMenu(null);
+      }
+    };
+
+    window.addEventListener('mousedown', closeMenuOnOutsideMouseDown);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('keydown', closeMenuOnKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', closeMenuOnOutsideMouseDown);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('keydown', closeMenuOnKeyDown);
+    };
+  }, [contextMenu]);
+
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+    const menuRect = contextMenuRef.current.getBoundingClientRect();
+    const boundary = fileTreeRef.current?.getBoundingClientRect();
+    const viewportPadding = 8;
+    const minX = (boundary?.left ?? 0) + viewportPadding;
+    const minY = (boundary?.top ?? 0) + viewportPadding;
+    const maxY = (boundary?.bottom ?? window.innerHeight) - menuRect.height - viewportPadding;
+    const nextX = minX;
+    const nextY = Math.max(minY, Math.min(contextMenu.y, Math.max(minY, maxY)));
+    if (nextX === contextMenu.x && nextY === contextMenu.y) return;
+    setContextMenu((prev) => (prev ? { ...prev, x: nextX, y: nextY } : prev));
   }, [contextMenu]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      ) {
         return;
       }
       if (!selectedNode) return;
@@ -446,7 +569,8 @@ export function FileTree({ className }: FileTreeProps) {
       }
       if (metaOrCtrl && event.key.toLowerCase() === 'v' && clipboardItem) {
         event.preventDefault();
-        const targetDir = selectedNode.type === 'folder' ? selectedNode.path : dirnamePath(selectedNode.path);
+        const targetDir =
+          selectedNode.type === 'folder' ? selectedNode.path : dirnamePath(selectedNode.path);
         const sourceName = clipboardItem.nodePath.split(/[\\/]/).pop() || 'item';
         const destinationPath = joinPath(targetDir, sourceName);
         if (pathSet.has(destinationPath)) {
@@ -464,34 +588,80 @@ export function FileTree({ className }: FileTreeProps) {
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [selectedNode, clipboardItem, pathSet, labels.targetExists, copyNode, moveNode, alertError, openInputModal]);
+  }, [
+    selectedNode,
+    clipboardItem,
+    pathSet,
+    labels.targetExists,
+    copyNode,
+    moveNode,
+    alertError,
+    openInputModal,
+  ]);
 
   const menuStyle = contextMenu
     ? {
-        left: Math.max(8, Math.min(contextMenu.x, window.innerWidth - 176)),
-        top: Math.max(8, Math.min(contextMenu.y, window.innerHeight - 260)),
+        left: 8,
+        top: contextMenu.y,
       }
     : undefined;
 
   return (
-    <section className={cn('flex h-full min-h-0 flex-col border-r bg-[#eae8e1]/45 dark:bg-background', className)}>
+    <section
+      ref={fileTreeRef}
+      className={cn(
+        'flex h-full min-h-0 flex-col border-r bg-[#eae8e1]/45 dark:bg-background',
+        className
+      )}
+    >
       <div className="flex items-center justify-end border-b px-2 py-2 h-11">
         <div className="flex items-center gap-1">
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={labels.newFile} onClick={() => workspacePath && openInputModal('new_file', workspacePath, 'untitled.md')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={labels.newFile}
+            onClick={() =>
+              workspacePath && openInputModal('new_file', workspacePath, 'untitled.md')
+            }
+          >
             <FilePlus className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={labels.newFolder} onClick={() => workspacePath && openInputModal('new_folder', workspacePath, 'new-folder')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={labels.newFolder}
+            onClick={() =>
+              workspacePath && openInputModal('new_folder', workspacePath, 'new-folder')
+            }
+          >
             <FolderPlus className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={labels.refresh} onClick={() => { void refreshTree(); }}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={labels.refresh}
+            onClick={() => {
+              void refreshTree();
+            }}
+          >
             <RefreshCcw className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-1.5">
-        {!workspacePath && <div className="px-2 py-4 text-xs text-muted-foreground">{labels.noWorkspace}</div>}
-        {!!workspacePath && rootChildren.length === 0 && <div className="px-2 py-4 text-xs text-muted-foreground">{labels.emptyFolder}</div>}
+        {!workspacePath && (
+          <div className="px-2 py-4 text-xs text-muted-foreground">{labels.noWorkspace}</div>
+        )}
+        {!!workspacePath && rootChildren.length === 0 && (
+          <div className="px-2 py-4 text-xs text-muted-foreground">{labels.emptyFolder}</div>
+        )}
         {rootChildren.map((node) => (
           <FileTreeNode
             key={node.path}
@@ -499,11 +669,11 @@ export function FileTree({ className }: FileTreeProps) {
             level={0}
             expanded={expanded}
             toggleExpanded={toggleExpanded}
-            activeFile={activeFile}
-            selectedPath={selectedNode?.path || null}
             contextPathSet={contextPathSet}
             onSelectNode={(nodeValue) => setSelectedNode(nodeValue)}
-            onOpenFile={(filePath) => { void openFile(filePath); }}
+            onOpenFile={(filePath) => {
+              void openFile(filePath);
+            }}
             onContextMenu={onContextMenu}
           />
         ))}
@@ -511,7 +681,12 @@ export function FileTree({ className }: FileTreeProps) {
 
       {lastError && (
         <div className="border-t px-2 py-1.5 text-[11px] text-destructive">
-          <button type="button" className="max-w-full truncate text-left underline underline-offset-2" title={lastError} onClick={clearError}>
+          <button
+            type="button"
+            className="max-w-full truncate text-left underline underline-offset-2"
+            title={lastError}
+            onClick={clearError}
+          >
             {lastError}
           </button>
         </div>
@@ -520,8 +695,11 @@ export function FileTree({ className }: FileTreeProps) {
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 min-w-36 rounded-md border bg-background p-1 shadow-md"
+          className="fixed z-50 min-w-36 max-w-50 rounded-md border bg-background p-1 shadow-md"
           style={menuStyle}
+          onMouseDown={(event) => {
+            event.stopPropagation();
+          }}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -529,32 +707,132 @@ export function FileTree({ className }: FileTreeProps) {
         >
           {contextMenu.node.type === 'folder' && (
             <>
-              <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('new_file'); }}>{labels.newFile}</button>
-              <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('new_md_file'); }}>{labels.newMarkdownFile}</button>
-              <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('new_folder'); }}>{labels.newFolder}</button>
+              {/* <button
+                type="button"
+                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                onClick={() => {
+                  void runMenuAction('new_file');
+                }}
+              >
+                {labels.newFile}
+              </button> */}
+              <button
+                type="button"
+                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                onClick={() => {
+                  void runMenuAction('new_md_file');
+                }}
+              >
+                {labels.newFile}
+              </button>
+              <button
+                type="button"
+                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                onClick={() => {
+                  void runMenuAction('new_folder');
+                }}
+              >
+                {labels.newFolder}
+              </button>
             </>
           )}
-          <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('rename'); }}>{labels.rename}</button>
-          <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('open_in_file_manager'); }}>{labels.openInFileManager}</button>
-          <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('move_to'); }}>{labels.moveTo}</button>
-          <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('copy'); }}>{labels.copy}</button>
-          <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('cut'); }}>{labels.cut}</button>
-          {contextMenu.node.type === 'file' && (
-            contextPathSet.has(contextMenu.node.path) ? (
-              <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('remove_from_context'); }}>{labels.removeFromContext}</button>
+          <button
+            type="button"
+            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+            onClick={() => {
+              void runMenuAction('rename');
+            }}
+          >
+            {labels.rename}
+          </button>
+          <button
+            type="button"
+            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+            onClick={() => {
+              void runMenuAction('open_in_file_manager');
+            }}
+          >
+            {labels.openInFileManager}
+          </button>
+          {/* <button
+            type="button"
+            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+            onClick={() => {
+              void runMenuAction('move_to');
+            }}
+          >
+            {labels.moveTo}
+          </button>
+          <button
+            type="button"
+            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+            onClick={() => {
+              void runMenuAction('copy');
+            }}
+          >
+            {labels.copy}
+          </button>
+          <button
+            type="button"
+            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+            onClick={() => {
+              void runMenuAction('cut');
+            }}
+          >
+            {labels.cut}
+          </button> */}
+          {/* {contextMenu.node.type === 'file' &&
+            (contextPathSet.has(contextMenu.node.path) ? (
+              <button
+                type="button"
+                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                onClick={() => {
+                  void runMenuAction('remove_from_context');
+                }}
+              >
+                {labels.removeFromContext}
+              </button>
             ) : (
-              <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('add_to_context'); }}>{labels.addToContext}</button>
-            )
-          )}
-          {contextMenu.node.type === 'folder' && clipboardItem && (
-            <button type="button" className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => { void runMenuAction('paste'); }}>{labels.paste}</button>
-          )}
-          <button type="button" className="w-full rounded px-2 py-1 text-left text-sm text-destructive hover:bg-destructive/10" onClick={() => { void runMenuAction('delete'); }}>{labels.delete}</button>
+              <button
+                type="button"
+                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                onClick={() => {
+                  void runMenuAction('add_to_context');
+                }}
+              >
+                {labels.addToContext}
+              </button>
+            ))} */}
+          {/* {contextMenu.node.type === 'folder' && clipboardItem && (
+            <button
+              type="button"
+              className="w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+              onClick={() => {
+                void runMenuAction('paste');
+              }}
+            >
+              {labels.paste}
+            </button>
+          )} */}
+          <button
+            type="button"
+            className="w-full rounded px-2 py-1 text-left text-sm text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              void runMenuAction('delete');
+            }}
+          >
+            {labels.delete}
+          </button>
         </div>
       )}
 
-      <Dialog open={inputModal.open} onOpenChange={(open) => { if (!open) closeInputModal(); }}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={inputModal.open}
+        onOpenChange={(open) => {
+          if (!open) closeInputModal();
+        }}
+      >
+        <DialogContent container={dialogContainer} className="w-[400px] max-w-[400px]">
           <DialogHeader>
             <DialogTitle>{inputModal.title}</DialogTitle>
           </DialogHeader>
@@ -571,26 +849,48 @@ export function FileTree({ className }: FileTreeProps) {
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={closeInputModal}>{labels.cancel}</Button>
-            <Button onClick={() => { void submitInputModal(); }}>{labels.confirm}</Button>
+            <Button variant="outline" onClick={closeInputModal}>
+              {labels.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                void submitInputModal();
+              }}
+            >
+              {labels.confirm}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog
+      <Dialog
         open={!!deleteTarget}
-        title={labels.delete}
-        message={labels.deleteConfirm}
-        confirmLabel={labels.confirm}
-        cancelLabel={labels.cancel}
-        variant="destructive"
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          void deleteNode(deleteTarget.path);
-          setDeleteTarget(null);
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
         }}
-      />
+      >
+        <DialogContent container={dialogContainer} className="w-[400px] max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>{labels.delete}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{labels.deleteConfirm}</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              {labels.cancel}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!deleteTarget) return;
+                void deleteNode(deleteTarget.path);
+                setDeleteTarget(null);
+              }}
+            >
+              {labels.confirm}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

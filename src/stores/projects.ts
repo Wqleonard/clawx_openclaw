@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 const WORKSPACE_STORAGE_KEY = 'clawx:workspace-shortcuts';
 
-type WorkspaceStoreState = {
+type ProjectsStoreState = {
   workspaceShortcuts: string[];
   initWorkspaceShortcuts: () => void;
   addWorkspaceShortcut: (path: string) => void;
@@ -26,7 +26,7 @@ function writeWorkspaceShortcutsToStorage(shortcuts: string[]): void {
   window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(shortcuts));
 }
 
-export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
+export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
   workspaceShortcuts: [],
 
   initWorkspaceShortcuts: () => {

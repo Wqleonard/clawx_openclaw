@@ -8,6 +8,7 @@ import { Minus, Square, X, Copy, PanelRightOpen, PanelRightClose } from 'lucide-
 import { invokeIpc } from '@/lib/api-client';
 import { Button } from '../ui/button';
 import { useChatLayoutStore } from '@/stores/chat-layout';
+import { cn } from '@/lib/utils';
 
 const isMac = window.electron?.platform === 'darwin';
 
@@ -54,25 +55,27 @@ function WindowsTitleBar() {
 
   return (
     <div className="drag-region flex h-10 shrink-0 items-center justify-end bg-background">
-
       {/* Right: Window Controls */}
       <div className="no-drag flex h-full">
-        <div className='flex h-full items-center justify-center'>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 cursor-pointer"
-          onClick={handleOpenFolder}
-          title={isFileTreeDrawerOpen ? '关闭文件树' : '打开文件树'}
-        >
-          {isFileTreeDrawerOpen ? (
-            <PanelRightClose className="size-4" />
-          ) : (
-            <PanelRightOpen className="size-4" />
-          )}
-        </Button>
+        <div className="flex h-full items-center justify-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              'size-7 cursor-pointer ',
+              isFileTreeDrawerOpen ? 'bg-accent' : 'text-muted-foreground'
+            )}
+            onClick={handleOpenFolder}
+            title={isFileTreeDrawerOpen ? '关闭文件树' : '打开文件树'}
+          >
+            {isFileTreeDrawerOpen ? (
+              <PanelRightClose className="size-4" />
+            ) : (
+              <PanelRightOpen className="size-4" />
+            )}
+          </Button>
         </div>
-        
+
         <button
           onClick={handleMinimize}
           className="flex h-full w-11 items-center justify-center text-muted-foreground hover:bg-accent transition-colors"

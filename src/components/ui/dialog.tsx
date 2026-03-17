@@ -54,6 +54,7 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  container,
   onOpenAutoFocus=(e) => e.preventDefault(),
   onEscapeKeyDown=(e) => e.preventDefault(),
   onPointerDownOutside=(e) => e.preventDefault(),
@@ -61,9 +62,10 @@ function DialogContent({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  container?: React.ComponentProps<typeof DialogPrimitive.Portal>['container']
 }) {
   return (
-    <DialogPortal data-slot="dialog-portal">
+    <DialogPortal data-slot="dialog-portal" container={container}>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
