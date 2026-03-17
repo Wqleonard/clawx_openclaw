@@ -4,7 +4,7 @@
  * Windows/Linux: drag region on left, minimize/maximize/close on right.
  */
 import { useState, useEffect } from 'react';
-import { Minus, Square, X, Copy, PanelRightOpen, PanelRightClose, Bug } from 'lucide-react';
+import { Minus, Square, X, Copy, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
 import { Button } from '../ui/button';
@@ -57,10 +57,6 @@ function WindowsTitleBar() {
     invokeIpc('window:close');
   };
 
-  const handleOpenDevTools = () => {
-    invokeIpc('window:openDevTools');
-  };
-
   return (
     <div className="drag-region flex h-10 shrink-0 items-center justify-end bg-background">
       {/* Right: Window Controls */}
@@ -85,16 +81,6 @@ function WindowsTitleBar() {
             </Button>
           </div>
         )}
-        {import.meta.env.DEV && (
-          <button
-            onClick={handleOpenDevTools}
-            className="flex h-full w-11 items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
-            title={t('common:actions.openDevTools')}
-          >
-            <Bug className="h-4 w-4" />
-          </button>
-        )}
-
         <button
           onClick={handleMinimize}
           className="flex h-full w-11 items-center justify-center text-muted-foreground hover:bg-accent transition-colors"

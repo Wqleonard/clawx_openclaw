@@ -33,7 +33,6 @@ import { deviceOAuthManager } from '../utils/device-oauth';
 import { browserOAuthManager } from '../utils/browser-oauth';
 import { whatsAppLoginManager } from '../utils/whatsapp-login';
 import { syncAllProviderAuthToRuntime } from '../services/providers/provider-runtime-sync';
-
 // Disable GPU hardware acceleration globally for maximum stability across
 // all GPU configurations (no GPU, integrated, discrete).
 //
@@ -49,6 +48,19 @@ import { syncAllProviderAuthToRuntime } from '../services/providers/provider-run
 // Users who want GPU acceleration can pass `--enable-gpu` on the CLI or
 // set `"disable-hardware-acceleration": false` in the app config (future).
 app.disableHardwareAcceleration();
+
+// Enable Chromium remote debugging for Electron.
+// - Development default: 9222
+// - Override via ELECTRON_REMOTE_DEBUGGING_PORT
+// - Disable by setting ELECTRON_REMOTE_DEBUGGING_PORT=0
+const remoteDebugPortFromEnv = process.env.ELECTRON_REMOTE_DEBUGGING_PORT?.trim();
+const remoteDebugPort =
+  remoteDebugPortFromEnv ??
+  (process.env.NODE_ENV === 'development' || !app.isPackaged ? '9222' : '');
+
+if (remoteDebugPort && remoteDebugPort !== '0') {
+  app.commandLine.appendSwitch('remote-debugging-port', remoteDebugPort);
+}
 
 // On Linux, set CHROME_DESKTOP so Chromium can find the correct .desktop file.
 // On Wayland this maps the running window to boomclaw.desktop (→ icon + app grouping);
@@ -159,6 +171,9 @@ async function initialize(): Promise<void> {
   logger.debug(
     `Runtime: platform=${process.platform}/${process.arch}, electron=${process.versions.electron}, node=${process.versions.node}, packaged=${app.isPackaged}`
   );
+  if (remoteDebugPort && remoteDebugPort !== '0') {
+    logger.info(`Chromium remote debugging enabled at 127.0.0.1:${remoteDebugPort}`);
+  }
 
   // Warm up network optimization (non-blocking)
   void warmupNetworkOptimization();
@@ -368,12 +383,31 @@ app.on('second-instance', () => {
     mainWindow.focus();
   }
 });
-
 // Application lifecycle
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   void initialize().catch((error) => {
     logger.error('Application initialization failed:', error);
   });
+
+  // try {
+  //   // 指向解压后的扩展文件夹（注意：需要包含 manifest.json 的根目录）
+  //   const extensionPath = join(
+  //     __dirname,
+  //     'src',
+  //     'assets',
+  //     'fmkadmapgofadopljbjfkapdkoienihi',
+  //     '7.0.1_1',
+  //   );
+
+  //   await session.defaultSession.extensions.loadExtension(extensionPath, {
+  //     allowFileAccess: true  // 允许访问本地文件
+  //   });
+  //   mainWindow?.webContents.openDevTools();
+  //   app.commandLine.appendSwitch('remote-debugging-port', '9222');
+  //   console.log('Redux DevTools loaded successfully');
+  // } catch (error) {
+  //   console.error('Failed to load Redux DevTools:', error);
+  // }
 
   // Register activate handler AFTER app is ready to prevent
   // "Cannot create BrowserWindow before app is ready" on macOS.

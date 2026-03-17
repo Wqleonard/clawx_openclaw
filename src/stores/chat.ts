@@ -1290,9 +1290,11 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
 
   loadHistory: async (quiet = false) => {
     const { currentSessionKey } = get();
+    const isSessionStillCurrent = () => get().currentSessionKey === currentSessionKey;
     if (!quiet) set({ loading: true, error: null });
 
     const applyLoadedMessages = (rawMessages: RawMessage[], thinkingLevel: string | null) => {
+      if (!isSessionStillCurrent()) return;
       // Before filtering: attach images/files from tool_result messages to the next assistant message
       const messagesWithToolImages = enrichWithToolResultFiles(rawMessages);
       const filteredMessages = messagesWithToolImages.filter((msg) => !isToolResultRole(msg.role));
@@ -1350,7 +1352,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
 
       // Async: load missing image previews from disk (updates in background)
       loadMissingPreviews(finalMessages).then((updated) => {
-        if (updated) {
+        if (updated && isSessionStillCurrent()) {
           // Create new object references so React.memo detects changes.
           // loadMissingPreviews mutates AttachedFileMeta in place, so we
           // must produce fresh message + file references for each affected msg.
@@ -1403,6 +1405,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
         'chat.history',
         { sessionKey: currentSessionKey, limit: 200 },
       );
+      if (!isSessionStillCurrent()) return;
       if (data) {
         let rawMessages = Array.isArray(data.messages) ? data.messages as RawMessage[] : [];
         const thinkingLevel = data.thinkingLevel ? String(data.thinkingLevel) : null;
@@ -1416,12 +1419,14 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
         if (fallbackMessages.length > 0) {
           applyLoadedMessages(fallbackMessages, null);
         } else {
+          if (!isSessionStillCurrent()) return;
           set({ messages: [], loading: false });
         }
       }
     } catch (err) {
       console.warn('Failed to load chat history:', err);
       const fallbackMessages = await loadCronFallbackMessages(currentSessionKey, 200);
+      if (!isSessionStillCurrent()) return;
       if (fallbackMessages.length > 0) {
         applyLoadedMessages(fallbackMessages, null);
       } else {

@@ -131,6 +131,21 @@ export function Chat() {
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
   const minLoading = useMinLoading(loading && messages.length > 0);
   const { contentRef, scrollRef } = useStickToBottomInstant(currentSessionKey);
+  const resetChatRuntimeState = useCallback(() => {
+    useChatStore.setState({
+      messages: [],
+      loading: false,
+      sending: false,
+      error: null,
+      streamingText: '',
+      streamingMessage: null,
+      streamingTools: [],
+      pendingFinal: false,
+      activeRunId: null,
+      lastUserMessageAt: null,
+      pendingToolImages: [],
+    });
+  }, []);
 
   // Load data when gateway is running.
   // When the store already holds messages for this session (i.e. the user
@@ -150,18 +165,64 @@ export function Chat() {
   }, [fetchAgents]);
 
   useEffect(() => {
+    if (workspacePath) return;
+    resetChatRuntimeState();
+  }, [workspacePath, resetChatRuntimeState]);
+
+  useEffect(() => {
     if (!isGatewayRunning) return;
     let cancelled = false;
-    const hasExistingMessages = useChatStore.getState().messages.length > 0;
+
     (async () => {
+      if (!workspacePath) {
+        resetChatRuntimeState();
+        return;
+      }
+
+      // 1) Initialize sessions after current project is known.
       await loadSessions();
       if (cancelled) return;
-      await loadHistory(hasExistingMessages);
+
+      const chatState = useChatStore.getState();
+      const fsState = useFileSystemStore.getState();
+      // 2/3) Derive project sessions (source used by sessionBuckets) from current project.
+      const targetSessions = [...chatState.sessions]
+        .filter((session) => fsState.projectBindings[session.key] === workspacePath)
+        .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+
+      // 4) If project has bound sessions, activate and load the first one.
+      if (targetSessions.length > 0) {
+        const firstSessionKey = targetSessions[0].key;
+        if (firstSessionKey !== chatState.currentSessionKey) {
+          switchSession(firstSessionKey);
+          return;
+        }
+        const hasExistingMessages = chatState.messages.length > 0;
+        await loadHistory(hasExistingMessages);
+        return;
+      }
+
+      // 5) No bound sessions: create one and bind it to current project.
+      newSession();
+      if (cancelled) return;
+      const newSessionKey = useChatStore.getState().currentSessionKey;
+      if (newSessionKey) {
+        await bindProjectToSession(newSessionKey, workspacePath);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [isGatewayRunning, loadHistory, loadSessions]);
+  }, [
+    isGatewayRunning,
+    workspacePath,
+    loadSessions,
+    switchSession,
+    loadHistory,
+    newSession,
+    bindProjectToSession,
+    resetChatRuntimeState,
+  ]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -292,7 +353,7 @@ export function Chat() {
     },
     [activeFile, updateFileContent]
   );
-
+  
   const onListDragStart = useCallback(
     (e: React.MouseEvent) => {
       isListDragging.current = true;

@@ -31,6 +31,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useTranslation } from 'react-i18next';
 import logoSvg from '@/assets/logo.svg';
 import { Preferences } from '@/pages/Preferences';
+import { hostApiFetch } from '@/lib/host-api';
 
 type SessionBucketKey =
   | 'today'

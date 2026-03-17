@@ -290,9 +290,21 @@ export const useFileSystemStore = create<FileSystemState>()(
 
       refreshTree: async (dirPath) => {
         try {
-          await ensureMainProjectSynced(get);
-          const tree = await invokeIpc<FileNode>('fs:read-tree', dirPath);
-          const sanitizedTree = sanitizeTreeForUi(tree, get().projectPath);
+          const projectPath = await ensureMainProjectSynced(get);
+          console.log(projectPath)
+          if (!projectPath) {
+            set({ tree: null, lastError: null });
+            return;
+          }
+          const targetDirPath = dirPath ?? projectPath;
+          const tree = await invokeIpc<FileNode>('fs:read-tree', targetDirPath);
+          console.log(tree)
+          // Project may switch while refreshing; ignore stale result.
+          if (get().projectPath !== projectPath) {
+            return;
+          }
+          const sanitizedTree = sanitizeTreeForUi(tree, projectPath);
+          console.log(sanitizedTree)
           set({ tree: sanitizedTree, lastError: null });
         } catch (error) {
           setStoreError(set, error);

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react';
+import { Settings as SettingsIcon, SlidersHorizontal, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
 import { AddAgentDialog } from './AddAgentDialog';
 import { invokeIpc } from '@/lib/api-client';
+import { hostApiFetch } from '@/lib/host-api';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
@@ -223,8 +224,8 @@ export function ProjectsRail() {
       navigate('/chat');
       return;
     }
-    await initProject(targetPath);
     await switchToProjectSession(targetPath);
+    await initProject(targetPath);
     navigate('/chat');
   };
 
@@ -250,9 +251,9 @@ export function ProjectsRail() {
         return;
       }
 
+      await switchToProjectSession(selected);
       await initProject(selected);
       addProjectShortcut(selected);
-      await switchToProjectSession(selected);
       setPendingWorkspacePath(selected);
       setShowAddAgentDialog(true);
     } finally {
@@ -304,6 +305,24 @@ export function ProjectsRail() {
     }
   };
 
+  const openDevConsole = useCallback(async () => {
+    try {
+      const result = await hostApiFetch<{
+        success: boolean;
+        url?: string;
+        error?: string;
+      }>('/api/gateway/control-ui');
+      if (result.success && result.url) {
+        window.electron.openExternal(result.url);
+      } else {
+        toast.error(result.error || 'Failed to open debug console');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || 'Failed to open debug console');
+    }
+  }, []);
+
   return (
     <>
       <div className="flex w-16 h-full flex-col items-center gap-3 py-3">
@@ -326,6 +345,8 @@ export function ProjectsRail() {
         >
           +
         </Button>
+
+        
 
         <Button
           variant="ghost"
@@ -353,6 +374,21 @@ export function ProjectsRail() {
           aria-label="Open settings"
         >
           <SettingsIcon className="h-4 w-4" strokeWidth={2} />
+        </Button>
+
+        {/* 打开debug按钮 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
+          onClick={() => void openDevConsole()}
+          title="Open debug console"
+          aria-label="Open debug console"
+        >
+          <Terminal className="h-4 w-4" strokeWidth={2} />
         </Button>
       </div>
 
