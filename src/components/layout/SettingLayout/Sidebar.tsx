@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTranslation } from 'react-i18next';
 import logoSvg from '@/assets/logo.svg';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 interface NavItemProps {
   to: string;
@@ -126,9 +127,9 @@ export function Sidebar() {
       >
         {!sidebarCollapsed && (
           <div className="flex items-center gap-2 px-2 overflow-hidden">
-            <img src={logoSvg} alt="BoomClaw" className="h-5 w-auto shrink-0" />
+            <img src={logoSvg} alt={APP_DISPLAY_NAME} className="h-5 w-auto shrink-0" />
             <span className="text-sm font-semibold truncate whitespace-nowrap text-foreground/90">
-              BoomClaw
+              {APP_DISPLAY_NAME}
             </span>
           </div>
         )}

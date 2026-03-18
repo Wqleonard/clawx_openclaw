@@ -6,6 +6,7 @@ import { loginOpenAICodexOAuth, type OpenAICodexOAuthCredentials } from './opena
 import { getProviderService } from '../services/providers/provider-service';
 import { getSecretStore } from '../services/secrets/secret-store';
 import { saveOAuthTokenToOpenClaw } from './openclaw-auth';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
 
 export type BrowserOAuthProviderType = 'google' | 'openai';
 
@@ -64,7 +65,7 @@ class BrowserOAuthManager extends EventEmitter {
             logger.info(`[BrowserOAuth] ${title || 'OAuth note'}: ${message}`);
           },
           prompt: async () => {
-            throw new Error('Manual browser OAuth fallback is not implemented in BoomClaw yet.');
+            throw new Error(`Manual browser OAuth fallback is not implemented in ${APP_DISPLAY_NAME} yet.`);
           },
           progress: {
             update: (message) => logger.info(`[BrowserOAuth] ${message}`),

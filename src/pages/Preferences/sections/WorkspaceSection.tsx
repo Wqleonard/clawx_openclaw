@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { invokeIpc } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+// import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 // import { cn } from '@/lib/utils';
 
 function SectionCard({ title, children }: { title?: string; children: React.ReactNode }) {
@@ -150,7 +151,7 @@ export function WorkspaceSection() {
        
         <SettingRow
           label={isZh ? '从 OpenClaw 迁移' : 'Migrate from OpenClaw'}
-          desc={isZh ? '将 OpenClaw 的配置、技能和历史数据迁移到 BoomClaw。' : 'Import your OpenClaw configuration, skills, and history into BoomClaw.'}
+          desc={isZh ? `将 OpenClaw 的配置、技能和历史数据迁移到 ${APP_DISPLAY_NAME}。` : `Import your OpenClaw configuration, skills, and history into ${APP_DISPLAY_NAME}.`}
           control={
             <Button
               variant="outline"

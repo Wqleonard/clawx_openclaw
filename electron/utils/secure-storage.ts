@@ -24,6 +24,7 @@ import {
   setProviderSecret,
 } from '../services/secrets/secret-store';
 import { getOpenClawProviderKeyForType } from './provider-keys';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
 
 /**
  * Provider configuration
@@ -272,7 +273,7 @@ export async function getAllProvidersWithKeyInfo(): Promise<
     // Sync check: If it's a custom/OAuth provider and it no longer exists in OpenClaw config
     // (e.g. wiped by Gateway due to missing plugin, or manually deleted by user)
     // we should remove it from BoomClaw UI to stay consistent.
-    const isBuiltin = BUILTIN_PROVIDER_TYPES.includes(provider.type);
+    const isBuiltin = (BUILTIN_PROVIDER_TYPES as readonly ProviderType[]).includes(provider.type);
     // For custom/ollama providers, the OpenClaw config key is derived as
     // "<type>-<suffix>" where suffix = first 8 chars of providerId with hyphens stripped.
     // e.g. provider.id "custom-a1b2c3d4-..." → strip hyphens → "customa1b2c3d4..." → slice(0,8) → "customa1"
@@ -280,7 +281,7 @@ export async function getAllProvidersWithKeyInfo(): Promise<
     // This must match getOpenClawProviderKey() in ipc-handlers.ts exactly.
     const openClawKey = getOpenClawProviderKeyForType(provider.type, provider.id);
     if (!isBuiltin && !activeOpenClawProviders.has(provider.type) && !activeOpenClawProviders.has(provider.id) && !activeOpenClawProviders.has(openClawKey)) {
-      console.log(`[Sync] Provider ${provider.id} (${provider.type}) missing from OpenClaw, dropping from BoomClaw UI`);
+      console.log(`[Sync] Provider ${provider.id} (${provider.type}) missing from OpenClaw, dropping from ${APP_DISPLAY_NAME} UI`);
       await deleteProvider(provider.id);
       continue;
     }

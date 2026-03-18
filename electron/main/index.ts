@@ -34,6 +34,10 @@ import { browserOAuthManager } from '../utils/browser-oauth';
 import { whatsAppLoginManager } from '../utils/whatsapp-login';
 import { syncAllProviderAuthToRuntime } from '../services/providers/provider-runtime-sync';
 import { contentSafetyManager } from '../utils/content-safety-manager';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
+
+// Store app data under the branded directory.
+app.setPath('userData', join(app.getPath('appData'), 'storyclaw'));
 
 // Disable GPU hardware acceleration globally for maximum stability across
 // all GPU configurations (no GPU, integrated, discrete).
@@ -65,11 +69,11 @@ if (remoteDebugPort && remoteDebugPort !== '0') {
 }
 
 // On Linux, set CHROME_DESKTOP so Chromium can find the correct .desktop file.
-// On Wayland this maps the running window to boomclaw.desktop (→ icon + app grouping);
+// On Wayland this maps the running window to storyclaw.desktop (→ icon + app grouping);
 // on X11 it supplements the StartupWMClass matching.
 // Must be called before app.whenReady() / before any window is created.
 if (process.platform === 'linux') {
-  app.setDesktopName('boomclaw.desktop');
+  (app as Electron.App & { setDesktopName?: (name: string) => void }).setDesktopName?.('storyclaw.desktop');
 }
 
 // Prevent multiple instances of the app from running simultaneously.
@@ -169,7 +173,7 @@ function createWindow(): BrowserWindow {
 async function initialize(): Promise<void> {
   // Initialize logger first
   logger.init();
-  logger.info('=== BoomClaw Application Starting ===');
+  logger.info(`=== ${APP_DISPLAY_NAME} Application Starting ===`);
   logger.debug(
     `Runtime: platform=${process.platform}/${process.arch}, electron=${process.versions.electron}, node=${process.versions.node}, packaged=${app.isPackaged}`
   );
@@ -279,7 +283,7 @@ async function initialize(): Promise<void> {
     hostEventBus.emit('gateway:status', status);
     if (status.state === 'running') {
       void ensureClawXContext().catch((error) => {
-        logger.warn('Failed to re-merge BoomClaw context after gateway reconnect:', error);
+        logger.warn(`Failed to re-merge ${APP_DISPLAY_NAME} context after gateway reconnect:`, error);
       });
     }
   });
@@ -368,7 +372,7 @@ async function initialize(): Promise<void> {
   // The gateway seeds workspace files asynchronously after its HTTP server
   // is ready, so ensureClawXContext will retry until the target files appear.
   void ensureClawXContext().catch((error) => {
-    logger.warn('Failed to merge BoomClaw context into workspace:', error);
+    logger.warn(`Failed to merge ${APP_DISPLAY_NAME} context into workspace:`, error);
   });
 
   // Auto-install openclaw CLI and shell completions (non-blocking).

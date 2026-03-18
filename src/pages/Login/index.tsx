@@ -5,6 +5,7 @@ import { useLoginStore } from '@/stores/loginStore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Bot, Terminal, Zap, Layers } from 'lucide-react';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 const IFRAME_URL = 'https://www.baowenmao.com/login/login';
 const ALLOWED_ORIGIN = 'https://www.baowenmao.com';
@@ -108,7 +109,7 @@ export function Login() {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <Bot className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-xl font-semibold tracking-tight">BoomClaw</span>
+          <span className="text-xl font-semibold tracking-tight">{APP_DISPLAY_NAME}</span>
         </div>
 
         <div className="space-y-8">
@@ -137,7 +138,7 @@ export function Login() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} BoomClaw. All rights reserved.
+          © {new Date().getFullYear()} {APP_DISPLAY_NAME}. All rights reserved.
         </p>
       </div>
 
@@ -149,12 +150,12 @@ export function Login() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <Bot className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="text-lg font-semibold">BoomClaw</span>
+            <span className="text-lg font-semibold">{APP_DISPLAY_NAME}</span>
           </div>
 
           <div className="mb-6 text-center lg:text-left">
             <h2 className="text-2xl font-bold text-foreground">欢迎回来</h2>
-            <p className="mt-1 text-sm text-muted-foreground">登录以继续使用 BoomClaw</p>
+            <p className="mt-1 text-sm text-muted-foreground">{`登录以继续使用 ${APP_DISPLAY_NAME}`}</p>
           </div>
 
           <div

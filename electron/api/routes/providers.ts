@@ -46,10 +46,10 @@ export async function handleProviderRoutes(
   }
 
   if (url.pathname === '/api/providers/managed-openclaw' && req.method === 'GET') {
-    const baseUrl = process.env.BOOMCLAW_OPENCLAW_BASE_URL?.trim() || null;
-    const apiKey = process.env.BOOMCLAW_OPENCLAW_API_KEY?.trim() || null;
-    const modelId = process.env.BOOMCLAW_OPENCLAW_MODEL_ID?.trim() || null;
-    const apiProtocolEnv = process.env.BOOMCLAW_OPENCLAW_API_PROTOCOL?.trim() || null;
+    const baseUrl = process.env.STORYCLAW_OPENCLAW_BASE_URL?.trim() || null;
+    const apiKey = process.env.STORYCLAW_OPENCLAW_API_KEY?.trim() || null;
+    const modelId = process.env.STORYCLAW_OPENCLAW_MODEL_ID?.trim() || null;
+    const apiProtocolEnv = process.env.STORYCLAW_OPENCLAW_API_PROTOCOL?.trim() || null;
     const apiProtocol = (
       apiProtocolEnv === 'openai-responses'
       || apiProtocolEnv === 'anthropic-messages'

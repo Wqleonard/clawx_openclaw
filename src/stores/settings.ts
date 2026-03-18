@@ -71,12 +71,7 @@ interface SettingsState {
 
 const defaultSettings = {
   theme: 'light' as Theme,
-  language: (() => {
-    const lang = navigator.language.toLowerCase();
-    if (lang.startsWith('zh')) return 'zh';
-    if (lang.startsWith('ja')) return 'ja';
-    return 'en';
-  })(),
+  language: 'zh',
   startMinimized: false,
   launchAtStartup: false,
   telemetryEnabled: true,

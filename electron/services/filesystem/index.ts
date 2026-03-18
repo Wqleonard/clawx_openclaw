@@ -18,7 +18,7 @@ const IGNORED_NAMES = new Set(['.git', 'node_modules', 'dist', 'build']);
 
 let workspaceRoot: string | null = null;
 let workspaceWatcher: FSWatcher | null = null;
-const CONTEXT_MIRROR_DIR = 'boomclaw-files';
+const CONTEXT_MIRROR_DIR = 'storyclaw-files';
 
 async function applyWorkspaceRootFromValue(configuredRoot: unknown): Promise<void> {
   if (typeof configuredRoot !== 'string' || configuredRoot.trim().length === 0) {

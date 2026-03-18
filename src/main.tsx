@@ -8,6 +8,7 @@ import App from './App';
 import './i18n';
 import './styles/globals.css';
 import { initializeDefaultTransports } from './lib/api-client';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 // One-time migration: clear persisted dark/system theme so light becomes the default.
 // Zustand persist's migrate() handles new installs; this handles existing localStorage.
@@ -25,6 +26,7 @@ try {
 }
 
 initializeDefaultTransports();
+document.title = APP_DISPLAY_NAME;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

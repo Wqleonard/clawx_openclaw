@@ -5,6 +5,7 @@
 import { useUpdateStore } from '@/stores/update';
 import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 // import { cn } from '@/lib/utils';
 
 function SectionCard({ children }: { children: React.ReactNode }) {
@@ -47,7 +48,7 @@ export function AboutSection() {
         </h2>
         <SectionCard>
           <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5">
-            <p className="text-[14px] font-medium text-foreground">BoomClaw</p>
+            <p className="text-[14px] font-medium text-foreground">{APP_DISPLAY_NAME}</p>
             <p className="text-[13px] text-muted-foreground">{currentVersion || '—'}</p>
           </div>
           {/* <div className="flex items-center gap-3 px-5 py-4">
@@ -122,13 +123,13 @@ export function AboutSection() {
           ))}
           <div className="px-5 py-3 flex gap-4">
             <button
-              onClick={() => openUrl('https://boomclaw.com/privacy')}
+              onClick={() => openUrl('https://storyclaw.com/privacy')}
               className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
             >
               {isZh ? '隐私政策' : 'Privacy Policy'}
             </button>
             <button
-              onClick={() => openUrl('https://boomclaw.com/terms')}
+              onClick={() => openUrl('https://storyclaw.com/terms')}
               className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
             >
               {isZh ? '用户协议' : 'Terms of Service'}
@@ -140,7 +141,7 @@ export function AboutSection() {
       {/* Copyright */}
       <div className="pt-2 text-center space-y-1">
         <p className="text-[12px] text-muted-foreground/60">
-          © {new Date().getFullYear()} BoomClaw. All rights reserved.
+          © {new Date().getFullYear()} {APP_DISPLAY_NAME}. All rights reserved.
         </p>
         <p className="text-[11px] text-muted-foreground/40">
           v{currentVersion || '—'} · Built with ❤️

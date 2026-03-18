@@ -1,4 +1,5 @@
 import { hostApiFetch } from './host-api';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 type GatewayInfo = {
   wsUrl: string;
@@ -149,7 +150,7 @@ class GatewayBrowserClient {
                 maxProtocol: 3,
                 client: {
                   id: 'gateway-client',
-                  displayName: 'BoomClaw',
+                  displayName: APP_DISPLAY_NAME,
                   version: '0.1.0',
                   platform: navigator.platform,
                   mode: 'ui',

@@ -1,5 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 // EN
 import enCommon from './locales/en/common.json';
@@ -82,12 +83,15 @@ i18n
     .use(initReactI18next)
     .init({
         resources,
-        lng: 'en', // will be overridden by settings store
+        lng: 'zh', // will be overridden by settings store
         fallbackLng: 'en',
         defaultNS: 'common',
         ns: ['common', 'settings', 'dashboard', 'chat', 'channels', 'agents', 'skills', 'cron', 'setup'],
         interpolation: {
             escapeValue: false, // React already escapes
+            defaultVariables: {
+                appName: APP_DISPLAY_NAME,
+            },
         },
         react: {
             useSuspense: false,
