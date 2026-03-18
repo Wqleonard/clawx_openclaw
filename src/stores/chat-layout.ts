@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 type ChatLayoutState = {
   isFileTreeDrawerOpen: boolean;
@@ -11,23 +12,35 @@ type ChatLayoutState = {
   toggleSessionListCollapsed: () => void;
 };
 
-export const useChatLayoutStore = create<ChatLayoutState>((set) => ({
-  isFileTreeDrawerOpen: false,
-  isProjectSwitching: false,
-  isSessionListCollapsed: false,
-  setFileTreeDrawerOpen: (open) => {
-    set({ isFileTreeDrawerOpen: open });
-  },
-  setProjectSwitching: (switching) => {
-    set({ isProjectSwitching: switching });
-  },
-  setSessionListCollapsed: (collapsed) => {
-    set({ isSessionListCollapsed: collapsed });
-  },
-  toggleFileTreeDrawer: () => {
-    set((state) => ({ isFileTreeDrawerOpen: !state.isFileTreeDrawerOpen }));
-  },
-  toggleSessionListCollapsed: () => {
-    set((state) => ({ isSessionListCollapsed: !state.isSessionListCollapsed }));
-  },
-}));
+export const useChatLayoutStore = create<ChatLayoutState>()(
+  persist(
+    (set) => ({
+      isFileTreeDrawerOpen: false,
+      isProjectSwitching: false,
+      isSessionListCollapsed: false,
+      setFileTreeDrawerOpen: (open) => {
+        set({ isFileTreeDrawerOpen: open });
+      },
+      setProjectSwitching: (switching) => {
+        set({ isProjectSwitching: switching });
+      },
+      setSessionListCollapsed: (collapsed) => {
+        set({ isSessionListCollapsed: collapsed });
+      },
+      toggleFileTreeDrawer: () => {
+        set((state) => ({ isFileTreeDrawerOpen: !state.isFileTreeDrawerOpen }));
+      },
+      toggleSessionListCollapsed: () => {
+        set((state) => ({ isSessionListCollapsed: !state.isSessionListCollapsed }));
+      },
+    }),
+    {
+      name: 'chat-layout-store',
+      version: 1,
+      partialize: (state) => ({
+        isFileTreeDrawerOpen: state.isFileTreeDrawerOpen,
+        isSessionListCollapsed: state.isSessionListCollapsed,
+      }),
+    }
+  )
+);

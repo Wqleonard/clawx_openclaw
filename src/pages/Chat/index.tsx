@@ -427,8 +427,7 @@ export function Chat() {
   const effectiveFileTreeWidth = projectPath && isFileTreeDrawerOpen ? fileTreeWidth : 0;
 
   const isEmpty = messages.length === 0 && !sending;
-  const activeMarkdownFile =
-    activeFile && isMarkdownFile(activeFile) ? activeFile : null;
+  const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
   const activeMarkdownContent = activeMarkdownFile ? (fileContents[activeMarkdownFile] ?? '') : '';
   const handleMarkdownChange = useCallback(
     (nextMarkdown: string) => {
@@ -692,7 +691,11 @@ export function Chat() {
       }>,
       targetAgentId?: string | null
     ) => {
-      const normalizePath = (value: string) => value.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
+      const normalizePath = (value: string) =>
+        value
+          .replace(/[\\/]+/g, '/')
+          .replace(/\/+$/, '')
+          .toLowerCase();
       const pathMatches = (a: string, b: string) => {
         const left = normalizePath(a);
         const right = normalizePath(b);
@@ -704,7 +707,9 @@ export function Chat() {
         : undefined;
       if (projectPath && !matchedAgent) {
         await fetchAgents();
-        matchedAgent = useAgentsStore.getState().agents.find((agent) => pathMatches(agent.workspace, projectPath));
+        matchedAgent = useAgentsStore
+          .getState()
+          .agents.find((agent) => pathMatches(agent.workspace, projectPath));
       }
 
       const enforcedTargetAgentId = matchedAgent?.id ?? targetAgentId ?? undefined;
@@ -712,12 +717,14 @@ export function Chat() {
         const chatState = useChatStore.getState();
         const expectedPrefix = `agent:${matchedAgent.id}:`;
         if (!chatState.currentSessionKey.startsWith(expectedPrefix)) {
-          const alignedSessionKey = [...chatState.sessions]
-            .filter((session) => session.key.startsWith(expectedPrefix))
-            .sort(
-              (a, b) =>
-                (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0)
-            )[0]?.key ?? `${expectedPrefix}main`;
+          const alignedSessionKey =
+            [...chatState.sessions]
+              .filter((session) => session.key.startsWith(expectedPrefix))
+              .sort(
+                (a, b) =>
+                  (chatState.sessionLastActivity[b.key] ?? 0) -
+                  (chatState.sessionLastActivity[a.key] ?? 0)
+              )[0]?.key ?? `${expectedPrefix}main`;
           if (alignedSessionKey !== chatState.currentSessionKey) {
             switchSession(alignedSessionKey);
           }
@@ -725,7 +732,11 @@ export function Chat() {
       }
 
       const beforeSendSessionKey = useChatStore.getState().currentSessionKey;
-      if (projectPath && beforeSendSessionKey && projectBindings[beforeSendSessionKey] !== projectPath) {
+      if (
+        projectPath &&
+        beforeSendSessionKey &&
+        projectBindings[beforeSendSessionKey] !== projectPath
+      ) {
         await bindProjectToSession(beforeSendSessionKey, projectPath);
       }
       await sendMessage(text, attachments, enforcedTargetAgentId);
@@ -735,7 +746,15 @@ export function Chat() {
         await bindProjectToSession(latestSessionKey, projectPath);
       }
     },
-    [projectPath, projectBindings, bindProjectToSession, sendMessage, agents, switchSession, fetchAgents]
+    [
+      projectPath,
+      projectBindings,
+      bindProjectToSession,
+      sendMessage,
+      agents,
+      switchSession,
+      fetchAgents,
+    ]
   );
 
   const openCreateProjectDialog = useCallback(() => {
@@ -1000,18 +1019,20 @@ export function Chat() {
 
       {projectPath && (
         <>
-          <div
-            onMouseDown={onFileTreeDragStart}
-            className="w-2 h-full cursor-col-resize group"
-            title={resizeHandleTitle}
-          >
+          {isFileTreeDrawerOpen && (
             <div
-              className={cn(
-                'w-0.5 mx-auto h-full',
-                isFileTreeResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
-              )}
-            ></div>
-          </div>
+              onMouseDown={onFileTreeDragStart}
+              className="w-2 h-full cursor-col-resize group"
+              title={resizeHandleTitle}
+            >
+              <div
+                className={cn(
+                  'w-0.5 mx-auto h-full',
+                  isFileTreeResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+                )}
+              ></div>
+            </div>
+          )}
           <div
             className={cn(
               'rounded-2xl border shrink-0 overflow-hidden bg-background',
@@ -1084,9 +1105,9 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
   return (
     <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
       <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
-        <h1 className='mt-[15%] font-bold text-[52px]'>Story Claw</h1>
+        <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>
-        <Button className='mt-5' onClick={onCreateProject}>
+        <Button className="mt-5" onClick={onCreateProject}>
           + {t('common:projectDialog.title')}
         </Button>
       </div>
