@@ -23,9 +23,9 @@ import { useMinLoading } from '@/hooks/use-min-loading';
 import { useChatLayoutStore } from '@/stores/chat-layout';
 import { CHAT_PANEL_SIZE, useChatStyleStore } from '@/stores/chatStyle';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-
 import { FileTabs, FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
+import { Button } from '@/components/ui/button';
 
 const INITIAL_NOW_MS = Date.now();
 
@@ -695,8 +695,71 @@ export function Chat() {
     }
   }, [projectPath, newSession, bindProjectToSession]);
 
+  const handleSendMessage = useCallback(
+    async (
+      text: string,
+      attachments?: Array<{
+        id: string;
+        fileName: string;
+        mimeType: string;
+        fileSize: number;
+        stagedPath: string;
+        preview: string | null;
+      }>,
+      targetAgentId?: string | null
+    ) => {
+      const normalizePath = (value: string) => value.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
+      const pathMatches = (a: string, b: string) => {
+        const left = normalizePath(a);
+        const right = normalizePath(b);
+        return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+      };
+
+      let matchedAgent = projectPath
+        ? agents.find((agent) => pathMatches(agent.workspace, projectPath))
+        : undefined;
+      if (projectPath && !matchedAgent) {
+        await fetchAgents();
+        matchedAgent = useAgentsStore.getState().agents.find((agent) => pathMatches(agent.workspace, projectPath));
+      }
+
+      const enforcedTargetAgentId = matchedAgent?.id ?? targetAgentId ?? undefined;
+      if (matchedAgent) {
+        const chatState = useChatStore.getState();
+        const expectedPrefix = `agent:${matchedAgent.id}:`;
+        if (!chatState.currentSessionKey.startsWith(expectedPrefix)) {
+          const alignedSessionKey = [...chatState.sessions]
+            .filter((session) => session.key.startsWith(expectedPrefix))
+            .sort(
+              (a, b) =>
+                (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0)
+            )[0]?.key ?? `${expectedPrefix}main`;
+          if (alignedSessionKey !== chatState.currentSessionKey) {
+            switchSession(alignedSessionKey);
+          }
+        }
+      }
+
+      const beforeSendSessionKey = useChatStore.getState().currentSessionKey;
+      if (projectPath && beforeSendSessionKey && projectBindings[beforeSendSessionKey] !== projectPath) {
+        await bindProjectToSession(beforeSendSessionKey, projectPath);
+      }
+      await sendMessage(text, attachments, enforcedTargetAgentId);
+      const latestSessionKey = useChatStore.getState().currentSessionKey;
+      const latestBindings = useFileSystemStore.getState().projectBindings;
+      if (projectPath && latestSessionKey && latestBindings[latestSessionKey] !== projectPath) {
+        await bindProjectToSession(latestSessionKey, projectPath);
+      }
+    },
+    [projectPath, projectBindings, bindProjectToSession, sendMessage, agents, switchSession, fetchAgents]
+  );
+
+  const openCreateProjectDialog = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('project:create-request'));
+  }, []);
+
   if (!projectPath) {
-    return <ProjectRequiredScreen />;
+    return <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />;
   }
 
   return (
@@ -824,9 +887,7 @@ export function Chat() {
         >
           <div className="w-full px-4 min-w-0 overflow-x-auto">
             <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-4xl space-y-4">
-              {!projectPath ? (
-                <ProjectRequiredScreen />
-              ) : isEmpty ? (
+              {isEmpty ? (
                 <WelcomeScreen />
               ) : (
                 <>
@@ -898,7 +959,7 @@ export function Chat() {
 
         {/* Input Area */}
         <ChatInput
-          onSend={sendMessage}
+          onSend={handleSendMessage}
           onStop={abortRun}
           disabled={!isGatewayRunning || !projectPath}
           sending={sending}
@@ -1069,13 +1130,16 @@ function WelcomeScreen() {
   );
 }
 
-function ProjectRequiredScreen() {
+function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => void }) {
   const { t } = useTranslation('chat');
   return (
     <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
       <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
         <h1 className='mt-[15%] font-bold text-[52px]'>Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>
+        <Button className='mt-5' onClick={onCreateProject}>
+          + {t('common:projectDialog.title')}
+        </Button>
       </div>
     </div>
   );
