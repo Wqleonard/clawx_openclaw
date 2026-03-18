@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { getPointsConsumption, getUserInfoReq } from '@/api/users';
+import { getPointsConsumption, getUserInfoReq, postRedeemPointsReq } from '@/api/users';
 import { useLoginStore } from '@/stores/loginStore';
 import type { UserInfo } from '@/stores/loginStore';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 const PAGE_SIZE = 20;
 
@@ -34,6 +37,23 @@ function toString(value: unknown): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return '';
+}
+
+function extractApiErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const maybeResponse = (error as { response?: { data?: unknown } }).response;
+    if (maybeResponse?.data && typeof maybeResponse.data === 'object') {
+      const data = maybeResponse.data as Record<string, unknown>;
+      const detail = toString(data.detail);
+      if (detail) return detail;
+      const message = toString(data.message || data.error || data.msg);
+      if (message) return message;
+    }
+  }
+  if (error instanceof Error && error.message && error.message.trim()) {
+    return error.message.trim();
+  }
+  return fallback;
 }
 
 function formatDateLocal(isoOrDateText: string): string {
@@ -139,6 +159,10 @@ export function PointsSection() {
   const [hasMore, setHasMore] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [redeemOpen, setRedeemOpen] = useState(false);
+  const [redeemCode, setRedeemCode] = useState('');
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const didInitFetchRef = useRef(false);
 
@@ -232,6 +256,32 @@ export function PointsSection() {
     await fetchPage(page + 1, true);
   }, [fetchPage, hasMore, loading, loadingMore, page]);
 
+  const handleRedeem = useCallback(async () => {
+    const code = redeemCode.trim();
+    if (!code || redeemLoading) return;
+
+    setRedeemLoading(true);
+    setRedeemError(null);
+    try {
+      await postRedeemPointsReq(code);
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+      await Promise.all([
+        refreshUserInfo(),
+        fetchPage(1, false),
+      ]);
+      setRedeemOpen(false);
+      setRedeemCode('');
+    } catch (e) {
+      const message = extractApiErrorMessage(
+        e,
+        isZh ? '兑换失败，请稍后重试' : 'Redeem failed, please try again later'
+      );
+      setRedeemError(message);
+    } finally {
+      setRedeemLoading(false);
+    }
+  }, [redeemCode, redeemLoading, refreshUserInfo, fetchPage, isZh]);
+
   useEffect(() => {
     // React StrictMode 开发环境会双执行 effect，这里做一次幂等保护
     if (didInitFetchRef.current) return;
@@ -283,11 +333,13 @@ export function PointsSection() {
           </p>
         </div>
         <button
-          disabled
-          className="h-8 px-4 rounded-xl text-[13px] font-medium bg-orange-500/80 text-white cursor-not-allowed opacity-60"
-          title={isZh ? '充值接口待接入' : 'Top-up API coming soon'}
+          onClick={() => {
+            setRedeemError(null);
+            setRedeemOpen(true);
+          }}
+          className="h-8 px-4 rounded-xl text-[13px] font-medium bg-orange-500 text-white hover:bg-orange-500/90 transition-colors"
+          title={isZh ? '使用兑换码兑换积分' : 'Redeem points with code'}
         >
-          {/* TODO: 接入兑换接口 */}
           {isZh ? '去兑换' : 'Redeem'}
         </button>
       </div>
@@ -355,6 +407,65 @@ export function PointsSection() {
           )}
         </div>
       </div>
+
+      <Dialog
+        open={redeemOpen}
+        onOpenChange={(open) => {
+          setRedeemOpen(open);
+          if (!open) {
+            setRedeemError(null);
+            setRedeemCode('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>{isZh ? '兑换积分' : 'Redeem Points'}</DialogTitle>
+            <DialogDescription>
+              {isZh ? '请输入兑换码，兑换成功后会自动刷新积分和记录。' : 'Enter your redemption code. Points and records will refresh automatically after success.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Input
+              value={redeemCode}
+              onChange={(e) => setRedeemCode(e.target.value)}
+              placeholder={isZh ? '请输入兑换码' : 'Enter redemption code'}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleRedeem();
+                }
+              }}
+            />
+            {redeemError && (
+              <p className="text-[12px] text-red-500">{redeemError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRedeemOpen(false);
+              }}
+              disabled={redeemLoading}
+            >
+              {isZh ? '取消' : 'Cancel'}
+            </Button>
+            <Button
+              onClick={() => {
+                void handleRedeem();
+              }}
+              disabled={!redeemCode.trim() || redeemLoading}
+              className="bg-orange-500 hover:bg-orange-500/90 text-white"
+            >
+              {redeemLoading ? (isZh ? '兑换中...' : 'Redeeming...') : (isZh ? '兑换' : 'Redeem')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

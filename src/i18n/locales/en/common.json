@@ -59,5 +59,12 @@
         "notRunning": "Gateway Not Running",
         "notRunningDesc": "The OpenClaw Gateway needs to be running to use this feature. It will start automatically, or you can start it from Settings.",
         "warning": "Gateway is not running."
+    },
+    "projectDialog": {
+        "title": "New Project",
+        "description": "Enter a project name and a folder will be created automatically under the workspace root.",
+        "placeholder": "Project name",
+        "create": "Create",
+        "creating": "Creating..."
     }
 }

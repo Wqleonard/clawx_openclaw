@@ -9,6 +9,10 @@ import { randomBytes } from 'crypto';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let settingsStoreInstance: any = null;
 
+function ensureWorkspaceRootsValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
 /**
  * Generate a random token for gateway authentication
  */
@@ -49,7 +53,7 @@ export interface AppSettings {
   // UI State
   sidebarCollapsed: boolean;
   devModeUnlocked: boolean;
-  workspaceRoots: string[];
+  workspaceRoots: string;
 
   // Presets
   selectedBundles: string[];
@@ -90,7 +94,7 @@ const defaults: AppSettings = {
   // UI State
   sidebarCollapsed: false,
   devModeUnlocked: false,
-  workspaceRoots: [],
+  workspaceRoots: '',
 
   // Presets
   selectedBundles: ['productivity', 'developer'],
@@ -117,7 +121,15 @@ async function getSettingsStore() {
  */
 export async function getSetting<K extends keyof AppSettings>(key: K): Promise<AppSettings[K]> {
   const store = await getSettingsStore();
-  return store.get(key);
+  const value = store.get(key);
+  if (key === 'workspaceRoots') {
+    const normalized = ensureWorkspaceRootsValue(value);
+    if (value !== normalized) {
+      store.set('workspaceRoots', normalized);
+    }
+    return normalized as AppSettings[K];
+  }
+  return value;
 }
 
 /**
@@ -136,7 +148,16 @@ export async function setSetting<K extends keyof AppSettings>(
  */
 export async function getAllSettings(): Promise<AppSettings> {
   const store = await getSettingsStore();
-  return store.store;
+  const snapshot = store.store as AppSettings;
+  const normalizedWorkspaceRoots = ensureWorkspaceRootsValue(snapshot.workspaceRoots);
+  if (snapshot.workspaceRoots !== normalizedWorkspaceRoots) {
+    store.set('workspaceRoots', normalizedWorkspaceRoots);
+    return {
+      ...snapshot,
+      workspaceRoots: normalizedWorkspaceRoots,
+    };
+  }
+  return snapshot;
 }
 
 /**

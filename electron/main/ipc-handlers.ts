@@ -54,7 +54,7 @@ import {
 import { validateApiKeyWithProvider } from '../services/providers/provider-validation';
 import { appUpdater } from './updater';
 import { PORTS } from '../utils/config';
-import { registerFileSystemHandlers } from '../services/filesystem';
+import { registerFileSystemHandlers, syncWorkspaceRootFromSettings } from '../services/filesystem';
 
 type AppRequest = {
   id?: string;
@@ -2267,6 +2267,9 @@ function registerSettingsHandlers(gatewayManager: GatewayManager): void {
 
   ipcMain.handle('settings:set', async (_, key: keyof AppSettings, value: AppSettings[keyof AppSettings]) => {
     await setSetting(key, value as never);
+    if (key === 'workspaceRoots') {
+      await syncWorkspaceRootFromSettings();
+    }
 
     if (
       key === 'proxyEnabled' ||
@@ -2290,6 +2293,9 @@ function registerSettingsHandlers(gatewayManager: GatewayManager): void {
     for (const [key, value] of entries) {
       await setSetting(key, value as never);
     }
+    if (entries.some(([key]) => key === 'workspaceRoots')) {
+      await syncWorkspaceRootFromSettings();
+    }
 
     if (entries.some(([key]) =>
       key === 'proxyEnabled' ||
@@ -2310,6 +2316,7 @@ function registerSettingsHandlers(gatewayManager: GatewayManager): void {
 
   ipcMain.handle('settings:reset', async () => {
     await resetSettings();
+    await syncWorkspaceRootFromSettings();
     const settings = await getAllSettings();
     await handleProxySettingsChange();
     await syncLaunchAtStartupSettingFromStore();

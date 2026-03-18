@@ -3,6 +3,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getOpenClawConfigDir } from '../../utils/paths';
+import { getSetting } from '../../utils/store';
 
 type FileNode = {
   name: string;
@@ -18,6 +19,25 @@ const IGNORED_NAMES = new Set(['.git', 'node_modules', 'dist', 'build']);
 let workspaceRoot: string | null = null;
 let workspaceWatcher: FSWatcher | null = null;
 const CONTEXT_MIRROR_DIR = 'boomclaw-files';
+
+async function applyWorkspaceRootFromValue(configuredRoot: unknown): Promise<void> {
+  if (typeof configuredRoot !== 'string' || configuredRoot.trim().length === 0) {
+    workspaceRoot = null;
+    return;
+  }
+  const resolved = path.resolve(configuredRoot);
+  const dirStat = await stat(resolved);
+  if (!dirStat.isDirectory()) {
+    workspaceRoot = null;
+    return;
+  }
+  workspaceRoot = resolved;
+}
+
+export async function syncWorkspaceRootFromSettings(): Promise<void> {
+  const configuredRoot = await getSetting('workspaceRoots');
+  await applyWorkspaceRootFromValue(configuredRoot);
+}
 
 function normalizeWorkspaceRoot(input: string): string {
   const resolved = path.resolve(input);
@@ -125,6 +145,10 @@ async function readTreeRecursive(dirPath: string, depth = 0): Promise<FileNode> 
 }
 
 export function registerFileSystemHandlers(mainWindow: BrowserWindow): void {
+  void syncWorkspaceRootFromSettings().catch(() => {
+    workspaceRoot = null;
+  });
+
   const stopWatcher = (): void => {
     if (workspaceWatcher) {
       workspaceWatcher.close();
@@ -145,7 +169,14 @@ export function registerFileSystemHandlers(mainWindow: BrowserWindow): void {
     return workspaceRoot;
   });
 
-  ipcMain.handle('fs:get-workspace', async () => workspaceRoot);
+  ipcMain.handle('fs:get-workspace', async () => {
+    if (!workspaceRoot) {
+      await syncWorkspaceRootFromSettings().catch(() => {
+        workspaceRoot = null;
+      });
+    }
+    return workspaceRoot;
+  });
 
   ipcMain.handle('fs:set-workspace', async (_, dirPath: string) => {
     const target = path.resolve(dirPath);
@@ -197,6 +228,13 @@ export function registerFileSystemHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.handle('fs:create-folder', async (_, dirPath: string) => {
+    const currentWorkspace = workspaceRoot;
+    const resolvedTarget = path.resolve(dirPath);
+    console.info('[fs:create-folder] request', {
+      workspaceRoot: currentWorkspace,
+      requestedPath: dirPath,
+      resolvedPath: resolvedTarget,
+    });
     const target = ensureInWorkspace(dirPath);
     await mkdir(target, { recursive: false });
     return true;
