@@ -110,6 +110,7 @@ import {
   pickPreferredAccount,
 } from '@/lib/provider-accounts';
 import clawxIcon from '@/assets/logo.svg';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 // Use the shared provider registry for setup providers
 const providers = SETUP_PROVIDERS;
@@ -325,7 +326,7 @@ function WelcomeContent() {
   return (
     <div className="text-center space-y-4">
       <div className="mb-4 flex justify-center">
-        <img src={clawxIcon} alt="BoomClaw" className="h-16 w-16" />
+        <img src={clawxIcon} alt={APP_DISPLAY_NAME} className="h-16 w-16" />
       </div>
       <h2 className="text-xl font-semibold">{t('welcome.title')}</h2>
       <p className="text-muted-foreground">

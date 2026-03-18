@@ -5,6 +5,7 @@ import {
   mapBackendErrorCode,
   normalizeAppError,
 } from './error-model';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 export { AppError } from './error-model';
 
 export type TransportKind = 'ipc' | 'ws' | 'http';
@@ -706,7 +707,7 @@ export function createGatewayWsTransportInvoker(options: GatewayWsTransportOptio
         maxProtocol: 3,
         client: {
           id: 'openclaw-control-ui',
-          displayName: 'BoomClaw UI',
+          displayName: `${APP_DISPLAY_NAME} UI`,
           version: '1.0.0',
           platform: window.electron?.platform ?? 'unknown',
           mode: 'webchat',

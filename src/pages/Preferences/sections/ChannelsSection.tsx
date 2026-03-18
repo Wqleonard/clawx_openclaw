@@ -1,5 +1,6 @@
 import { Channels } from '@/pages/Channels';
 import { useTranslation } from 'react-i18next';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 export function ChannelsSection() {
   const { i18n } = useTranslation();
@@ -13,8 +14,8 @@ export function ChannelsSection() {
         </h2>
         <p className="text-[13px] text-muted-foreground px-1 mb-4">
           {isZh
-            ? '将 BoomClaw 连接到各类机器人 IM 平台，让 AI 助手直接进入沟通链路。'
-            : 'Connect BoomClaw to Feishu, Telegram, and other messaging platforms.'}
+            ? `将 ${APP_DISPLAY_NAME} 连接到各类机器人 IM 平台，让 AI 助手直接进入沟通链路。`
+            : `Connect ${APP_DISPLAY_NAME} to Feishu, Telegram, and other messaging platforms.`}
         </p>
       </div>
       <Channels hideHeader />

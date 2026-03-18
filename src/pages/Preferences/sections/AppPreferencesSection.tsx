@@ -3,6 +3,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Moon, Sun } from 'lucide-react';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
@@ -80,7 +81,7 @@ export function AppPreferencesSection() {
 
           <SettingRow
             label={isZh ? '开机自启' : 'Launch at Login'}
-            desc={isZh ? '登录时自动启动 BoomClaw。' : 'Start BoomClaw automatically when you log in.'}
+            desc={isZh ? `登录时自动启动 ${APP_DISPLAY_NAME}。` : `Start ${APP_DISPLAY_NAME} automatically when you log in.`}
             control={<Switch checked={launchAtStartup} onCheckedChange={setLaunchAtStartup} />}
           />
 

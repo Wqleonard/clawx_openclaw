@@ -1,7 +1,7 @@
 {
     "steps": {
         "welcome": {
-            "title": "欢迎使用 BoomClaw",
+            "title": "欢迎使用 {{appName}}",
             "description": "您的 AI 助手已准备好进行配置"
         },
         "runtime": {
@@ -22,12 +22,12 @@
         },
         "complete": {
             "title": "准备就绪！",
-            "description": "BoomClaw 已准备好使用"
+            "description": "{{appName}} 已准备好使用"
         }
     },
     "welcome": {
-        "title": "欢迎使用 BoomClaw",
-        "description": "BoomClaw 是 OpenClaw 的图形界面，让您可以在喜爱的消息平台上轻松使用 AI 助手。",
+        "title": "欢迎使用 {{appName}}",
+        "description": "{{appName}} 是 OpenClaw 的图形界面，让您可以在喜爱的消息平台上轻松使用 AI 助手。",
         "features": {
             "noCommand": "无需命令行",
             "modernUI": "现代美观的界面",
@@ -67,7 +67,7 @@
         "connectionModes": {
             "personal": "使用我自己的 API Key",
             "personalDesc": "手动配置你自己的模型服务凭证。",
-            "managed": "使用 BoomClaw 托管配置",
+            "managed": "使用 {{appName}} 托管配置",
             "managedDesc": "使用团队预置的 OpenClaw 连接配置。"
         },
         "managedConfigLoading": "正在加载托管 OpenClaw 配置...",
@@ -119,7 +119,7 @@
     },
     "complete": {
         "title": "设置完成！",
-        "subtitle": "BoomClaw 已配置并准备就绪。您现在可以开始与您的 AI 助手聊天了。",
+        "subtitle": "{{appName}} 已配置并准备就绪。您现在可以开始与您的 AI 助手聊天了。",
         "provider": "AI 提供商",
         "components": "组件",
         "gateway": "网关",

@@ -34,6 +34,7 @@ import { browserOAuthManager } from '../utils/browser-oauth';
 import { whatsAppLoginManager } from '../utils/whatsapp-login';
 import { syncAllProviderAuthToRuntime } from '../services/providers/provider-runtime-sync';
 import { contentSafetyManager } from '../utils/content-safety-manager';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
 
 // Disable GPU hardware acceleration globally for maximum stability across
 // all GPU configurations (no GPU, integrated, discrete).
@@ -69,7 +70,7 @@ if (remoteDebugPort && remoteDebugPort !== '0') {
 // on X11 it supplements the StartupWMClass matching.
 // Must be called before app.whenReady() / before any window is created.
 if (process.platform === 'linux') {
-  app.setDesktopName('boomclaw.desktop');
+  // app.setDesktopName('storyclaw.desktop');
 }
 
 // Prevent multiple instances of the app from running simultaneously.
@@ -169,7 +170,7 @@ function createWindow(): BrowserWindow {
 async function initialize(): Promise<void> {
   // Initialize logger first
   logger.init();
-  logger.info('=== BoomClaw Application Starting ===');
+  logger.info(`=== ${APP_DISPLAY_NAME} Application Starting ===`);
   logger.debug(
     `Runtime: platform=${process.platform}/${process.arch}, electron=${process.versions.electron}, node=${process.versions.node}, packaged=${app.isPackaged}`
   );
@@ -279,7 +280,7 @@ async function initialize(): Promise<void> {
     hostEventBus.emit('gateway:status', status);
     if (status.state === 'running') {
       void ensureClawXContext().catch((error) => {
-        logger.warn('Failed to re-merge BoomClaw context after gateway reconnect:', error);
+        logger.warn(`Failed to re-merge ${APP_DISPLAY_NAME} context after gateway reconnect:`, error);
       });
     }
   });
@@ -368,7 +369,7 @@ async function initialize(): Promise<void> {
   // The gateway seeds workspace files asynchronously after its HTTP server
   // is ready, so ensureClawXContext will retry until the target files appear.
   void ensureClawXContext().catch((error) => {
-    logger.warn('Failed to merge BoomClaw context into workspace:', error);
+    logger.warn(`Failed to merge ${APP_DISPLAY_NAME} context into workspace:`, error);
   });
 
   // Auto-install openclaw CLI and shell completions (non-blocking).

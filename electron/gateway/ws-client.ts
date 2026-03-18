@@ -7,6 +7,7 @@ import {
   signDevicePayload,
 } from '../utils/device-identity';
 import { logger } from '../utils/logger';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
 
 export async function probeGatewayReady(
   port: number,
@@ -143,7 +144,7 @@ export function buildGatewayConnectFrame(options: {
         maxProtocol: 3,
         client: {
           id: clientId,
-          displayName: 'BoomClaw',
+          displayName: APP_DISPLAY_NAME,
           version: '0.1.0',
           platform: options.platform,
           mode: clientMode,

@@ -1,7 +1,7 @@
 {
     "steps": {
         "welcome": {
-            "title": "Welcome to BoomClaw",
+            "title": "Welcome to {{appName}}",
             "description": "Your AI assistant is ready to be configured"
         },
         "runtime": {
@@ -22,12 +22,12 @@
         },
         "complete": {
             "title": "All Set!",
-            "description": "BoomClaw is ready to use"
+            "description": "{{appName}} is ready to use"
         }
     },
     "welcome": {
-        "title": "Welcome to BoomClaw",
-        "description": "BoomClaw is a graphical interface for OpenClaw, making it easy to use AI assistants across your favorite messaging platforms.",
+        "title": "Welcome to {{appName}}",
+        "description": "{{appName}} is a graphical interface for OpenClaw, making it easy to use AI assistants across your favorite messaging platforms.",
         "features": {
             "noCommand": "Zero command-line required",
             "modernUI": "Modern, beautiful interface",
@@ -67,7 +67,7 @@
         "connectionModes": {
             "personal": "Use My Own API Key",
             "personalDesc": "Configure your own provider credentials.",
-            "managed": "Use BoomClaw Managed Config",
+            "managed": "Use {{appName}} Managed Config",
             "managedDesc": "Use the managed OpenClaw endpoint configured by your organization."
         },
         "managedConfigLoading": "Loading managed OpenClaw configuration...",
@@ -119,7 +119,7 @@
     },
     "complete": {
         "title": "Setup Complete!",
-        "subtitle": "BoomClaw is configured and ready to use. You can now start chatting with your AI assistant.",
+        "subtitle": "{{appName}} is configured and ready to use. You can now start chatting with your AI assistant.",
         "provider": "AI Provider",
         "components": "Components",
         "gateway": "Gateway",

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
 
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize';
@@ -18,7 +19,7 @@ const SUCCESS_HTML = `<!doctype html>
   <title>Authentication successful</title>
 </head>
 <body>
-  <p>Authentication successful. Return to BoomClaw to continue.</p>
+  <p>Authentication successful. Return to ${APP_DISPLAY_NAME} to continue.</p>
 </body>
 </html>`;
 

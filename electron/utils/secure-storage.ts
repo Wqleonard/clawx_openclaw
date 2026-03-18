@@ -24,6 +24,7 @@ import {
   setProviderSecret,
 } from '../services/secrets/secret-store';
 import { getOpenClawProviderKeyForType } from './provider-keys';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
 
 /**
  * Provider configuration
@@ -280,7 +281,7 @@ export async function getAllProvidersWithKeyInfo(): Promise<
     // This must match getOpenClawProviderKey() in ipc-handlers.ts exactly.
     const openClawKey = getOpenClawProviderKeyForType(provider.type, provider.id);
     if (!isBuiltin && !activeOpenClawProviders.has(provider.type) && !activeOpenClawProviders.has(provider.id) && !activeOpenClawProviders.has(openClawKey)) {
-      console.log(`[Sync] Provider ${provider.id} (${provider.type}) missing from OpenClaw, dropping from BoomClaw UI`);
+      console.log(`[Sync] Provider ${provider.id} (${provider.type}) missing from OpenClaw, dropping from ${APP_DISPLAY_NAME} UI`);
       await deleteProvider(provider.id);
       continue;
     }

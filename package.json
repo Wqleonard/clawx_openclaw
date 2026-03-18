@@ -16,9 +16,9 @@
             "isbinaryfile": "^5.0.0"
         }
     },
-    "description": "BoomClaw - Graphical AI Assistant based on OpenClaw",
+    "description": "StoryClaw - Graphical AI Assistant based on OpenClaw",
     "main": "dist-electron/main/index.js",
-    "author": "BoomClaw Team",
+    "author": "StoryClaw Team",
     "license": "MIT",
     "private": true,
     "scripts": {

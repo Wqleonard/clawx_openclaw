@@ -17,6 +17,7 @@ import { useSettingDialogStore } from '@/stores/setting-dialog';
 import { useTranslation } from 'react-i18next';
 import logoSvg from '@/assets/logo.svg';
 import { Settings } from '@/pages/Settings';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 import { Models } from '@/pages/Models';
 import { Agents } from '@/pages/Agents';
 import { Channels } from '@/pages/Channels';
@@ -98,9 +99,9 @@ export function SettingDialog() {
             >
               {!sidebarCollapsed && (
                 <div className="flex items-center gap-2 px-2 overflow-hidden">
-                  <img src={logoSvg} alt="BoomClaw" className="h-5 w-auto shrink-0" />
+                  <img src={logoSvg} alt={APP_DISPLAY_NAME} className="h-5 w-auto shrink-0" />
                   <span className="text-sm font-semibold truncate whitespace-nowrap text-foreground/90">
-                    BoomClaw
+                    {APP_DISPLAY_NAME}
                   </span>
                 </div>
               )}
