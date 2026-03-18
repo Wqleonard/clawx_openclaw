@@ -167,8 +167,9 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
   },
 
   deleteChannel: async (channelId) => {
-    // Extract channel type from the channelId (format: "channelType-accountId")
-    const channelType = channelId.split('-')[0];
+    // 优先从当前状态精确定位类型，避免 channelId 中包含额外 '-' 时解析错误
+    const current = get().channels.find((channel) => channel.id === channelId);
+    const channelType = current?.type ?? (channelId.split('-')[0] as ChannelType);
 
     try {
       // Delete the channel configuration from openclaw.json
