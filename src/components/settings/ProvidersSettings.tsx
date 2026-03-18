@@ -134,11 +134,15 @@ export function ProvidersSettings() {
     [accounts, statuses, vendors, defaultAccountId],
   );
   const builtinProviders = useMemo(
-    () => displayProviders.filter((item) => item.account.vendorId !== 'custom'),
+    () => displayProviders.filter((item) =>
+      BAOWENMAO_PRESET_ACCOUNTS.some((preset) => preset.id === item.account.id)
+    ),
     [displayProviders],
   );
   const customProviders = useMemo(
-    () => displayProviders.filter((item) => item.account.vendorId === 'custom'),
+    () => displayProviders.filter((item) =>
+      !BAOWENMAO_PRESET_ACCOUNTS.some((preset) => preset.id === item.account.id)
+    ),
     [displayProviders],
   );
 
@@ -170,11 +174,6 @@ export function ProvidersSettings() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }, effectiveApiKey);
-
-      // Auto-set as default if no default is currently configured
-      if (!defaultAccountId) {
-        await setDefaultAccount(id);
-      }
 
       setShowAddDialog(false);
       toast.success(t('aiProviders.toast.added'));
@@ -253,9 +252,9 @@ export function ProvidersSettings() {
             }}
             onValidateKey={(key, options) => validateAccountApiKey(item.account.id, key, options)}
             devModeUnlocked={devModeUnlocked}
-            showEnableSwitch={section === 'builtin'}
+            showEnableSwitch={true}
             toggleLoading={togglingProviderId === item.account.id}
-            minimalView={section === 'builtin'}
+            minimalView={true}
             isEditable={section === 'custom'}
             onToggleEnabled={async (enabled) => {
               setTogglingProviderId(item.account.id);
@@ -304,15 +303,9 @@ export function ProvidersSettings() {
           )}
 
           <div className="rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] p-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[14px] font-semibold text-foreground">
-                {t('aiProviders.sections.builtinModels')}
-              </h3>
-              <Button onClick={() => handleOpenAddDialog()} variant="outline" className="rounded-full px-4 h-8 text-[12px]">
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                {t('aiProviders.add')}
-              </Button>
-            </div>
+            <h3 className="text-[14px] font-semibold text-foreground">
+              {t('aiProviders.sections.builtinModels')}
+            </h3>
             {renderProviderList(builtinProviders, 'builtin')}
           </div>
 
@@ -321,8 +314,9 @@ export function ProvidersSettings() {
               <h3 className="text-[14px] font-semibold text-foreground">
                 {t('aiProviders.sections.customModels')}
               </h3>
-              <Button onClick={() => handleOpenAddDialog('custom')} variant="outline" className="rounded-full px-4 h-8 text-[12px]">
-                {t('aiProviders.sections.addCustomModel')}
+              <Button onClick={() => handleOpenAddDialog()} variant="outline" className="rounded-full px-4 h-8 text-[12px]">
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                {t('aiProviders.add')}
               </Button>
             </div>
             {renderProviderList(customProviders, 'custom')}
@@ -378,7 +372,7 @@ function ProviderCard({
   onEdit,
   onCancelEdit,
   onDelete,
-  onSetDefault,
+  onSetDefault: _onSetDefault,
   onSaveEdits,
   onValidateKey,
   devModeUnlocked,
@@ -389,6 +383,7 @@ function ProviderCard({
   onToggleEnabled,
 }: ProviderCardProps) {
   const { t, i18n } = useTranslation('settings');
+  const isZh = i18n.language?.startsWith('zh');
   const { account, vendor, status } = item;
   const [newKey, setNewKey] = useState('');
   const [baseUrl, setBaseUrl] = useState(account.baseUrl || '');
@@ -535,10 +530,10 @@ function ProviderCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[15px] truncate">{displayName}</span>
-              {!minimalView && isDefault && (
+              {isDefault && (
                 <span className="flex items-center gap-1 font-mono text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] border-0 shadow-none text-foreground/70">
                   <Check className="h-3 w-3" />
-                  {t('aiProviders.card.default')}
+                  {isZh ? '当前' : 'Current'}
                 </span>
               )}
             </div>
@@ -589,25 +584,9 @@ function ProviderCard({
         {!isEditing && (
           <div className={cn(
             'absolute flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
-            minimalView
-              ? (showEnableSwitch ? 'right-20 top-1/2 -translate-y-1/2' : 'right-4 top-1/2 -translate-y-1/2')
-              : (showEnableSwitch ? 'right-14 top-4' : 'right-4 top-4')
+            'right-20 top-1/2 -translate-y-1/2'
           )}>
-            {!minimalView && isEditable && onSetDefault && !isDefault && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-muted-foreground hover:text-blue-600 hover:bg-white dark:hover:bg-card shadow-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void onSetDefault();
-                }}
-                title={t('aiProviders.card.setDefault')}
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-            )}
-            {!minimalView && isEditable && !isBaowenmaoPreset && (
+            {isEditable && !isBaowenmaoPreset && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -958,7 +937,13 @@ function AddProviderDialog({
   });
 
   // Manage OAuth events
+  // Use a ref to guard against React StrictMode double-invocation of effects,
+  // which would register duplicate listeners and fire toast/callbacks twice.
+  const oauthListenersRegistered = React.useRef(false);
   useEffect(() => {
+    if (oauthListenersRegistered.current) return;
+    oauthListenersRegistered.current = true;
+
     const handleCode = (data: unknown) => {
       const payload = data as Record<string, unknown>;
       if (payload?.mode === 'manual') {
@@ -978,29 +963,20 @@ function AddProviderDialog({
       setOauthError(null);
     };
 
-    const handleSuccess = async (data: unknown) => {
+    const handleSuccess = async (_data: unknown) => {
       setOauthFlowing(false);
       setOauthData(null);
       setManualCodeInput('');
       setValidationError(null);
 
       const { onClose: close, t: translate } = latestRef.current;
-      const payload = (data as { accountId?: string } | undefined) || undefined;
-      const accountId = payload?.accountId || pendingOAuthRef.current?.accountId;
 
       // device-oauth.ts already saved the provider config to the backend,
       // including the dynamically resolved baseUrl for the region (e.g. CN vs Global).
-      // If we call add() here with undefined baseUrl, it will overwrite and erase it!
-      // So we just fetch the latest list from the backend to update the UI.
+      // Just refresh the list — do NOT auto-set default here.
       try {
         const store = useProviderStore.getState();
         await store.refreshProviderSnapshot();
-
-        // OAuth sign-in should immediately become active default to avoid
-        // leaving runtime on an API-key-only provider/model.
-        if (accountId) {
-          await store.setDefaultAccount(accountId);
-        }
       } catch (err) {
         console.error('Failed to refresh providers after OAuth:', err);
       }
@@ -1021,6 +997,7 @@ function AddProviderDialog({
     const offError = subscribeHostEvent('oauth:error', handleError);
 
     return () => {
+      oauthListenersRegistered.current = false;
       offCode();
       offSuccess();
       offError();
