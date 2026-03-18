@@ -135,10 +135,7 @@ export function ProjectsRail() {
   const initProjectShortcuts = useFileSystemStore((state) => state.initProjectShortcuts);
   const addProjectShortcut = useFileSystemStore((state) => state.addProjectShortcut);
   const removeProjectShortcut = useFileSystemStore((state) => state.removeProjectShortcut);
-  const workspaceRoots = useSettingsStore((state) => {
-    const workspaceState = state as { workspaceRoots?: string[] };
-    return workspaceState.workspaceRoots ?? [];
-  });
+  const workspaceRoots = useSettingsStore((state) => state.workspaceRoots);
   const createAgent = useAgentsStore((state) => state.createAgent);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
@@ -252,8 +249,8 @@ export function ProjectsRail() {
   };
 
   const handleAddProject = async () => {
-    const allowedRoots = Array.from(new Set(workspaceRoots));
-    if (allowedRoots.length === 0) {
+    const allowedRoot = workspaceRoots?.trim() ?? '';
+    if (!allowedRoot) {
       toast.error('请先在设置中配置可用工作区');
       return;
     }
@@ -262,12 +259,12 @@ export function ProjectsRail() {
     try {
       const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
         properties: ['openDirectory'],
-        defaultPath: workspaceRoots[0] || projectPath || projectShortcuts[0],
+        defaultPath: allowedRoot || projectPath || projectShortcuts[0],
       });
       if (result.canceled || !result.filePaths?.length) return;
 
       const selected = result.filePaths[0];
-      const isAllowed = allowedRoots.some((root) => isSameOrSubFolder(selected, root));
+      const isAllowed = isSameOrSubFolder(selected, allowedRoot);
       if (!isAllowed) {
         toast.error('只能选择已设置工作区及其子文件夹');
         return;
@@ -302,9 +299,19 @@ export function ProjectsRail() {
         pendingToolImages: [],
       });
     };
+    const targetAgentIds = new Set(
+      agents
+        .filter((agent) => normalizeComparePath(agent.workspace) === normalizeComparePath(target))
+        .map((agent) => agent.id),
+    );
     const sessionsToDelete = useChatStore
       .getState()
-      .sessions.filter((session) => useFileSystemStore.getState().projectBindings[session.key] === target)
+      .sessions.filter((session) => {
+        const boundByProject = useFileSystemStore.getState().projectBindings[session.key] === target;
+        const sessionAgentId = session.key.startsWith('agent:') ? session.key.split(':')[1] : null;
+        const boundByAgentWorkspace = sessionAgentId ? targetAgentIds.has(sessionAgentId) : false;
+        return boundByProject || boundByAgentWorkspace;
+      })
       .map((session) => session.key);
     for (const sessionKey of sessionsToDelete) {
       await useChatStore.getState().deleteSession(sessionKey);
@@ -323,6 +330,13 @@ export function ProjectsRail() {
     }
 
     if (projectPath === target && nextShortcuts.length === 0) {
+      // No projects remain: clear all sessions so session state never points to
+      // a stale workspace and matches the "session must bind to project" rule.
+      const remainingSessionKeys = useChatStore.getState().sessions.map((session) => session.key);
+      for (const sessionKey of remainingSessionKeys) {
+        await useChatStore.getState().deleteSession(sessionKey);
+      }
+      resetChatViewState();
       await clearProject();
     }
   };

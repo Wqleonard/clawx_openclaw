@@ -46,21 +46,19 @@ export function WorkspaceSection() {
     try {
       const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
         properties: ['openDirectory'],
-        defaultPath: workspaceRoots[0],
+        defaultPath: workspaceRoots || undefined,
       });
       if (result.canceled || !result.filePaths?.length) return;
       const selected = result.filePaths[0];
-      const next = Array.from(new Set([...workspaceRoots, selected]));
-      setWorkspaceRoots(next);
+      setWorkspaceRoots(selected);
       toast.success(t('workspace.saved'));
     } catch {
       toast.error(t('workspace.saveFailed'));
     }
   };
 
-  const handleRemoveWorkspaceRoot = (target: string) => {
-    const next = workspaceRoots.filter((item) => item !== target);
-    setWorkspaceRoots(next);
+  const handleRemoveWorkspaceRoot = () => {
+    setWorkspaceRoots('');
     toast.success(t('workspace.saved'));
   };
 
@@ -82,25 +80,22 @@ export function WorkspaceSection() {
             {t('workspace.desc')}
           </p>
           <div className="space-y-2">
-            {workspaceRoots.length === 0 ? (
+            {!workspaceRoots ? (
               <p className="text-[12px] text-muted-foreground">{t('workspace.empty')}</p>
             ) : (
-              workspaceRoots.map((root) => (
-                <div
-                  key={root}
-                  className="flex items-center justify-between rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-3 py-2"
+              <div
+                className="flex items-center justify-between rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-3 py-2"
+              >
+                <span className="text-[12px] font-mono text-foreground truncate flex-1 mr-2">{workspaceRoots}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveWorkspaceRoot}
+                  className="h-7 px-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0"
                 >
-                  <span className="text-[12px] font-mono text-foreground truncate flex-1 mr-2">{root}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveWorkspaceRoot(root)}
-                    className="h-7 px-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             )}
           </div>
           <Button

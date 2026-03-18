@@ -37,7 +37,7 @@ interface SettingsState {
   sidebarCollapsed: boolean;
   devModeUnlocked: boolean;
   showToolCalls: boolean;
-  workspaceRoots: string[];
+  workspaceRoots: string;
 
   // Setup
   setupComplete: boolean;
@@ -64,7 +64,7 @@ interface SettingsState {
   setDevModeUnlocked: (value: boolean) => void;
   setShowToolCalls: (value: boolean) => void;
   setSetupComplete: (value: boolean) => void;
-  setWorkspaceRoots: (value: string[]) => void;
+  setWorkspaceRoots: (value: string) => void;
   markSetupComplete: () => void;
   resetSettings: () => void;
 }
@@ -94,9 +94,13 @@ const defaultSettings = {
   sidebarCollapsed: false,
   devModeUnlocked: false,
   showToolCalls: false,
-  workspaceRoots: [],
+  workspaceRoots: '',
   setupComplete: false,
 };
+
+function ensureWorkspaceRoot(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -106,9 +110,12 @@ export const useSettingsStore = create<SettingsState>()(
       init: async () => {
         try {
           const settings = await hostApiFetch<Partial<typeof defaultSettings>>('/api/settings');
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { theme: _theme, ...settingsWithoutTheme } = settings;
-          set((state) => ({ ...state, ...settingsWithoutTheme }));
+          set((state) => ({
+            ...state,
+            ...settingsWithoutTheme,
+            workspaceRoots: ensureWorkspaceRoot((settingsWithoutTheme as { workspaceRoots?: unknown }).workspaceRoots),
+          }));
           if (settings.language) {
             i18n.changeLanguage(settings.language);
           }
@@ -181,15 +188,39 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'clawx-settings',
-      version: 1,
+      version: 2,
       migrate: (persistedState, fromVersion) => {
         const state = persistedState as Partial<typeof defaultSettings>;
         // v1: force light theme as new default (only when migrating from old version)
         if (fromVersion < 1 && (!state.theme || state.theme === 'dark' || state.theme === 'system')) {
           state.theme = 'light';
         }
+        state.workspaceRoots = ensureWorkspaceRoot(state.workspaceRoots);
         return state;
       },
+      partialize: (state) => ({
+        theme: state.theme,
+        language: state.language,
+        startMinimized: state.startMinimized,
+        launchAtStartup: state.launchAtStartup,
+        telemetryEnabled: state.telemetryEnabled,
+        gatewayAutoStart: state.gatewayAutoStart,
+        gatewayPort: state.gatewayPort,
+        proxyEnabled: state.proxyEnabled,
+        proxyServer: state.proxyServer,
+        proxyHttpServer: state.proxyHttpServer,
+        proxyHttpsServer: state.proxyHttpsServer,
+        proxyAllServer: state.proxyAllServer,
+        proxyBypassRules: state.proxyBypassRules,
+        updateChannel: state.updateChannel,
+        autoCheckUpdate: state.autoCheckUpdate,
+        autoDownloadUpdate: state.autoDownloadUpdate,
+        sidebarCollapsed: state.sidebarCollapsed,
+        devModeUnlocked: state.devModeUnlocked,
+        showToolCalls: state.showToolCalls,
+        workspaceRoots: state.workspaceRoots,
+        setupComplete: state.setupComplete,
+      }),
     }
   )
 );

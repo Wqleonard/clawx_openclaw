@@ -4,7 +4,7 @@
  * with markdown, thinking sections, images, and tool cards.
  */
 import { useState, useCallback, useEffect, memo } from 'react';
-import { Sparkles, Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle, ClipboardPaste } from 'lucide-react';
+import { Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createPortal } from 'react-dom';
@@ -296,9 +296,11 @@ function ToolStatusBar({
 
 // ── Assistant hover bar (timestamp + copy, shown on group hover) ─
 
-function AssistantHoverBar({ text, timestamp, onImportToEditor }: { text: string; timestamp?: number; onImportToEditor?: (text: string) => void }) {
+function AssistantHoverBar({ text, timestamp, 
+  // onImportToEditor 
+}: { text: string; timestamp?: number; onImportToEditor?: (text: string) => void }) {
   const [copied, setCopied] = useState(false);
-  const [imported, setImported] = useState(false);
+  // const [imported, setImported] = useState(false);
 
   const copyContent = useCallback(() => {
     navigator.clipboard.writeText(text);
@@ -306,11 +308,11 @@ function AssistantHoverBar({ text, timestamp, onImportToEditor }: { text: string
     setTimeout(() => setCopied(false), 2000);
   }, [text]);
 
-  const importToEditor = useCallback(() => {
-    onImportToEditor?.(text);
-    setImported(true);
-    setTimeout(() => setImported(false), 2000);
-  }, [text, onImportToEditor]);
+  // const importToEditor = useCallback(() => {
+  //   onImportToEditor?.(text);
+  //   setImported(true);
+  //   setTimeout(() => setImported(false), 2000);
+  // }, [text, onImportToEditor]);
 
   return (
     <div className="flex items-center justify-between w-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 select-none px-1">

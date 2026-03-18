@@ -34,12 +34,10 @@ export function PrivacySection() {
               <p className="text-[14px] font-medium text-foreground">
                 {isZh ? '工作区路径' : 'Workspace Path'}
               </p>
-              {workspaceRoots.length === 0 ? (
+              {!workspaceRoots ? (
                 <p className="text-[12px] font-mono text-muted-foreground mt-0.5">{isZh ? '未设置' : 'Not set'}</p>
               ) : (
-                workspaceRoots.map((root) => (
-                  <p key={root} className="text-[12px] font-mono text-muted-foreground mt-0.5 truncate">{root}</p>
-                ))
+                <p className="text-[12px] font-mono text-muted-foreground mt-0.5 truncate">{workspaceRoots}</p>
               )}
             </div>
           </div>

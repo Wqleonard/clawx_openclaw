@@ -455,7 +455,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
               <Paperclip className="h-4 w-4" />
             </Button>
 
-            {showAgentPicker && (
+            {/* {showAgentPicker && (
               <div ref={pickerRef} className="relative shrink-0">
                 <Button
                   variant="ghost"
@@ -492,7 +492,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
                   </div>
                 )}
               </div>
-            )}
+            )} */}
 
             {/* Textarea */}
             <div className="flex-1 relative">

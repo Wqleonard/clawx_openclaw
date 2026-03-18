@@ -38,6 +38,7 @@
         "withinMonth": "一个月内",
         "older": "一个月之前"
     },
+    "projectRequired": "未选择项目，请先选择一个项目。",
     "fileTree": {
         "title": "文件",
         "noWorkspace": "未选择工作目录",
