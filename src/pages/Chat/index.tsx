@@ -206,16 +206,39 @@ export function Chat() {
 
         const chatState = useChatStore.getState();
         const fsState = useFileSystemStore.getState();
-        // 2/3) Derive project sessions (source used by sessionBuckets) from current project.
+
+        // Prefer agent-based session routing: match workspace to a known agent and
+        // find sessions by key prefix.  This avoids the projectBindings→switchSession
+        // loop that caused the "jumps back to oldest conversation" bug.
+        const normWs = (p: string) => p.replace(/[\\/]+/g, '/').replace(/\/+$/, '');
+        const matchingAgent = agents.find((a) => normWs(a.workspace) === normWs(workspacePath!));
+
+        if (matchingAgent) {
+          const currentAgentId = getAgentIdFromSessionKey(chatState.currentSessionKey);
+          if (currentAgentId === matchingAgent.id) {
+            // Already on this agent's session — just load history, don't switch.
+            const hasExistingMessages = chatState.messages.length > 0;
+            await loadHistory(hasExistingMessages);
+            if (isTaskAborted()) return;
+            return;
+          }
+          // Switch to the most recent session for this agent.
+          const agentSessions = [...chatState.sessions]
+            .filter((s) => s.key.startsWith(`agent:${matchingAgent.id}:`))
+            .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+          const targetKey = agentSessions[0]?.key ?? `agent:${matchingAgent.id}:main`;
+          if (targetKey !== chatState.currentSessionKey) {
+            if (isTaskAborted()) return;
+            switchSession(targetKey);
+          }
+          return;
+        }
+
+        // Non-agent workspace: fall back to projectBindings lookup.
         const targetSessions = [...chatState.sessions]
           .filter((session) => fsState.projectBindings[session.key] === projectPath)
-          .sort(
-            (a, b) =>
-              (chatState.sessionLastActivity[b.key] ?? 0) -
-              (chatState.sessionLastActivity[a.key] ?? 0)
-          );
+          .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
 
-        // 4) If project has bound sessions, activate and load the first one.
         if (targetSessions.length > 0) {
           const firstSessionKey = targetSessions[0].key;
           if (firstSessionKey !== chatState.currentSessionKey) {
@@ -229,7 +252,7 @@ export function Chat() {
           return;
         }
 
-        // 5) No bound sessions: create one and bind it to current project.
+        // No bound sessions: create one and bind it to current project.
         if (isTaskAborted()) return;
         newSession();
         if (isTaskAborted()) return;
@@ -249,6 +272,7 @@ export function Chat() {
     };
   }, [
     isGatewayRunning,
+    agents,
     projectPath,
     loadSessions,
     switchSession,
