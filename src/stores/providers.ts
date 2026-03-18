@@ -1,27 +1,34 @@
 /**
- * Provider State Store
- * Manages AI provider configurations
+ * Provider 状态管理 Store
+ * 统一管理模型提供商账户配置
  */
 import { create } from 'zustand';
 import type {
+  BaowenmaoPresetAccount,
   ProviderAccount,
   ProviderConfig,
   ProviderVendorInfo,
   ProviderWithKeyInfo,
 } from '@/lib/providers';
+import {
+  BAOWENMAO_PRESET_ACCOUNTS,
+} from '@/lib/providers';
 import { hostApiFetch } from '@/lib/host-api';
 import {
+  buildEnabledProviderModels,
   fetchProviderSnapshot,
+  resolveCurrentEffectiveProviderModel,
+  type EnabledProviderModel,
 } from '@/lib/provider-accounts';
 
-// Re-export types for consumers that imported from here
+// 兼容历史引用：从此处二次导出类型
 export type {
   ProviderAccount,
   ProviderConfig,
   ProviderVendorInfo,
   ProviderWithKeyInfo,
 } from '@/lib/providers';
-export type { ProviderSnapshot } from '@/lib/provider-accounts';
+export type { EnabledProviderModel, ProviderSnapshot } from '@/lib/provider-accounts';
 
 interface ProviderState {
   statuses: ProviderWithKeyInfo[];
@@ -31,7 +38,7 @@ interface ProviderState {
   loading: boolean;
   error: string | null;
   
-  // Actions
+  // 基础动作
   refreshProviderSnapshot: () => Promise<void>;
   createAccount: (account: ProviderAccount, apiKey?: string) => Promise<void>;
   removeAccount: (accountId: string) => Promise<void>;
@@ -42,7 +49,7 @@ interface ProviderState {
   ) => Promise<{ valid: boolean; error?: string }>;
   getAccountApiKey: (accountId: string) => Promise<string | null>;
 
-  // Legacy compatibility aliases
+  // 历史兼容别名
   fetchProviders: () => Promise<void>;
   addProvider: (config: Omit<ProviderConfig, 'createdAt' | 'updatedAt'>, apiKey?: string) => Promise<void>;
   addAccount: (account: ProviderAccount, apiKey?: string) => Promise<void>;
@@ -65,6 +72,33 @@ interface ProviderState {
     options?: { baseUrl?: string; apiProtocol?: ProviderAccount['apiProtocol'] }
   ) => Promise<{ valid: boolean; error?: string }>;
   getApiKey: (providerId: string) => Promise<string | null>;
+  /**
+   * Chat 模型选择器数据源：
+   * 返回所有“已启用且凭证可用”的模型。
+   */
+  getEnabledProviderModels: () => EnabledProviderModel[];
+  /**
+   * 获取当前运行时/Chat 生效模型：
+   * 优先级：默认账号（可用）-> 首个可用且已启用账号。
+   */
+  getCurrentEffectiveProviderModel: () => EnabledProviderModel | null;
+  /**
+   * 切换当前模型（通过切换默认 Provider 账号实现）：
+   * 约束：目标账号必须在“已启用且可用”列表中。
+   */
+  switchCurrentProviderModel: (accountId: string) => Promise<void>;
+  /**
+   * 登录后初始化爆文猫预置模型：
+   * 对预置账号执行 upsert、启用，并设置预置默认账号。
+   */
+  ensureBaowenmaoPresetAccounts: (apiKey: string) => Promise<void>;
+}
+
+const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions';
+
+function resolveBusinessApiBaseUrl(): string {
+  const raw = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? '';
+  return raw.replace(/\/+$/, '');
 }
 
 export const useProviderStore = create<ProviderState>((set, get) => ({
@@ -112,7 +146,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         throw new Error(result.error || 'Failed to save provider');
       }
       
-      // Refresh the list
+      // 刷新列表
       await get().refreshProviderSnapshot();
     } catch (error) {
       console.error('Failed to add provider:', error);
@@ -164,7 +198,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         throw new Error(result.error || 'Failed to update provider');
       }
       
-      // Refresh the list
+      // 刷新列表
       await get().refreshProviderSnapshot();
     } catch (error) {
       console.error('Failed to update provider:', error);
@@ -200,7 +234,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         throw new Error(result.error || 'Failed to delete provider');
       }
       
-      // Refresh the list
+      // 刷新列表
       await get().refreshProviderSnapshot();
     } catch (error) {
       console.error('Failed to delete provider:', error);
@@ -238,7 +272,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         throw new Error(result.error || 'Failed to set API key');
       }
       
-      // Refresh the list
+      // 刷新列表
       await get().refreshProviderSnapshot();
     } catch (error) {
       console.error('Failed to set API key:', error);
@@ -275,7 +309,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         throw new Error(result.error || 'Failed to delete API key');
       }
       
-      // Refresh the list
+      // 刷新列表
       await get().refreshProviderSnapshot();
     } catch (error) {
       console.error('Failed to delete API key:', error);
@@ -343,4 +377,102 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   },
 
   getApiKey: async (providerId) => get().getAccountApiKey(providerId),
+
+  getEnabledProviderModels: () => {
+    const { accounts, statuses, vendors } = get();
+    // TODO(chat-model-switch): Chat 输入框模型切换应直接读取此接口。
+    return buildEnabledProviderModels(accounts, statuses, vendors);
+  },
+
+  getCurrentEffectiveProviderModel: () => {
+    const { accounts, statuses, vendors, defaultAccountId } = get();
+    // Chat 在新建会话/恢复会话时应使用此接口解析当前生效模型。
+    return resolveCurrentEffectiveProviderModel(accounts, statuses, vendors, defaultAccountId);
+  },
+
+  switchCurrentProviderModel: async (accountId) => {
+    const { accounts, statuses, vendors } = get();
+    const enabledModels = buildEnabledProviderModels(accounts, statuses, vendors);
+    if (!enabledModels.some((model) => model.accountId === accountId)) {
+      throw new Error('Target model is not enabled');
+    }
+    // 模型切换通过“切换默认 provider 账号”来实现。
+    await get().setDefaultAccount(accountId);
+  },
+
+  ensureBaowenmaoPresetAccounts: async (apiKey) => {
+    const baseUrl = resolveBusinessApiBaseUrl();
+    if (!baseUrl) {
+      throw new Error('VITE_BUSINESS_API_BASE_URL is not configured');
+    }
+
+    const now = new Date().toISOString();
+    const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts');
+
+    const upsertPreset = async (preset: BaowenmaoPresetAccount): Promise<void> => {
+      const existing = accounts.find((account) => account.id === preset.id);
+      const payload: ProviderAccount = {
+        id: preset.id,
+        vendorId: 'baowenmao',
+        label: preset.label,
+        authMode: 'api_key',
+        baseUrl,
+        apiProtocol: BAOWENMAO_PROTOCOL,
+        model: preset.model,
+        enabled: true,
+        isDefault: false,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+
+      if (existing) {
+        const updateResult = await hostApiFetch<{ success: boolean; error?: string }>(
+          `/api/provider-accounts/${encodeURIComponent(preset.id)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              updates: {
+                label: payload.label,
+                authMode: payload.authMode,
+                baseUrl: payload.baseUrl,
+                apiProtocol: payload.apiProtocol,
+                model: payload.model,
+                enabled: payload.enabled,
+              },
+              apiKey,
+            }),
+          }
+        );
+        if (!updateResult.success) {
+          throw new Error(updateResult.error || `Failed to update Baowenmao provider ${preset.id}`);
+        }
+      } else {
+        const createResult = await hostApiFetch<{ success: boolean; error?: string }>('/api/provider-accounts', {
+          method: 'POST',
+          body: JSON.stringify({ account: payload, apiKey }),
+        });
+        if (!createResult.success) {
+          throw new Error(createResult.error || `Failed to create Baowenmao provider ${preset.id}`);
+        }
+      }
+    };
+
+    for (const preset of BAOWENMAO_PRESET_ACCOUNTS) {
+      await upsertPreset(preset);
+    }
+
+    const defaultPreset = BAOWENMAO_PRESET_ACCOUNTS.find((preset) => preset.isDefault) ?? BAOWENMAO_PRESET_ACCOUNTS[0];
+    const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
+      '/api/provider-accounts/default',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ accountId: defaultPreset.id }),
+      }
+    );
+    if (!defaultResult.success) {
+      throw new Error(defaultResult.error || 'Failed to set default Baowenmao provider');
+    }
+
+    await get().refreshProviderSnapshot();
+  },
 }));

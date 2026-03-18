@@ -1,9 +1,7 @@
 import { create } from 'zustand'
 import { verifyTicket, getNewbieMission, completeNewbieMissionReq, getUserInfoReq, type GuideTask } from '@/api/users'
 import { getInsiteNotification, type NotificationItem } from '@/api/insite-notification'
-import { hostApiFetch } from '@/lib/host-api'
-import type { ProviderAccount } from '@/lib/providers'
-import { BAOWENMAO_PRESET_ACCOUNTS } from '@/lib/providers'
+import { useProviderStore } from '@/stores/providers'
 import { useSettingsStore } from '@/stores/settings'
 import type {
   UserInfo,
@@ -16,13 +14,6 @@ export type { UserInfo, AvatarData, Message, InterceptedAction, LoginStore } fro
 
 const NEWBIE_TOUR_STORAGE_KEY = 'hasNewbieTourShowed'
 const READED_IDS_KEY = 'readedMessageIds'
-const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions'
-
-
-function resolveBusinessApiBaseUrl(): string {
-  const raw = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? ''
-  return raw.replace(/\/+$/, '')
-}
 
 function extractAuthToken(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null
@@ -42,81 +33,6 @@ function extractAuthToken(payload: unknown): string | null {
     )
     || null
   )
-}
-
-async function ensureBaowenmaoProvider(apiKey: string): Promise<void> {
-  const baseUrl = resolveBusinessApiBaseUrl()
-  if (!baseUrl) {
-    throw new Error('VITE_BUSINESS_API_BASE_URL is not configured')
-  }
-
-  const now = new Date().toISOString()
-  const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts')
-
-  const upsertAccount = async (id: string, model: string, label: string): Promise<void> => {
-    const existing = accounts.find((account) => account.id === id)
-    const payload: ProviderAccount = {
-      id,
-      vendorId: 'baowenmao',
-      label,
-      authMode: 'api_key',
-      baseUrl,
-      apiProtocol: BAOWENMAO_PROTOCOL,
-      model,
-      enabled: true,
-      isDefault: false,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    }
-
-    if (existing) {
-      const updateResult = await hostApiFetch<{ success: boolean; error?: string }>(
-        `/api/provider-accounts/${encodeURIComponent(id)}`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({
-            updates: {
-              label: payload.label,
-              authMode: payload.authMode,
-              baseUrl: payload.baseUrl,
-              apiProtocol: payload.apiProtocol,
-              model: payload.model,
-              enabled: payload.enabled,
-            },
-            apiKey,
-          }),
-        }
-      )
-      if (!updateResult.success) {
-        throw new Error(updateResult.error || `Failed to update 爆文猫 provider ${id}`)
-      }
-    } else {
-      const createResult = await hostApiFetch<{ success: boolean; error?: string }>('/api/provider-accounts', {
-        method: 'POST',
-        body: JSON.stringify({ account: payload, apiKey }),
-      })
-      if (!createResult.success) {
-        throw new Error(createResult.error || `Failed to create 爆文猫 provider ${id}`)
-      }
-    }
-  }
-
-  for (const preset of BAOWENMAO_PRESET_ACCOUNTS) {
-    await upsertAccount(preset.id, preset.model, preset.label)
-  }
-
-  // 默认选中 isDefault 标记的账号（当前是 qwen3-max）
-  const defaultPreset = BAOWENMAO_PRESET_ACCOUNTS.find((p) => p.isDefault) ?? BAOWENMAO_PRESET_ACCOUNTS[0]
-  const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
-    '/api/provider-accounts/default',
-    {
-      method: 'PUT',
-      body: JSON.stringify({ accountId: defaultPreset.id }),
-    }
-  )
-  if (!defaultResult.success) {
-    throw new Error(defaultResult.error || 'Failed to set 爆文猫 as default provider')
-  }
 }
 
 function loadReadedMessageIdsFromStorage(): string[] {
@@ -407,7 +323,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
 
         localStorage.setItem('token', token)
         try {
-          await ensureBaowenmaoProvider(token)
+          await useProviderStore.getState().ensureBaowenmaoPresetAccounts(token)
           useSettingsStore.getState().markSetupComplete()
         } catch (providerError) {
           console.error('Auto-configure Baowenmao provider failed:', providerError)

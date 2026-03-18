@@ -106,7 +106,8 @@ function getAuthModeLabel(
 }
 
 export function ProvidersSettings() {
-  const { t } = useTranslation('settings');
+  const { t, i18n } = useTranslation('settings');
+  const isZh = i18n.language?.startsWith('zh');
   const devModeUnlocked = useSettingsStore((state) => state.devModeUnlocked);
   const {
     statuses,
@@ -126,7 +127,6 @@ export function ProvidersSettings() {
   const [dialogInitialType, setDialogInitialType] = useState<ProviderType | null>(null);
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [togglingProviderId, setTogglingProviderId] = useState<string | null>(null);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
   const existingVendorIds = new Set(accounts.map((account) => account.vendorId));
   const displayProviders = useMemo(
@@ -146,12 +146,6 @@ export function ProvidersSettings() {
   useEffect(() => {
     refreshProviderSnapshot();
   }, [refreshProviderSnapshot]);
-
-  useEffect(() => {
-    if (selectedProviderId && !displayProviders.some((item) => item.account.id === selectedProviderId)) {
-      setSelectedProviderId(null);
-    }
-  }, [displayProviders, selectedProviderId]);
 
   const handleAddProvider = async (
     type: ProviderType,
@@ -237,8 +231,8 @@ export function ProvidersSettings() {
             isEditing={editingProvider === item.account.id}
             onEdit={() => setEditingProvider(item.account.id)}
             onCancelEdit={() => setEditingProvider(null)}
-            onDelete={() => handleDeleteProvider(item.account.id)}
-            onSetDefault={() => handleSetDefault(item.account.id)}
+            onDelete={section === 'custom' ? () => handleDeleteProvider(item.account.id) : undefined}
+            onSetDefault={section === 'custom' ? () => handleSetDefault(item.account.id) : undefined}
             onSaveEdits={async (payload) => {
               const updates: Partial<ProviderAccount> = {};
               if (payload.updates) {
@@ -261,13 +255,20 @@ export function ProvidersSettings() {
             devModeUnlocked={devModeUnlocked}
             showEnableSwitch={section === 'builtin'}
             toggleLoading={togglingProviderId === item.account.id}
-            isActionSelected={selectedProviderId === item.account.id}
-            onSelect={() => setSelectedProviderId(item.account.id)}
+            minimalView={section === 'builtin'}
+            isEditable={section === 'custom'}
             onToggleEnabled={async (enabled) => {
               setTogglingProviderId(item.account.id);
               try {
                 await updateAccount(item.account.id, { enabled });
-                toast.success(t('aiProviders.toast.updated'));
+                const modelName = item.account.model
+                  ? `${item.account.label} (${item.account.model})`
+                  : item.account.label;
+                toast.success(
+                  isZh
+                    ? `${enabled ? '已启用' : '已禁用'}模型：${modelName}`
+                    : `Model ${enabled ? 'enabled' : 'disabled'}: ${modelName}`
+                );
               } catch (error) {
                 toast.error(`${t('aiProviders.toast.failedUpdate')}: ${error}`);
               } finally {
@@ -352,18 +353,18 @@ interface ProviderCardProps {
   isEditing: boolean;
   onEdit: () => void;
   onCancelEdit: () => void;
-  onDelete: () => void;
-  onSetDefault: () => void;
+  onDelete?: () => void;
+  onSetDefault?: () => void;
   onSaveEdits: (payload: { newApiKey?: string; updates?: Partial<ProviderConfig> }) => Promise<void>;
   onValidateKey: (
     key: string,
     options?: { baseUrl?: string; apiProtocol?: ProviderAccount['apiProtocol'] }
   ) => Promise<{ valid: boolean; error?: string }>;
   devModeUnlocked: boolean;
+  minimalView?: boolean;
+  isEditable?: boolean;
   showEnableSwitch?: boolean;
   toggleLoading?: boolean;
-  isActionSelected?: boolean;
-  onSelect?: () => void;
   onToggleEnabled?: (enabled: boolean) => Promise<void>;
 }
 
@@ -381,10 +382,10 @@ function ProviderCard({
   onSaveEdits,
   onValidateKey,
   devModeUnlocked,
+  minimalView = false,
+  isEditable = true,
   showEnableSwitch = false,
   toggleLoading = false,
-  isActionSelected = false,
-  onSelect,
   onToggleEnabled,
 }: ProviderCardProps) {
   const { t, i18n } = useTranslation('settings');
@@ -510,44 +511,17 @@ function ProviderCard({
 
   const currentLabelClasses = isDefault ? "text-[13px] text-muted-foreground" : labelClasses;
   const currentSectionLabelClasses = isDefault ? "text-[14px] font-bold text-foreground/80" : labelClasses;
+  const displayName = account.model
+    ? `${account.label} (${account.model})`
+    : account.label;
 
   return (
     <div
       className={cn(
-        "group flex flex-col p-4 rounded-2xl transition-all relative overflow-hidden hover:bg-black/5 dark:hover:bg-white/5",
-        !isEditing && !isDefault && "cursor-pointer",
-        isDefault
-          ? "bg-black/[0.04] dark:bg-white/[0.06] border border-transparent"
-          : "bg-transparent border border-transparent"
+        "group flex flex-col p-4 rounded-2xl transition-all relative overflow-hidden hover:bg-black/5 dark:hover:bg-white/5 bg-transparent border border-transparent"
       )}
-      onClick={() => {
-        onSelect?.();
-        if (!isEditing && !isDefault) {
-          onSetDefault();
-        }
-      }}
     >
       <div className="flex items-center">
-        {!isEditing && (
-          <div className={cn(
-            'mr-2 transition-opacity',
-            isDefault && isActionSelected ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          )}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-white dark:hover:bg-card shadow-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              title={t('aiProviders.card.delete')}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
         <div className="flex items-center gap-4 flex-1 min-w-0 pr-2">
           <div className="h-[42px] w-[42px] shrink-0 flex items-center justify-center text-foreground border border-black/5 dark:border-white/10 rounded-full bg-black/5 dark:bg-white/5 shadow-sm group-hover:scale-105 transition-transform">
             {getProviderIconUrl(account.vendorId) ? (
@@ -558,46 +532,42 @@ function ProviderCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-[15px]">{account.label}</span>
-              {isDefault && (
+              <span className="font-semibold text-[15px] truncate">{displayName}</span>
+              {!minimalView && isDefault && (
                 <span className="flex items-center gap-1 font-mono text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] border-0 shadow-none text-foreground/70">
                   <Check className="h-3 w-3" />
                   {t('aiProviders.card.default')}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-0.5 text-[13px] text-muted-foreground flex-wrap">
-              <span className="capitalize">{vendor?.name || account.vendorId}</span>
-              <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
-              <span>{getAuthModeLabel(account.authMode, t)}</span>
-              {account.model && (
-                <>
-                  <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
-                  <span className="truncate max-w-[200px]">{account.model}</span>
-                </>
-              )}
-              <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
-              <span className="flex items-center gap-1">
-                {hasConfiguredCredentials(account, status) ? (
-                  <><div className="w-1.5 h-1.5 rounded-full bg-green-500" /> {t('aiProviders.card.configured')}</>
-                ) : (
-                  <><div className="w-1.5 h-1.5 rounded-full bg-red-500" /> {t('aiProviders.dialog.apiKeyMissing')}</>
+            {!minimalView && (
+              <div className="flex items-center gap-2 mt-0.5 text-[13px] text-muted-foreground flex-wrap">
+                <span className="capitalize">{vendor?.name || account.vendorId}</span>
+                <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
+                <span>{getAuthModeLabel(account.authMode, t)}</span>
+                <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
+                <span className="flex items-center gap-1">
+                  {hasConfiguredCredentials(account, status) ? (
+                    <><div className="w-1.5 h-1.5 rounded-full bg-green-500" /> {t('aiProviders.card.configured')}</>
+                  ) : (
+                    <><div className="w-1.5 h-1.5 rounded-full bg-red-500" /> {t('aiProviders.dialog.apiKeyMissing')}</>
+                  )}
+                </span>
+                {((account.fallbackModels?.length ?? 0) > 0 || (account.fallbackAccountIds?.length ?? 0) > 0) && (
+                  <>
+                    <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
+                    <span className="truncate max-w-[150px]" title={t('aiProviders.sections.fallback')}>
+                      {t('aiProviders.sections.fallback')}: {[
+                        ...normalizeFallbackModels(account.fallbackModels),
+                        ...normalizeFallbackProviderIds(account.fallbackAccountIds)
+                          .map((fallbackId) => allProviders.find((candidate) => candidate.account.id === fallbackId)?.account.label)
+                          .filter(Boolean),
+                      ].join(', ')}
+                    </span>
+                  </>
                 )}
-              </span>
-              {((account.fallbackModels?.length ?? 0) > 0 || (account.fallbackAccountIds?.length ?? 0) > 0) && (
-                <>
-                  <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
-                  <span className="truncate max-w-[150px]" title={t('aiProviders.sections.fallback')}>
-                    {t('aiProviders.sections.fallback')}: {[
-                      ...normalizeFallbackModels(account.fallbackModels),
-                      ...normalizeFallbackProviderIds(account.fallbackAccountIds)
-                        .map((fallbackId) => allProviders.find((candidate) => candidate.account.id === fallbackId)?.account.label)
-                        .filter(Boolean),
-                    ].join(', ')}
-                  </span>
-                </>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -614,11 +584,25 @@ function ProviderCard({
           </div>
         )}
 
-        {!isEditing && (
+        {!isEditing && isEditable && !minimalView && (
           <div className={cn(
             'absolute top-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
             showEnableSwitch ? 'right-14' : 'right-4'
           )}>
+            {onSetDefault && !isDefault && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-muted-foreground hover:text-blue-600 hover:bg-white dark:hover:bg-card shadow-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onSetDefault();
+                }}
+                title={t('aiProviders.card.setDefault')}
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+            )}
             {!isBaowenmaoPreset && (
               <Button
                 variant="ghost"
@@ -631,6 +615,20 @@ function ProviderCard({
                 title={t('aiProviders.card.editKey')}
               >
                 <Edit className="h-4 w-4" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-white dark:hover:bg-card shadow-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title={t('aiProviders.card.delete')}
+              >
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>

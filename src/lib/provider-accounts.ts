@@ -19,6 +19,32 @@ export interface ProviderListItem {
   status?: ProviderWithKeyInfo;
 }
 
+export interface EnabledProviderModel {
+  accountId: string;
+  vendorId: ProviderType;
+  vendorName: string;
+  label: string;
+  model?: string;
+  displayName: string;
+}
+
+function toEnabledProviderModel(
+  account: ProviderAccount,
+  vendor?: ProviderVendorInfo,
+): EnabledProviderModel {
+  const displayName = account.model
+    ? `${account.label} (${account.model})`
+    : account.label;
+  return {
+    accountId: account.id,
+    vendorId: account.vendorId,
+    vendorName: vendor?.name || account.vendorId,
+    label: account.label,
+    model: account.model,
+    displayName,
+  };
+}
+
 export async function fetchProviderSnapshot(): Promise<ProviderSnapshot> {
   const [accounts, statuses, vendors, defaultInfo] = await Promise.all([
     hostApiFetch<ProviderAccount[]>('/api/provider-accounts'),
@@ -119,4 +145,40 @@ export function buildProviderListItems(
     vendor: vendorMap.get(status.type),
     status,
   }));
+}
+
+export function buildEnabledProviderModels(
+  accounts: ProviderAccount[],
+  statuses: ProviderWithKeyInfo[],
+  vendors: ProviderVendorInfo[],
+): EnabledProviderModel[] {
+  const statusMap = new Map(statuses.map((status) => [status.id, status]));
+  const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+
+  return accounts
+    .filter((account) => account.enabled && hasConfiguredCredentials(account, statusMap.get(account.id)))
+    .map((account) => toEnabledProviderModel(account, vendorMap.get(account.vendorId)))
+    .sort((left, right) => left.displayName.localeCompare(right.displayName));
+}
+
+export function resolveCurrentEffectiveProviderModel(
+  accounts: ProviderAccount[],
+  statuses: ProviderWithKeyInfo[],
+  vendors: ProviderVendorInfo[],
+  defaultAccountId: string | null,
+): EnabledProviderModel | null {
+  const statusMap = new Map(statuses.map((status) => [status.id, status]));
+  const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+  const isUsable = (account: ProviderAccount) =>
+    account.enabled && hasConfiguredCredentials(account, statusMap.get(account.id));
+
+  if (defaultAccountId) {
+    const defaultAccount = accounts.find((account) => account.id === defaultAccountId);
+    if (defaultAccount && isUsable(defaultAccount)) {
+      return toEnabledProviderModel(defaultAccount, vendorMap.get(defaultAccount.vendorId));
+    }
+  }
+
+  const fallback = accounts.find(isUsable);
+  return fallback ? toEnabledProviderModel(fallback, vendorMap.get(fallback.vendorId)) : null;
 }
