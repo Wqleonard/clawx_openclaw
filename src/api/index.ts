@@ -58,8 +58,31 @@ function genStreamId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function pickErrorText(value: any): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (Array.isArray(value)) {
+    const first = value.find((item) => typeof item === "string" && item.trim());
+    return typeof first === "string" ? first.trim() : null;
+  }
+  if (value && typeof value === "object") {
+    return (
+      pickErrorText((value as Record<string, unknown>).detail)
+      || pickErrorText((value as Record<string, unknown>).message)
+      || pickErrorText((value as Record<string, unknown>).error)
+      || pickErrorText((value as Record<string, unknown>).msg)
+    );
+  }
+  return null;
+}
+
 function extractErrorMessage(data: any, fallback: string) {
-  return data?.message || data?.error || data?.msg || fallback;
+  return (
+    pickErrorText(data?.detail)
+    || pickErrorText(data?.message)
+    || pickErrorText(data?.error)
+    || pickErrorText(data?.msg)
+    || fallback
+  );
 }
 
 function applyAuthOrVisitorHeader(headers: Record<string, string>, token: string | null | undefined) {
