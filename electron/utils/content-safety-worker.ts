@@ -93,7 +93,7 @@ class FuzzyMatcher {
   private root: TrieNode;
   private maxGap: number;
 
-  constructor(keywords: string[], maxGap = 10) {
+  constructor(keywords: string[], maxGap = 8) {
     this.root = mkNode();
     this.maxGap = maxGap;
     for (const kw of keywords) this.insertKeyword(kw);
