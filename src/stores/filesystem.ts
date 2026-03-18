@@ -289,6 +289,7 @@ export const useFileSystemStore = create<FileSystemState>()(
       },
 
       refreshTree: async (dirPath) => {
+        console.log('refreshTree', dirPath)
         try {
           const projectPath = await ensureMainProjectSynced(get);
           console.log(projectPath)
