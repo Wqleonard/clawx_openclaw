@@ -197,9 +197,31 @@ export function ProjectsRail() {
     });
   };
 
+  const agents = useAgentsStore((state) => state.agents);
+
   const switchToProjectSession = useCallback(async (targetPath: string) => {
     const chatState = useChatStore.getState();
     const fsState = useFileSystemStore.getState();
+
+    // Prefer agent-based routing: match workspace path to a known agent.
+    const matchingAgent = agents.find(
+      (a) => normalizeComparePath(a.workspace) === normalizeComparePath(targetPath),
+    );
+
+    if (matchingAgent) {
+      // Find the most recent session for this agent by key prefix.
+      const agentSessions = [...chatState.sessions]
+        .filter((s) => s.key.startsWith(`agent:${matchingAgent.id}:`))
+        .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+
+      const targetKey = agentSessions[0]?.key ?? `agent:${matchingAgent.id}:main`;
+      if (targetKey !== chatState.currentSessionKey) {
+        chatState.switchSession(targetKey);
+      }
+      return;
+    }
+
+    // Non-agent workspace: fall back to projectBindings lookup.
     const targetSessions = [...chatState.sessions]
       .filter((session) => fsState.projectBindings[session.key] === targetPath)
       .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
@@ -217,7 +239,7 @@ export function ProjectsRail() {
     if (newSessionKey) {
       await fsState.bindProjectToSession(newSessionKey, targetPath);
     }
-  }, []);
+  }, [agents]);
 
   const handleActivateProject = async (targetPath: string) => {
     if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
@@ -295,8 +317,8 @@ export function ProjectsRail() {
 
     if (projectPath === target && nextShortcuts.length > 0) {
       const nextProject = nextShortcuts[0];
-      await initProject(nextProject);
       await switchToProjectSession(nextProject);
+      await initProject(nextProject);
       return;
     }
 

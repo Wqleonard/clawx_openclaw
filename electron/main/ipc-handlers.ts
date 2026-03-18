@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { join, extname, basename } from 'node:path';
 import crypto from 'node:crypto';
 import { GatewayManager } from '../gateway/manager';
+import { checkContentSafety } from '../utils/content-safety';
 import { ClawHubService, ClawHubSearchParams, ClawHubInstallParams, ClawHubUninstallParams } from '../gateway/clawhub';
 import {
   type ProviderConfig,
@@ -1123,6 +1124,14 @@ function registerGatewayHandlers(
   // Gateway RPC call
   ipcMain.handle('gateway:rpc', async (_, method: string, params?: unknown, timeoutMs?: number) => {
     try {
+      if (method === 'chat.send' && params && typeof (params as Record<string, unknown>).message === 'string') {
+        const message = (params as Record<string, unknown>).message as string;
+        const safetyResult = await checkContentSafety(message);
+        if (!safetyResult.pass) {
+          logger.warn(`[gateway:rpc] Content safety blocked: ${safetyResult.reason}`);
+          return { success: false, error: `内容安全审核未通过：${safetyResult.reason}` };
+        }
+      }
       const result = await gatewayManager.rpc(method, params, timeoutMs);
       return { success: true, result };
     } catch (error) {
@@ -1269,6 +1278,12 @@ function registerGatewayHandlers(
       }
 
       logger.info(`[chat:sendWithMedia] Sending: message="${message.substring(0, 100)}", attachments=${imageAttachments.length}, fileRefs=${fileReferences.length}`);
+
+      const safetyResult = await checkContentSafety(message);
+      if (!safetyResult.pass) {
+        logger.warn(`[chat:sendWithMedia] Content safety blocked: ${safetyResult.reason}`);
+        return { success: false, error: `内容安全审核未通过：${safetyResult.reason}` };
+      }
 
       // Longer timeout for chat sends to tolerate high-latency networks (avoids connect error)
       const timeoutMs = 120000;

@@ -246,9 +246,13 @@ export function createSessionActions(
       // NOTE: We intentionally do NOT call sessions.reset on the old session.
       // sessions.reset archives (renames) the session JSONL file, making old
       // conversation history inaccessible when the user switches back to it.
-      const { currentSessionKey, messages } = get();
+      const { currentSessionKey, currentAgentId, messages } = get();
       const leavingEmpty = !currentSessionKey.endsWith(':main') && messages.length === 0;
-      const prefix = getCanonicalPrefixFromSessions(get().sessions) ?? DEFAULT_CANONICAL_PREFIX;
+      // Use the currently active agent's prefix so new sessions always go to the same agent.
+      // Fallback to scanning sessions list for backward compat if currentAgentId is not set.
+      const prefix = currentAgentId
+        ? `agent:${currentAgentId}`
+        : (getCanonicalPrefixFromSessions(get().sessions) ?? DEFAULT_CANONICAL_PREFIX);
       const newKey = `${prefix}:session-${Date.now()}`;
       const newSessionEntry: ChatSession = { key: newKey, displayName: newKey };
       set((s) => ({

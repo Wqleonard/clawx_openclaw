@@ -158,6 +158,26 @@ function clearHistoryPoll(): void {
 
 const DEFAULT_CANONICAL_PREFIX = 'agent:main';
 const DEFAULT_SESSION_KEY = `${DEFAULT_CANONICAL_PREFIX}:main`;
+const CURRENT_SESSION_STORAGE_KEY = 'clawx:chat-current-session-key';
+
+function readPersistedCurrentSessionKey(): string | null {
+  try {
+    const value = localStorage.getItem(CURRENT_SESSION_STORAGE_KEY)?.trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+function persistCurrentSessionKey(sessionKey: string): void {
+  try {
+    localStorage.setItem(CURRENT_SESSION_STORAGE_KEY, sessionKey);
+  } catch {
+    // Ignore storage errors (private mode/quota/etc.).
+  }
+}
+
+const INITIAL_SESSION_KEY = readPersistedCurrentSessionKey() ?? DEFAULT_SESSION_KEY;
 
 // ── Local image cache ─────────────────────────────────────────
 // The Gateway doesn't store image attachments in session content blocks,
@@ -1030,8 +1050,8 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
   pendingToolImages: [],
 
   sessions: [],
-  currentSessionKey: DEFAULT_SESSION_KEY,
-  currentAgentId: 'main',
+  currentSessionKey: INITIAL_SESSION_KEY,
+  currentAgentId: getAgentIdFromSessionKey(INITIAL_SESSION_KEY),
   sessionLabels: {},
   sessionLastActivity: {},
 
@@ -1113,6 +1133,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
             ...discoveredActivity,
           },
         }));
+        persistCurrentSessionKey(nextSessionKey);
 
         if (currentSessionKey !== nextSessionKey) {
           get().loadHistory();
@@ -1120,6 +1141,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
 
         // Background: fetch first user message for every non-main session to populate labels upfront.
         // Uses a small limit so it's cheap; runs in parallel and doesn't block anything.
+        // :main sessions get labeled via loadHistory when the user switches to them.
         const sessionsToLabel = sessionsWithCurrent.filter((s) => !s.key.endsWith(':main'));
         if (sessionsToLabel.length > 0) {
           void Promise.all(
@@ -1161,6 +1183,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
   switchSession: (key: string) => {
     if (key === get().currentSessionKey) return;
     set((s) => buildSessionSwitchPatch(s, key));
+    persistCurrentSessionKey(key);
     get().loadHistory();
   },
 
@@ -1214,6 +1237,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
         currentSessionKey: next?.key ?? DEFAULT_SESSION_KEY,
         currentAgentId: getAgentIdFromSessionKey(next?.key ?? DEFAULT_SESSION_KEY),
       }));
+      persistCurrentSessionKey(next?.key ?? DEFAULT_SESSION_KEY);
       if (next) {
         get().loadHistory();
       }
@@ -1263,6 +1287,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
       lastUserMessageAt: null,
       pendingToolImages: [],
     }));
+    persistCurrentSessionKey(newKey);
   },
 
   // ── Cleanup empty session on navigate away ──
@@ -1325,19 +1350,15 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
       set({ messages: finalMessages, thinkingLevel, loading: false });
 
       // Extract first user message text as a session label for display in the toolbar.
-      // Skip main sessions (key ends with ":main") — they rely on the Gateway-provided
-      // displayName (e.g. the configured agent name "BoomClaw") instead.
-      const isMainSession = currentSessionKey.endsWith(':main');
-      if (!isMainSession) {
-        const firstUserMsg = finalMessages.find((m) => m.role === 'user');
-        if (firstUserMsg) {
-          const labelText = getMessageText(firstUserMsg.content).trim();
-          if (labelText) {
-            const truncated = labelText.length > 50 ? `${labelText.slice(0, 50)}…` : labelText;
-            set((s) => ({
-              sessionLabels: { ...s.sessionLabels, [currentSessionKey]: truncated },
-            }));
-          }
+      // All sessions (including :main) use the first user message as the display name.
+      const firstUserMsg = finalMessages.find((m) => m.role === 'user');
+      if (firstUserMsg) {
+        const labelText = getMessageText(firstUserMsg.content).trim();
+        if (labelText) {
+          const truncated = labelText.length > 50 ? `${labelText.slice(0, 50)}…` : labelText;
+          set((s) => ({
+            sessionLabels: { ...s.sessionLabels, [currentSessionKey]: truncated },
+          }));
         }
       }
 
@@ -1449,6 +1470,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
 
     if (targetSessionKey !== get().currentSessionKey) {
       set((s) => buildSessionSwitchPatch(s, targetSessionKey));
+      persistCurrentSessionKey(targetSessionKey);
       await get().loadHistory(true);
     }
 
@@ -1483,7 +1505,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
     // Update session label with first user message text as soon as it's sent
     const { sessionLabels, messages } = get();
     const isFirstMessage = !messages.slice(0, -1).some((m) => m.role === 'user');
-    if (!currentSessionKey.endsWith(':main') && isFirstMessage && !sessionLabels[currentSessionKey] && trimmed) {
+    if (isFirstMessage && !sessionLabels[currentSessionKey] && trimmed) {
       const truncated = trimmed.length > 50 ? `${trimmed.slice(0, 50)}…` : trimmed;
       set((s) => ({ sessionLabels: { ...s.sessionLabels, [currentSessionKey]: truncated } }));
     }

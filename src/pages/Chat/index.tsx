@@ -69,18 +69,25 @@ export function Chat() {
   const { t } = useTranslation('chat');
   const navigate = useNavigate();
   const [mdViewMode, setMdViewMode] = useState<'source' | 'rendered'>('rendered');
-  const listWidth = useChatStyleStore((s) => s.listWidth);
-  const editorWidth = useChatStyleStore((s) => s.editorWidth);
-  const fileTreeWidth = useChatStyleStore((s) => s.fileTreeWidth);
-  const setListWidth = useChatStyleStore((s) => s.setListWidth);
-  const setEditorWidth = useChatStyleStore((s) => s.setEditorWidth);
-  const setFileTreeWidth = useChatStyleStore((s) => s.setFileTreeWidth);
+  const persistedListWidth = useChatStyleStore((s) => s.listWidth);
+  const persistedEditorWidth = useChatStyleStore((s) => s.editorWidth);
+  const persistedFileTreeWidth = useChatStyleStore((s) => s.fileTreeWidth);
+  const commitListWidth = useChatStyleStore((s) => s.setListWidth);
+  const commitEditorWidth = useChatStyleStore((s) => s.setEditorWidth);
+  const commitFileTreeWidth = useChatStyleStore((s) => s.setFileTreeWidth);
+  const [listWidth, setListWidth] = useState(persistedListWidth);
+  const [editorWidth, setEditorWidth] = useState(persistedEditorWidth);
+  const [fileTreeWidth, setFileTreeWidth] = useState(persistedFileTreeWidth);
   const isListDragging = useRef(false);
   const listDragStartX = useRef(0);
   const listDragStartWidth = useRef(0);
+  const listRafRef = useRef<number | null>(null);
+  const listPendingWidthRef = useRef<number | null>(null);
   const isEditorDragging = useRef(false);
   const editorDragStartX = useRef(0);
   const editorDragStartWidth = useRef(0);
+  const editorRafRef = useRef<number | null>(null);
+  const editorPendingWidthRef = useRef<number | null>(null);
   const isFileTreeDragging = useRef(false);
   const fileTreeDragStartX = useRef(0);
   const fileTreeDragStartWidth = useRef(0);
@@ -139,6 +146,8 @@ export function Chat() {
   const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
+  const [isListResizing, setIsListResizing] = useState(false);
+  const [isEditorResizing, setIsEditorResizing] = useState(false);
   const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
   const minLoading = useMinLoading(loading && messages.length > 0);
   const { contentRef, scrollRef } = useStickToBottomInstant(currentSessionKey);
@@ -206,16 +215,39 @@ export function Chat() {
 
         const chatState = useChatStore.getState();
         const fsState = useFileSystemStore.getState();
-        // 2/3) Derive project sessions (source used by sessionBuckets) from current project.
+
+        // Prefer agent-based session routing: match workspace to a known agent and
+        // find sessions by key prefix.  This avoids the projectBindings→switchSession
+        // loop that caused the "jumps back to oldest conversation" bug.
+        const normWs = (p: string) => p.replace(/[\\/]+/g, '/').replace(/\/+$/, '');
+        const matchingAgent = agents.find((a) => normWs(a.workspace) === normWs(workspacePath!));
+
+        if (matchingAgent) {
+          const currentAgentId = getAgentIdFromSessionKey(chatState.currentSessionKey);
+          if (currentAgentId === matchingAgent.id) {
+            // Already on this agent's session — just load history, don't switch.
+            const hasExistingMessages = chatState.messages.length > 0;
+            await loadHistory(hasExistingMessages);
+            if (isTaskAborted()) return;
+            return;
+          }
+          // Switch to the most recent session for this agent.
+          const agentSessions = [...chatState.sessions]
+            .filter((s) => s.key.startsWith(`agent:${matchingAgent.id}:`))
+            .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+          const targetKey = agentSessions[0]?.key ?? `agent:${matchingAgent.id}:main`;
+          if (targetKey !== chatState.currentSessionKey) {
+            if (isTaskAborted()) return;
+            switchSession(targetKey);
+          }
+          return;
+        }
+
+        // Non-agent workspace: fall back to projectBindings lookup.
         const targetSessions = [...chatState.sessions]
           .filter((session) => fsState.projectBindings[session.key] === projectPath)
-          .sort(
-            (a, b) =>
-              (chatState.sessionLastActivity[b.key] ?? 0) -
-              (chatState.sessionLastActivity[a.key] ?? 0)
-          );
+          .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
 
-        // 4) If project has bound sessions, activate and load the first one.
         if (targetSessions.length > 0) {
           const firstSessionKey = targetSessions[0].key;
           if (firstSessionKey !== chatState.currentSessionKey) {
@@ -229,7 +261,7 @@ export function Chat() {
           return;
         }
 
-        // 5) No bound sessions: create one and bind it to current project.
+        // No bound sessions: create one and bind it to current project.
         if (isTaskAborted()) return;
         newSession();
         if (isTaskAborted()) return;
@@ -249,6 +281,7 @@ export function Chat() {
     };
   }, [
     isGatewayRunning,
+    agents,
     projectPath,
     loadSessions,
     switchSession,
@@ -267,6 +300,11 @@ export function Chat() {
   }, []);
 
   useEffect(() => {
+    // Keep the persisted selection as the source of truth on refresh.
+    // Only derive project from session/agent when no project is currently selected.
+    if (projectPath) {
+      return;
+    }
     // Look up the agent's workspace from the snapshot (set at creation time, stored in
     // openclaw.json). Only call initProject to refresh the file tree — do NOT call
     // syncAgentProjectBinding / applyProjectForSession, which would rewrite openclaw.json
@@ -279,7 +317,7 @@ export function Chat() {
       // Fallback for sessions without a resolved agent (e.g. legacy sessions)
       void applyProjectForSession(currentSessionKey);
     }
-  }, [currentSessionKey, agents, initProject, applyProjectForSession]);
+  }, [projectPath, currentSessionKey, agents, initProject, applyProjectForSession]);
 
   // Update timestamp when sending starts
   useEffect(() => {
@@ -318,6 +356,7 @@ export function Chat() {
       hasStreamToolStatus);
   const hasAnyStreamContent =
     hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
+  const resizeHandleTitle = t('common:actions.resizePanel');
   const getSessionLabel = useCallback(
     (key: string, displayName?: string, label?: string) =>
       sessionLabels[key] ?? label ?? displayName ?? key,
@@ -353,6 +392,21 @@ export function Chat() {
       }
       return buckets;
     }, [t, projectSessions, sessionLastActivity, nowMs]);
+  useEffect(() => {
+    if (!isListDragging.current) {
+      setListWidth(persistedListWidth);
+    }
+  }, [persistedListWidth]);
+  useEffect(() => {
+    if (!isEditorDragging.current) {
+      setEditorWidth(persistedEditorWidth);
+    }
+  }, [persistedEditorWidth]);
+  useEffect(() => {
+    if (!isFileTreeDragging.current) {
+      setFileTreeWidth(persistedFileTreeWidth);
+    }
+  }, [persistedFileTreeWidth]);
   const effectiveListWidth = isSessionListCollapsed ? 0 : listWidth;
   const effectiveFileTreeWidth = projectPath && isFileTreeDrawerOpen ? fileTreeWidth : 0;
 
@@ -396,6 +450,12 @@ export function Chat() {
 
   useEffect(() => {
     return () => {
+      if (listRafRef.current != null) {
+        window.cancelAnimationFrame(listRafRef.current);
+      }
+      if (editorRafRef.current != null) {
+        window.cancelAnimationFrame(editorRafRef.current);
+      }
       if (fileTreeRafRef.current != null) {
         window.cancelAnimationFrame(fileTreeRafRef.current);
       }
@@ -414,6 +474,7 @@ export function Chat() {
   const onListDragStart = useCallback(
     (e: React.MouseEvent) => {
       isListDragging.current = true;
+      setIsListResizing(true);
       listDragStartX.current = e.clientX;
       listDragStartWidth.current = listWidth;
       document.body.style.cursor = 'col-resize';
@@ -433,10 +494,31 @@ export function Chat() {
           dynamicMaxWidth,
           Math.max(CHAT_PANEL_SIZE.list.min, listDragStartWidth.current + delta)
         );
-        setListWidth(next);
+        listPendingWidthRef.current = next;
+        if (listRafRef.current == null) {
+          listRafRef.current = window.requestAnimationFrame(() => {
+            listRafRef.current = null;
+            if (listPendingWidthRef.current != null) {
+              setListWidth(listPendingWidthRef.current);
+            }
+          });
+        }
       };
       const onUp = () => {
         isListDragging.current = false;
+        setIsListResizing(false);
+        if (listRafRef.current != null) {
+          window.cancelAnimationFrame(listRafRef.current);
+          listRafRef.current = null;
+        }
+        const finalWidth = listPendingWidthRef.current;
+        if (finalWidth != null) {
+          setListWidth(finalWidth);
+          commitListWidth(finalWidth);
+          listPendingWidthRef.current = null;
+        } else {
+          commitListWidth(listWidth);
+        }
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
         window.removeEventListener('mousemove', onMove);
@@ -445,13 +527,14 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth, effectiveFileTreeWidth, listWidth, setListWidth]
+    [editorWidth, effectiveFileTreeWidth, listWidth, commitListWidth]
   );
 
   // Drag-to-resize editor while preserving chat page behavior from main branch.
   const onEditorDragStart = useCallback(
     (e: React.MouseEvent) => {
       isEditorDragging.current = true;
+      setIsEditorResizing(true);
       editorDragStartX.current = e.clientX;
       editorDragStartWidth.current = editorWidth;
       document.body.style.cursor = 'col-resize';
@@ -463,17 +546,42 @@ export function Chat() {
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
         const maxByContainer = Math.max(
           CHAT_PANEL_SIZE.editor.min,
-          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - effectiveListWidth - effectiveFileTreeWidth - 16
+          containerWidth -
+            CHAT_PANEL_SIZE.chatMinWidth -
+            effectiveListWidth -
+            effectiveFileTreeWidth -
+            16
         );
         const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.editor.max, maxByContainer);
         const next = Math.min(
           dynamicMaxWidth,
           Math.max(CHAT_PANEL_SIZE.editor.min, editorDragStartWidth.current - delta)
         );
-        setEditorWidth(next);
+        editorPendingWidthRef.current = next;
+        if (editorRafRef.current == null) {
+          editorRafRef.current = window.requestAnimationFrame(() => {
+            editorRafRef.current = null;
+            if (editorPendingWidthRef.current != null) {
+              setEditorWidth(editorPendingWidthRef.current);
+            }
+          });
+        }
       };
       const onUp = () => {
         isEditorDragging.current = false;
+        setIsEditorResizing(false);
+        if (editorRafRef.current != null) {
+          window.cancelAnimationFrame(editorRafRef.current);
+          editorRafRef.current = null;
+        }
+        const finalWidth = editorPendingWidthRef.current;
+        if (finalWidth != null) {
+          setEditorWidth(finalWidth);
+          commitEditorWidth(finalWidth);
+          editorPendingWidthRef.current = null;
+        } else {
+          commitEditorWidth(editorWidth);
+        }
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
         window.removeEventListener('mousemove', onMove);
@@ -482,7 +590,7 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth, effectiveFileTreeWidth, effectiveListWidth, setEditorWidth]
+    [editorWidth, effectiveFileTreeWidth, effectiveListWidth, commitEditorWidth]
   );
 
   const onFileTreeDragStart = useCallback(
@@ -527,8 +635,12 @@ export function Chat() {
           fileTreeRafRef.current = null;
         }
         if (fileTreePendingWidthRef.current != null) {
-          setFileTreeWidth(fileTreePendingWidthRef.current);
+          const finalWidth = fileTreePendingWidthRef.current;
+          setFileTreeWidth(finalWidth);
+          commitFileTreeWidth(finalWidth);
           fileTreePendingWidthRef.current = null;
+        } else {
+          commitFileTreeWidth(fileTreeWidth);
         }
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
@@ -545,7 +657,7 @@ export function Chat() {
       fileTreeWidth,
       effectiveListWidth,
       editorWidth,
-      setFileTreeWidth,
+      commitFileTreeWidth,
     ]
   );
 
@@ -659,9 +771,14 @@ export function Chat() {
           <div
             onMouseDown={onListDragStart}
             className="w-2 h-full cursor-col-resize group"
-            title="拖动调整宽度"
+            title={resizeHandleTitle}
           >
-            <div className="w-0.5 mx-auto h-full group-hover:bg-[var(--theme)]"></div>
+            <div
+              className={cn(
+                'w-0.5 mx-auto h-full',
+                isListResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+              )}
+            ></div>
           </div>
         </>
       )}
@@ -674,56 +791,58 @@ export function Chat() {
         </div>
 
         {/* Messages Area */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pr-2 py-4">
-          <div ref={contentRef} className="max-w-4xl mx-auto space-y-4">
-            {isEmpty ? (
-              <WelcomeScreen />
-            ) : (
-              <>
-                {messages.map((msg, idx) => (
-                  <ChatMessage
-                    key={msg.id || `msg-${idx}`}
-                    message={msg}
-                    showThinking={showThinking}
-                    onImportToEditor={handleImportToEditor}
-                  />
-                ))}
+        <div ref={scrollRef} className="chat-messages-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <div className="w-full px-4 min-w-0 overflow-x-auto">
+            <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-4xl space-y-4">
+              {isEmpty ? (
+                <WelcomeScreen />
+              ) : (
+                <>
+                  {messages.map((msg, idx) => (
+                    <ChatMessage
+                      key={msg.id || `msg-${idx}`}
+                      message={msg}
+                      showThinking={showThinking}
+                      onImportToEditor={handleImportToEditor}
+                    />
+                  ))}
 
-                {/* Streaming message */}
-                {shouldRenderStreaming && (
-                  <ChatMessage
-                    message={
-                      (streamMsg
-                        ? {
-                            ...(streamMsg as Record<string, unknown>),
-                            role: (typeof streamMsg.role === 'string'
-                              ? streamMsg.role
-                              : 'assistant') as RawMessage['role'],
-                            content: streamMsg.content ?? streamText,
-                            timestamp: streamMsg.timestamp ?? streamingTimestamp,
-                          }
-                        : {
-                            role: 'assistant',
-                            content: streamText,
-                            timestamp: streamingTimestamp,
-                          }) as RawMessage
-                    }
-                    showThinking={showThinking}
-                    isStreaming
-                    streamingTools={streamingTools}
-                    onImportToEditor={handleImportToEditor}
-                  />
-                )}
+                  {/* Streaming message */}
+                  {shouldRenderStreaming && (
+                    <ChatMessage
+                      message={
+                        (streamMsg
+                          ? {
+                              ...(streamMsg as Record<string, unknown>),
+                              role: (typeof streamMsg.role === 'string'
+                                ? streamMsg.role
+                                : 'assistant') as RawMessage['role'],
+                              content: streamMsg.content ?? streamText,
+                              timestamp: streamMsg.timestamp ?? streamingTimestamp,
+                            }
+                          : {
+                              role: 'assistant',
+                              content: streamText,
+                              timestamp: streamingTimestamp,
+                            }) as RawMessage
+                      }
+                      showThinking={showThinking}
+                      isStreaming
+                      streamingTools={streamingTools}
+                      onImportToEditor={handleImportToEditor}
+                    />
+                  )}
 
-                {/* Activity indicator */}
-                {sending && pendingFinal && !shouldRenderStreaming && (
-                  <ActivityIndicator phase="tool_processing" />
-                )}
+                  {/* Activity indicator */}
+                  {sending && pendingFinal && !shouldRenderStreaming && (
+                    <ActivityIndicator phase="tool_processing" />
+                  )}
 
-                {/* Typing indicator */}
-                {sending && !pendingFinal && !hasAnyStreamContent && <TypingIndicator />}
-              </>
-            )}
+                  {/* Typing indicator */}
+                  {sending && !pendingFinal && !hasAnyStreamContent && <TypingIndicator />}
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -766,9 +885,14 @@ export function Chat() {
       <div
         onMouseDown={onEditorDragStart}
         className="w-2 h-full cursor-col-resize group"
-        title="拖动调整宽度"
+        title={resizeHandleTitle}
       >
-        <div className="w-0.5 mx-auto h-full group-hover:bg-[var(--theme)]"></div>
+        <div
+          className={cn(
+            'w-0.5 mx-auto h-full',
+            isEditorResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+          )}
+        ></div>
       </div>
 
       {/* Markdown Viewer Panel */}
@@ -837,9 +961,14 @@ export function Chat() {
           <div
             onMouseDown={onFileTreeDragStart}
             className="w-2 h-full cursor-col-resize group"
-            title="拖动调整宽度"
+            title={resizeHandleTitle}
           >
-            <div className="w-0.5 mx-auto h-full group-hover:bg-[var(--theme)]"></div>
+            <div
+              className={cn(
+                'w-0.5 mx-auto h-full',
+                isFileTreeResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+              )}
+            ></div>
           </div>
           <div
             className={cn(

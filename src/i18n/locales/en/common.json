@@ -37,7 +37,8 @@
         "show": "Show",
         "hide": "Hide",
         "clear": "Clear",
-        "openDevTools": "Open DevTools"
+        "openDevTools": "Open DevTools",
+        "resizePanel": "Drag to resize panel"
     },
     "status": {
         "running": "Running",
