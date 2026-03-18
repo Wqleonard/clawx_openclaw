@@ -31,6 +31,7 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const resolvedTitle = title?.trim() || 'Confirm action';
 
   useEffect(() => {
     if (open && cancelRef.current) {
@@ -59,8 +60,8 @@ export function ConfirmDialog({
           onKeyDown={handleKeyDown}
           className="fixed left-1/2 top-1/2 z-[211] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-card p-6 shadow-lg outline-none"
         >
-          <DialogPrimitive.Title id="confirm-dialog-title" className="text-lg font-semibold">
-            {title}
+          <DialogPrimitive.Title className="text-lg font-semibold">
+            {resolvedTitle}
           </DialogPrimitive.Title>
           <p className="mt-2 text-sm text-muted-foreground">{message}</p>
           <div className={cn('mt-6 flex justify-end gap-2')}>

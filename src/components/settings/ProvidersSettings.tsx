@@ -1167,6 +1167,7 @@ function AddProviderDialog({
           onEscapeKeyDown={onClose}
           className="fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] p-4 outline-none"
         >
+      <DialogPrimitive.Title className="sr-only">{t('aiProviders.dialog.title')}</DialogPrimitive.Title>
       <Card className="w-full max-h-[calc(90vh-2rem)] flex flex-col rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden">
         <CardHeader className="relative pb-2 shrink-0">
           <CardTitle className="text-2xl font-serif font-normal">{t('aiProviders.dialog.title')}</CardTitle>

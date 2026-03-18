@@ -9,6 +9,7 @@
         "disconnected": "未接続"
     },
     "gatewayWarning": "ゲートウェイサービスが実行されていないため、チャンネルに接続できません。",
+    "gatewayRestartingWarning": "ゲートウェイを再起動または再接続中です。チャンネル状態は自動更新されます。",
     "availableChannels": "利用可能なチャンネル",
     "supportedChannels": "サポートされているチャンネル",
     "available": "利用可能なチャンネル",
