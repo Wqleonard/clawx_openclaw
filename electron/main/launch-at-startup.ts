@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 import { getSetting } from '../utils/store';
 import { APP_DISPLAY_NAME, APP_TAGLINE } from '../shared/app-brand';
 
-const LINUX_AUTOSTART_FILE = join('.config', 'autostart', 'boomclaw.desktop');
+const LINUX_AUTOSTART_FILE = join('.config', 'autostart', 'storyclaw.desktop');
 
 function quoteDesktopArg(value: string): string {
   if (!value) return '""';

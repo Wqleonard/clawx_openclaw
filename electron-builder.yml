@@ -56,7 +56,7 @@ publish:
     useMultipleRangeRequest: false
   - provider: github
     owner: ValueCell-ai
-    repo: BoomClaw
+    repo: StoryClaw
 
 # macOS Configuration
 mac:
@@ -166,7 +166,7 @@ linux:
       Comment: AI Assistant powered by OpenClaw
       Categories: Utility;Network;
       Keywords: ai;assistant;automation;chat;
-      StartupWMClass: boomclaw
+      StartupWMClass: storyclaw
 
 appImage:
   license: LICENSE

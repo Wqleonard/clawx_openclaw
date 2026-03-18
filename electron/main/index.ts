@@ -36,6 +36,9 @@ import { syncAllProviderAuthToRuntime } from '../services/providers/provider-run
 import { contentSafetyManager } from '../utils/content-safety-manager';
 import { APP_DISPLAY_NAME } from '../shared/app-brand';
 
+// Store app data under the branded directory.
+app.setPath('userData', join(app.getPath('appData'), 'storyclaw'));
+
 // Disable GPU hardware acceleration globally for maximum stability across
 // all GPU configurations (no GPU, integrated, discrete).
 //
@@ -66,11 +69,11 @@ if (remoteDebugPort && remoteDebugPort !== '0') {
 }
 
 // On Linux, set CHROME_DESKTOP so Chromium can find the correct .desktop file.
-// On Wayland this maps the running window to boomclaw.desktop (→ icon + app grouping);
+// On Wayland this maps the running window to storyclaw.desktop (→ icon + app grouping);
 // on X11 it supplements the StartupWMClass matching.
 // Must be called before app.whenReady() / before any window is created.
 if (process.platform === 'linux') {
-  // app.setDesktopName('storyclaw.desktop');
+  (app as Electron.App & { setDesktopName?: (name: string) => void }).setDesktopName?.('storyclaw.desktop');
 }
 
 // Prevent multiple instances of the app from running simultaneously.

@@ -72,7 +72,7 @@
         },
         "managedConfigLoading": "正在加载托管 OpenClaw 配置...",
         "managedConfigReady": "托管 OpenClaw 配置已就绪。",
-        "managedConfigMissing": "托管 OpenClaw 配置不可用，请联系管理员设置 BOOMCLAW_OPENCLAW_BASE_URL 和 BOOMCLAW_OPENCLAW_API_KEY。",
+        "managedConfigMissing": "托管 OpenClaw 配置不可用，请联系管理员设置 STORYCLAW_OPENCLAW_BASE_URL 和 STORYCLAW_OPENCLAW_API_KEY。",
         "applyManaged": "应用托管配置",
         "selectPlaceholder": "选择提供商...",
         "baseUrl": "基础 URL",
