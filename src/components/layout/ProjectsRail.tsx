@@ -501,21 +501,21 @@ export function ProjectsRail() {
           <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
         </Button>
 
-        {/*<Button*/}
-        {/*  variant="ghost"*/}
-        {/*  size="icon"*/}
-        {/*  className={cn(*/}
-        {/*    'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',*/}
-        {/*    'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'*/}
-        {/*  )}*/}
-        {/*  onClick={openSettingDialog}*/}
-        {/*  title="settings"*/}
-        {/*  aria-label="Open settings"*/}
-        {/*>*/}
-        {/*  <SettingsIcon className="h-4 w-4" strokeWidth={2} />*/}
-        {/*</Button>*/}
+        {/* <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
+          onClick={openSettingDialog}
+          title="settings"
+          aria-label="Open settings"
+        >
+          <SettingsIcon className="h-4 w-4" strokeWidth={2} />
+        </Button> */}
 
-        {isDev && (
+        {/* {isDev && ( */}
           <Button
             variant="ghost"
             size="icon"
@@ -529,7 +529,7 @@ export function ProjectsRail() {
           >
             <Terminal className="h-4 w-4" strokeWidth={2} />
           </Button>
-        )}
+        {/* )} */}
       </div>
 
       {menuState && (
