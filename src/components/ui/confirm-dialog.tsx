@@ -1,9 +1,9 @@
 /**
- * ConfirmDialog - In-DOM confirmation dialog (replaces window.confirm)
- * Keeps focus within the renderer to avoid Windows focus loss after native dialogs.
+ * ConfirmDialog - 基于 Radix 的确认弹层
+ * 通过 DialogPrimitive 接入统一层级管理，避免嵌套弹层时按钮不可点击。
  */
 import { useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { Dialog as DialogPrimitive } from 'radix-ui';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -38,8 +38,6 @@ export function ConfirmDialog({
     }
   }, [open]);
 
-  if (!open) return null;
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -47,46 +45,41 @@ export function ConfirmDialog({
     }
   };
 
-  const dialogContent = (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
-      onKeyDown={handleKeyDown}
-    >
-      <div
-        className={cn(
-          'w-100 mx-4 max-w-md rounded-lg border bg-card p-6 shadow-lg',
-          'focus:outline-none'
-        )}
-        tabIndex={-1}
-      >
-        <h2 id="confirm-dialog-title" className="text-lg font-semibold">
-          {title}
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
-        <div className="mt-6 flex justify-end gap-2">
-          <Button
-            ref={cancelRef}
-            variant="outline"
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={variant === 'destructive' ? 'destructive' : 'default'}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onCancel(); }}>
+      <DialogPrimitive.Portal container={container ?? undefined}>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[210] bg-black/50" />
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+            onCancel();
+          }}
+          onKeyDown={handleKeyDown}
+          className="fixed left-1/2 top-1/2 z-[211] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-card p-6 shadow-lg outline-none"
+        >
+          <DialogPrimitive.Title id="confirm-dialog-title" className="text-lg font-semibold">
+            {title}
+          </DialogPrimitive.Title>
+          <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+          <div className={cn('mt-6 flex justify-end gap-2')}>
+            <Button
+              ref={cancelRef}
+              variant="outline"
+              onClick={onCancel}
+            >
+              {cancelLabel}
+            </Button>
+            <Button
+              variant={variant === 'destructive' ? 'destructive' : 'default'}
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </Button>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
-
-  if (typeof document === 'undefined') {
-    return dialogContent;
-  }
-  return createPortal(dialogContent, container ?? document.body);
 }

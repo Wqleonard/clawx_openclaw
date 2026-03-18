@@ -40,7 +40,7 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedChannelType, setSelectedChannelType] = useState<ChannelType | null>(null);
   const [configuredTypes, setConfiguredTypes] = useState<string[]>([]);
-  const [channelToDelete, setChannelToDelete] = useState<{ id: string } | null>(null);
+  const [channelToDelete, setChannelToDelete] = useState<{ id: string; type: ChannelType } | null>(null);
 
   useEffect(() => {
     void fetchChannels();
@@ -183,7 +183,7 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
                       setSelectedChannelType(channel.type);
                       setShowAddDialog(true);
                     }}
-                    onDelete={() => setChannelToDelete({ id: channel.id })}
+                    onDelete={() => setChannelToDelete({ id: channel.id, type: channel.type })}
                   />
                 ))}
               </div>
@@ -287,8 +287,7 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
         onConfirm={async () => {
           if (channelToDelete) {
             await deleteChannel(channelToDelete.id);
-            const [channelType] = channelToDelete.id.split('-');
-            setConfiguredTypes((prev) => prev.filter((type) => type !== channelType));
+            await Promise.all([fetchChannels(), fetchConfiguredTypes()]);
             setChannelToDelete(null);
           }
         }}
