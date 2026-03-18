@@ -24,6 +24,11 @@
       "slug": "content-creation-skill",
       "version": "1.0.0",
       "autoEnable": true
+    },
+    {
+      "slug": "skillhub",
+      "version": "1.0.0",
+      "autoEnable": true
     }
   ]
 }
