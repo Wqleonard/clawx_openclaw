@@ -203,9 +203,9 @@ function logApiAttempt(entry: {
   if (!shouldLogApiRequests()) return;
   const base = `[api-client] id=${entry.requestId} channel=${entry.channel} transport=${entry.transport} attempt=${entry.attempt} durationMs=${entry.durationMs}`;
   if (entry.ok) {
-    console.info(`${base} result=ok`);
+    // console.info(`${base} result=ok`);
   } else {
-    console.warn(`${base} result=error`, entry.error);
+    // console.warn(`${base} result=error`, entry.error);
   }
 }
 

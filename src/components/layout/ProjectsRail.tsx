@@ -305,6 +305,18 @@ export function ProjectsRail() {
     }
   };
 
+  const handleOpenInFileExplorer = useCallback(async () => {
+    if (!menuState?.workspacePath) return;
+    const target = menuState.workspacePath;
+    setMenuState(null);
+    try {
+      await invokeIpc('shell:openPath', target);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || 'Failed to open project folder');
+    }
+  }, [menuState]);
+
   const openDevConsole = useCallback(async () => {
     if (!isDev) return;
     try {
@@ -327,10 +339,10 @@ export function ProjectsRail() {
   return (
     <>
       <div className="flex w-16 h-full flex-col items-center gap-3 py-3">
-        {projectItems.map((workspace) => (
+        {projectItems.map((project) => (
           <WorkspaceShortcutButton
-            key={workspace.path}
-            workspace={workspace}
+            key={project.path}
+            workspace={project}
             onActivate={handleActivateProject}
             onContextMenu={handleContextMenu}
           />
@@ -405,6 +417,13 @@ export function ProjectsRail() {
           >
             编辑
           </button> */}
+          <button
+            type="button"
+            onClick={() => void handleOpenInFileExplorer()}
+            className="w-full rounded px-2 py-1.5 text-left font-bold text-sm hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            在文件资源管理器中打开
+          </button>
           <button
             type="button"
             onClick={() => void handleClose()}

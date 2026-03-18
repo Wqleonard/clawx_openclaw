@@ -21,18 +21,12 @@ import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
 import { useChatLayoutStore } from '@/stores/chat-layout';
+import { CHAT_PANEL_SIZE, useChatStyleStore } from '@/stores/chatStyle';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 import { FileTabs, FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
 
-const EDITOR_MIN_WIDTH = 260;
-const EDITOR_MAX_WIDTH = 900;
-const EDITOR_DEFAULT_WIDTH = 560;
-const LIST_MIN_WIDTH = 220;
-const LIST_MAX_WIDTH = 520;
-const LIST_DEFAULT_WIDTH = 280;
-const CHAT_MIN_WIDTH = 420;
 const INITIAL_NOW_MS = Date.now();
 
 type SessionBucketKey =
@@ -75,14 +69,23 @@ export function Chat() {
   const { t } = useTranslation('chat');
   const navigate = useNavigate();
   const [mdViewMode, setMdViewMode] = useState<'source' | 'rendered'>('rendered');
-  const [listWidth, setListWidth] = useState(LIST_DEFAULT_WIDTH);
-  const [editorWidth, setEditorWidth] = useState(EDITOR_DEFAULT_WIDTH);
+  const listWidth = useChatStyleStore((s) => s.listWidth);
+  const editorWidth = useChatStyleStore((s) => s.editorWidth);
+  const fileTreeWidth = useChatStyleStore((s) => s.fileTreeWidth);
+  const setListWidth = useChatStyleStore((s) => s.setListWidth);
+  const setEditorWidth = useChatStyleStore((s) => s.setEditorWidth);
+  const setFileTreeWidth = useChatStyleStore((s) => s.setFileTreeWidth);
   const isListDragging = useRef(false);
   const listDragStartX = useRef(0);
   const listDragStartWidth = useRef(0);
   const isEditorDragging = useRef(false);
   const editorDragStartX = useRef(0);
   const editorDragStartWidth = useRef(0);
+  const isFileTreeDragging = useRef(false);
+  const fileTreeDragStartX = useRef(0);
+  const fileTreeDragStartWidth = useRef(0);
+  const fileTreeRafRef = useRef<number | null>(null);
+  const fileTreePendingWidthRef = useRef<number | null>(null);
   const initTaskVersionRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const gatewayStatus = useGatewayStore((s) => s.status);
@@ -112,7 +115,8 @@ export function Chat() {
   const agents = useAgentsStore((s) => s.agents);
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
-  const workspacePath = useFileSystemStore((s) => s.projectPath);
+  const projectPath = useFileSystemStore((s) => s.projectPath);
+
   const bindProjectToSession = useFileSystemStore((s) => s.bindProjectToSession);
   const projectBindings = useFileSystemStore((s) => s.projectBindings);
   const activeFile = useFileSystemStore((s) => s.activeFile);
@@ -122,16 +126,20 @@ export function Chat() {
   const setActiveFile = useFileSystemStore((s) => s.setActiveFile);
   const closeFile = useFileSystemStore((s) => s.closeFile);
   const applyProjectForSession = useFileSystemStore((s) => s.applyProjectForSession);
+  const initProject = useFileSystemStore((s) => s.initProject);
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
   const setProjectSwitching = useChatLayoutStore((s) => s.setProjectSwitching);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(
+    null
+  );
   const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
+  const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
   const minLoading = useMinLoading(loading && messages.length > 0);
   const { contentRef, scrollRef } = useStickToBottomInstant(currentSessionKey);
   const resetChatRuntimeState = useCallback(() => {
@@ -168,11 +176,11 @@ export function Chat() {
   }, [fetchAgents]);
 
   useEffect(() => {
-    if (workspacePath) return;
+    if (projectPath) return;
     initTaskVersionRef.current += 1;
     setProjectSwitching(false);
     resetChatRuntimeState();
-  }, [workspacePath, resetChatRuntimeState, setProjectSwitching]);
+  }, [projectPath, resetChatRuntimeState, setProjectSwitching]);
 
   useEffect(() => {
     if (!isGatewayRunning) {
@@ -186,7 +194,7 @@ export function Chat() {
 
     (async () => {
       try {
-        if (!workspacePath) {
+        if (!projectPath) {
           if (isTaskAborted()) return;
           resetChatRuntimeState();
           return;
@@ -200,8 +208,12 @@ export function Chat() {
         const fsState = useFileSystemStore.getState();
         // 2/3) Derive project sessions (source used by sessionBuckets) from current project.
         const targetSessions = [...chatState.sessions]
-          .filter((session) => fsState.projectBindings[session.key] === workspacePath)
-          .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+          .filter((session) => fsState.projectBindings[session.key] === projectPath)
+          .sort(
+            (a, b) =>
+              (chatState.sessionLastActivity[b.key] ?? 0) -
+              (chatState.sessionLastActivity[a.key] ?? 0)
+          );
 
         // 4) If project has bound sessions, activate and load the first one.
         if (targetSessions.length > 0) {
@@ -223,7 +235,7 @@ export function Chat() {
         if (isTaskAborted()) return;
         const newSessionKey = useChatStore.getState().currentSessionKey;
         if (newSessionKey) {
-          await bindProjectToSession(newSessionKey, workspacePath);
+          await bindProjectToSession(newSessionKey, projectPath);
           if (isTaskAborted()) return;
         }
       } finally {
@@ -237,7 +249,7 @@ export function Chat() {
     };
   }, [
     isGatewayRunning,
-    workspacePath,
+    projectPath,
     loadSessions,
     switchSession,
     loadHistory,
@@ -255,8 +267,19 @@ export function Chat() {
   }, []);
 
   useEffect(() => {
-    void applyProjectForSession(currentSessionKey);
-  }, [currentSessionKey, applyProjectForSession]);
+    // Look up the agent's workspace from the snapshot (set at creation time, stored in
+    // openclaw.json). Only call initProject to refresh the file tree — do NOT call
+    // syncAgentProjectBinding / applyProjectForSession, which would rewrite openclaw.json
+    // and trigger a Gateway reconnect on every agent switch.
+    const agentId = getAgentIdFromSessionKey(currentSessionKey);
+    const agent = agents.find((a) => a.id === agentId);
+    if (agent?.workspace) {
+      void initProject(agent.workspace);
+    } else {
+      // Fallback for sessions without a resolved agent (e.g. legacy sessions)
+      void applyProjectForSession(currentSessionKey);
+    }
+  }, [currentSessionKey, agents, initProject, applyProjectForSession]);
 
   // Update timestamp when sending starts
   useEffect(() => {
@@ -296,38 +319,42 @@ export function Chat() {
   const hasAnyStreamContent =
     hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
   const getSessionLabel = useCallback(
-    (key: string, displayName?: string, label?: string) => sessionLabels[key] ?? label ?? displayName ?? key,
-    [sessionLabels],
+    (key: string, displayName?: string, label?: string) =>
+      sessionLabels[key] ?? label ?? displayName ?? key,
+    [sessionLabels]
   );
   const agentNameById = useMemo(
     () => Object.fromEntries(agents.map((agent) => [agent.id, agent.name])),
-    [agents],
+    [agents]
   );
   const projectSessions = useMemo(() => {
-    if (!workspacePath) return [];
-    return sessions.filter((session) => projectBindings[session.key] === workspacePath);
-  }, [workspacePath, sessions, projectBindings]);
-  const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = useMemo(() => {
-    const buckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [
-      { key: 'today', label: t('historyBuckets.today'), sessions: [] },
-      { key: 'yesterday', label: t('historyBuckets.yesterday'), sessions: [] },
-      { key: 'withinWeek', label: t('historyBuckets.withinWeek'), sessions: [] },
-      { key: 'withinTwoWeeks', label: t('historyBuckets.withinTwoWeeks'), sessions: [] },
-      { key: 'withinMonth', label: t('historyBuckets.withinMonth'), sessions: [] },
-      { key: 'older', label: t('historyBuckets.older'), sessions: [] },
-    ];
-    const bucketMap = Object.fromEntries(buckets.map((bucket) => [bucket.key, bucket])) as Record<
-      SessionBucketKey,
-      (typeof buckets)[number]
-    >;
-    for (const session of [...projectSessions].sort(
-      (a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0),
-    )) {
-      const bucketKey = getSessionBucket(sessionLastActivity[session.key] ?? 0, nowMs);
-      bucketMap[bucketKey].sessions.push(session);
-    }
-    return buckets;
-  }, [t, projectSessions, sessionLastActivity, nowMs]);
+    if (!projectPath) return [];
+    return sessions.filter((session) => projectBindings[session.key] === projectPath);
+  }, [projectPath, sessions, projectBindings]);
+  const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> =
+    useMemo(() => {
+      const buckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [
+        { key: 'today', label: t('historyBuckets.today'), sessions: [] },
+        { key: 'yesterday', label: t('historyBuckets.yesterday'), sessions: [] },
+        { key: 'withinWeek', label: t('historyBuckets.withinWeek'), sessions: [] },
+        { key: 'withinTwoWeeks', label: t('historyBuckets.withinTwoWeeks'), sessions: [] },
+        { key: 'withinMonth', label: t('historyBuckets.withinMonth'), sessions: [] },
+        { key: 'older', label: t('historyBuckets.older'), sessions: [] },
+      ];
+      const bucketMap = Object.fromEntries(buckets.map((bucket) => [bucket.key, bucket])) as Record<
+        SessionBucketKey,
+        (typeof buckets)[number]
+      >;
+      for (const session of [...projectSessions].sort(
+        (a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0)
+      )) {
+        const bucketKey = getSessionBucket(sessionLastActivity[session.key] ?? 0, nowMs);
+        bucketMap[bucketKey].sessions.push(session);
+      }
+      return buckets;
+    }, [t, projectSessions, sessionLastActivity, nowMs]);
+  const effectiveListWidth = isSessionListCollapsed ? 0 : listWidth;
+  const effectiveFileTreeWidth = projectPath && isFileTreeDrawerOpen ? fileTreeWidth : 0;
 
   const isEmpty = messages.length === 0 && !sending;
   const markdownOpenFiles = useMemo(
@@ -367,6 +394,14 @@ export function Chat() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (fileTreeRafRef.current != null) {
+        window.cancelAnimationFrame(fileTreeRafRef.current);
+      }
+    };
+  }, []);
+
   const handleImportToEditor = useCallback(
     (content: string) => {
       if (activeFile) {
@@ -375,7 +410,7 @@ export function Chat() {
     },
     [activeFile, updateFileContent]
   );
-  
+
   const onListDragStart = useCallback(
     (e: React.MouseEvent) => {
       isListDragging.current = true;
@@ -388,14 +423,15 @@ export function Chat() {
         if (!isListDragging.current) return;
         const delta = ev.clientX - listDragStartX.current;
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-        const maxByContainer = containerWidth - CHAT_MIN_WIDTH - editorWidth - 8;
+        const maxByContainer =
+          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - editorWidth - effectiveFileTreeWidth - 16;
         const dynamicMaxWidth = Math.max(
-          LIST_MIN_WIDTH,
-          Math.min(LIST_MAX_WIDTH, maxByContainer),
+          CHAT_PANEL_SIZE.list.min,
+          Math.min(CHAT_PANEL_SIZE.list.max, maxByContainer)
         );
         const next = Math.min(
           dynamicMaxWidth,
-          Math.max(LIST_MIN_WIDTH, listDragStartWidth.current + delta),
+          Math.max(CHAT_PANEL_SIZE.list.min, listDragStartWidth.current + delta)
         );
         setListWidth(next);
       };
@@ -409,7 +445,7 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth, listWidth],
+    [editorWidth, effectiveFileTreeWidth, listWidth, setListWidth]
   );
 
   // Drag-to-resize editor while preserving chat page behavior from main branch.
@@ -426,13 +462,13 @@ export function Chat() {
         const delta = ev.clientX - editorDragStartX.current;
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
         const maxByContainer = Math.max(
-          EDITOR_MIN_WIDTH,
-          containerWidth - CHAT_MIN_WIDTH - listWidth - 8,
+          CHAT_PANEL_SIZE.editor.min,
+          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - effectiveListWidth - effectiveFileTreeWidth - 16
         );
-        const dynamicMaxWidth = Math.min(EDITOR_MAX_WIDTH, maxByContainer);
+        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.editor.max, maxByContainer);
         const next = Math.min(
           dynamicMaxWidth,
-          Math.max(EDITOR_MIN_WIDTH, editorDragStartWidth.current - delta),
+          Math.max(CHAT_PANEL_SIZE.editor.min, editorDragStartWidth.current - delta)
         );
         setEditorWidth(next);
       };
@@ -446,42 +482,106 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth, listWidth]
+    [editorWidth, effectiveFileTreeWidth, effectiveListWidth, setEditorWidth]
+  );
+
+  const onFileTreeDragStart = useCallback(
+    (e: React.MouseEvent) => {
+      if (!projectPath || !isFileTreeDrawerOpen) return;
+      isFileTreeDragging.current = true;
+      setIsFileTreeResizing(true);
+      fileTreeDragStartX.current = e.clientX;
+      fileTreeDragStartWidth.current = fileTreeWidth;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      const onMove = (ev: MouseEvent) => {
+        if (!isFileTreeDragging.current) return;
+        const delta = ev.clientX - fileTreeDragStartX.current;
+        const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
+        const maxByContainer = Math.max(
+          CHAT_PANEL_SIZE.fileTree.min,
+          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - effectiveListWidth - editorWidth - 16
+        );
+        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.fileTree.max, maxByContainer);
+        const next = Math.min(
+          dynamicMaxWidth,
+          Math.max(CHAT_PANEL_SIZE.fileTree.min, fileTreeDragStartWidth.current - delta)
+        );
+        fileTreePendingWidthRef.current = next;
+        if (fileTreeRafRef.current == null) {
+          fileTreeRafRef.current = window.requestAnimationFrame(() => {
+            fileTreeRafRef.current = null;
+            if (fileTreePendingWidthRef.current != null) {
+              setFileTreeWidth(fileTreePendingWidthRef.current);
+            }
+          });
+        }
+      };
+
+      const onUp = () => {
+        isFileTreeDragging.current = false;
+        setIsFileTreeResizing(false);
+        if (fileTreeRafRef.current != null) {
+          window.cancelAnimationFrame(fileTreeRafRef.current);
+          fileTreeRafRef.current = null;
+        }
+        if (fileTreePendingWidthRef.current != null) {
+          setFileTreeWidth(fileTreePendingWidthRef.current);
+          fileTreePendingWidthRef.current = null;
+        }
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [
+      projectPath,
+      isFileTreeDrawerOpen,
+      fileTreeWidth,
+      effectiveListWidth,
+      editorWidth,
+      setFileTreeWidth,
+    ]
   );
 
   const handleNewProjectSession = useCallback(async () => {
-    if (!workspacePath) return;
+    if (!projectPath) return;
     const current = useChatStore.getState();
     if (current.messages.length > 0) {
       newSession();
       const newSessionKey = useChatStore.getState().currentSessionKey;
       if (newSessionKey) {
-        await bindProjectToSession(newSessionKey, workspacePath);
+        await bindProjectToSession(newSessionKey, projectPath);
       }
     } else if (current.currentSessionKey) {
-      await bindProjectToSession(current.currentSessionKey, workspacePath);
+      await bindProjectToSession(current.currentSessionKey, projectPath);
     }
-  }, [workspacePath, newSession, bindProjectToSession]);
+  }, [projectPath, newSession, bindProjectToSession]);
 
   return (
     <div
       ref={containerRef}
-      className={cn('flex h-full transition-colors duration-500 dark:bg-background')}
+      className={cn('px-3 pl-0 pb-3 flex h-full transition-colors duration-500 dark:bg-background')}
     >
       {!isSessionListCollapsed && (
         <>
           {/* Chat List Panel */}
           <div
-            className="shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
+            className="rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
             style={{ width: listWidth }}
           >
-            {workspacePath && (
+            {projectPath && (
               <>
                 <button
                   onClick={() => void handleNewProjectSession()}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
-                    'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground',
+                    'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground'
                   )}
                 >
                   <div className="flex shrink-0 items-center justify-center text-foreground/80">
@@ -513,7 +613,7 @@ export function Chat() {
                                 'hover:bg-black/5 dark:hover:bg-white/5',
                                 currentSessionKey === session.key
                                   ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
-                                  : 'text-foreground/75',
+                                  : 'text-foreground/75'
                               )}
                             >
                               <div className="flex min-w-0 items-center gap-2">
@@ -531,13 +631,17 @@ export function Chat() {
                                 event.stopPropagation();
                                 setSessionToDelete({
                                   key: session.key,
-                                  label: getSessionLabel(session.key, session.displayName, session.label),
+                                  label: getSessionLabel(
+                                    session.key,
+                                    session.displayName,
+                                    session.label
+                                  ),
                                 });
                               }}
                               className={cn(
                                 'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
                                 'opacity-0 group-hover:opacity-100',
-                                'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
+                                'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
                               )}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -546,7 +650,7 @@ export function Chat() {
                         );
                       })}
                     </div>
-                  ) : null,
+                  ) : null
                 )}
               </>
             )}
@@ -554,25 +658,23 @@ export function Chat() {
 
           <div
             onMouseDown={onListDragStart}
-            className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
+            className="w-2 h-full cursor-col-resize group"
             title="拖动调整宽度"
-          ></div>
+          >
+            <div className="w-0.5 mx-auto h-full group-hover:bg-[var(--theme)]"></div>
+          </div>
         </>
       )}
 
       {/* Chat Panel */}
-      <div className={cn(
-        "relative flex flex-1 flex-col overflow-hidden",
-        !isSessionListCollapsed && "rounded-ss-lg border-l"
-      )}>
+      <div className={cn('rounded-2xl border relative flex flex-1 flex-col overflow-hidden')}>
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />
         </div>
 
-
         {/* Messages Area */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pr-2 py-4">
           <div ref={contentRef} className="max-w-4xl mx-auto space-y-4">
             {isEmpty ? (
               <WelcomeScreen />
@@ -663,16 +765,18 @@ export function Chat() {
 
       <div
         onMouseDown={onEditorDragStart}
-        className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
+        className="w-2 h-full cursor-col-resize group"
         title="拖动调整宽度"
-      ></div>
+      >
+        <div className="w-0.5 mx-auto h-full group-hover:bg-[var(--theme)]"></div>
+      </div>
 
       {/* Markdown Viewer Panel */}
       <div
-        className="group relative border-l flex shrink-0 overflow-hidden"
+        className="group relative border rounded-2xl flex shrink-0 overflow-hidden"
         style={{ width: editorWidth }}
       >
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-border">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <FileTabs
             openFiles={markdownOpenFiles}
             activeFile={activeMarkdownFile}
@@ -728,15 +832,26 @@ export function Chat() {
         </div>
       </div>
 
-      {workspacePath && (
-        <div
-          className={cn(
-            'shrink-0 overflow-hidden  border-border bg-background transition-[width] duration-200 ease-out',
-            isFileTreeDrawerOpen ? 'w-[260px]' : 'w-0 pointer-events-none border-l-0 border-t-0'
-          )}
-        >
-          <FileTree key={workspacePath} className="h-full" />
-        </div>
+      {projectPath && (
+        <>
+          <div
+            onMouseDown={onFileTreeDragStart}
+            className="w-2 h-full cursor-col-resize group"
+            title="拖动调整宽度"
+          >
+            <div className="w-0.5 mx-auto h-full group-hover:bg-[var(--theme)]"></div>
+          </div>
+          <div
+            className={cn(
+              'rounded-2xl border shrink-0 overflow-hidden bg-background',
+              isFileTreeResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
+              isFileTreeDrawerOpen ? 'pointer-events-auto' : 'w-0 pointer-events-none border-none'
+            )}
+            style={isFileTreeDrawerOpen ? { width: fileTreeWidth } : undefined}
+          >
+            <FileTree key={projectPath} className="h-full" />
+          </div>
+        </>
       )}
 
       <ConfirmDialog

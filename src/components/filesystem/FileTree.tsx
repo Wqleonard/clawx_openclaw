@@ -219,7 +219,7 @@ function FileTreeNode({
 
 export function FileTree({ className }: FileTreeProps) {
   const { t } = useTranslation('chat');
-  const workspacePath = useFileSystemStore((s) => s.projectPath);
+  const projectPath = useFileSystemStore((s) => s.projectPath);
   const tree = useFileSystemStore((s) => s.tree);
   const contextFiles = useFileSystemStore((s) => s.contextFiles);
   const lastError = useFileSystemStore((s) => s.lastError);
@@ -239,9 +239,13 @@ export function FileTree({ className }: FileTreeProps) {
   const loadContextFiles = useFileSystemStore((s) => s.loadContextFiles);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
 
+  useEffect(() => {
+    console.log(projectPath)
+  }, [projectPath]);
+
   const [expanded, setExpanded] = useState<Set<string>>(() => {
-    if (!workspacePath) return new Set();
-    const cached = expandedByWorkspaceCache.get(workspacePath);
+    if (!projectPath) return new Set();
+    const cached = expandedByWorkspaceCache.get(projectPath);
     return new Set(cached ?? []);
   });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -354,11 +358,9 @@ export function FileTree({ className }: FileTreeProps) {
     event.preventDefault();
     event.stopPropagation();
     setSelectedNode(node);
-    const boundary = fileTreeRef.current?.getBoundingClientRect();
-    const fixedX = (boundary?.left ?? 0) + 8;
     setContextMenu({
-      x: fixedX,
-      y: event.clientY - 44,
+      x: event.clientX,
+      y: event.clientY,
       node,
     });
   };
@@ -445,8 +447,8 @@ export function FileTree({ className }: FileTreeProps) {
         }
         await renameNode(inputModal.targetPath, renameTargetPath);
       } else if (inputModal.action === 'move_to') {
-        if (!workspacePath) return;
-        const nextPath = /^[A-Za-z]:\\|^\//.test(value) ? value : joinPath(workspacePath, value);
+        if (!projectPath) return;
+        const nextPath = /^[A-Za-z]:\\|^\//.test(value) ? value : joinPath(projectPath, value);
         if (pathSet.has(nextPath) && nextPath !== inputModal.targetPath) {
           throw new Error(labels.targetExists);
         }
@@ -463,31 +465,31 @@ export function FileTree({ className }: FileTreeProps) {
   }, []);
 
   useEffect(() => {
-    if (!workspacePath) {
+    if (!projectPath) {
       setExpanded(new Set());
       return;
     }
-    const cached = expandedByWorkspaceCache.get(workspacePath);
+    const cached = expandedByWorkspaceCache.get(projectPath);
     setExpanded(new Set(cached ?? []));
-  }, [workspacePath]);
+  }, [projectPath]);
 
   useEffect(() => {
-    if (!workspacePath) return;
-    expandedByWorkspaceCache.set(workspacePath, Array.from(expanded));
-  }, [workspacePath, expanded]);
+    if (!projectPath) return;
+    expandedByWorkspaceCache.set(projectPath, Array.from(expanded));
+  }, [projectPath, expanded]);
 
   useEffect(() => {
-    if (!workspacePath) return;
+    if (!projectPath) return;
     void loadContextFiles(currentAgentId);
-  }, [workspacePath, currentAgentId, loadContextFiles]);
+  }, [projectPath, currentAgentId, loadContextFiles]);
 
   useEffect(() => {
-    if (!workspacePath) return;
+    if (!projectPath) return;
     void startWatching();
     return () => {
       void stopWatching();
     };
-  }, [workspacePath, startWatching, stopWatching]);
+  }, [projectPath, startWatching, stopWatching]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -598,7 +600,7 @@ export function FileTree({ className }: FileTreeProps) {
 
   const menuStyle = contextMenu
     ? {
-        left: 8,
+        left: contextMenu.x,
         top: contextMenu.y,
       }
     : undefined;
@@ -607,7 +609,7 @@ export function FileTree({ className }: FileTreeProps) {
     <section
       ref={fileTreeRef}
       className={cn(
-        'flex h-full min-h-0 flex-col border-r bg-[#eae8e1]/45 dark:bg-background',
+        'flex h-full min-h-0 flex-col bg-[#eae8e1]/45 dark:bg-background',
         className
       )}
     >
@@ -620,7 +622,7 @@ export function FileTree({ className }: FileTreeProps) {
             className="h-7 w-7"
             title={labels.newFile}
             onClick={() =>
-              workspacePath && openInputModal('new_file', workspacePath, defaultNewMarkdownFileName)
+              projectPath && openInputModal('new_file', projectPath, defaultNewMarkdownFileName)
             }
           >
             <FilePlus className="h-3.5 w-3.5 text-muted-foreground" />
@@ -632,7 +634,7 @@ export function FileTree({ className }: FileTreeProps) {
             className="h-7 w-7"
             title={labels.newFolder}
             onClick={() =>
-              workspacePath && openInputModal('new_folder', workspacePath, defaultNewFolderName)
+              projectPath && openInputModal('new_folder', projectPath, defaultNewFolderName)
             }
           >
             <FolderPlus className="h-3.5 w-3.5 text-muted-foreground" />
@@ -653,10 +655,10 @@ export function FileTree({ className }: FileTreeProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-1.5">
-        {!workspacePath && (
+        {!projectPath && (
           <div className="px-2 py-4 text-xs text-muted-foreground">{labels.noWorkspace}</div>
         )}
-        {!!workspacePath && rootChildren.length === 0 && (
+        {!!projectPath && rootChildren.length === 0 && (
           <div className="px-2 py-4 text-xs text-muted-foreground">{labels.emptyFolder}</div>
         )}
         {rootChildren.map((node) => (

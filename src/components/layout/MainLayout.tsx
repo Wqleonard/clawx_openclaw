@@ -32,7 +32,7 @@ export function MainLayout() {
         <ProjectsRail />
 
         {/* <Sidebar /> */}
-        <main className="flex-1 overflow-auto border rounded-ss-xl">
+        <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>
