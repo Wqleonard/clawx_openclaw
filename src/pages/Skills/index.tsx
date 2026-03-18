@@ -753,56 +753,62 @@ export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
             </div>
           )}
 
-          <div className={cn("flex flex-col", hideHeader && "rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] overflow-hidden")}>
-            {filteredSkills.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                <Puzzle className="h-10 w-10 mb-4 opacity-50" />
-                <p>{searchQuery ? t('noSkillsSearch') : t('noSkillsAvailable')}</p>
-              </div>
-            ) : (
-              filteredSkills.map((skill) => (
+          {filteredSkills.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+              <Puzzle className="h-10 w-10 mb-4 opacity-50" />
+              <p>{searchQuery ? t('noSkillsSearch') : t('noSkillsAvailable')}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {filteredSkills.map((skill) => (
                 <div
                   key={skill.id}
-                  className="group flex flex-row items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 last:border-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
+                  className="group flex flex-col rounded-xl border border-black/8 dark:border-white/8 bg-card hover:bg-accent/30 dark:hover:bg-white/[0.03] transition-colors cursor-pointer overflow-hidden"
                   onClick={() => setSelectedSkill(skill)}
                 >
-                  <div className="flex flex-col flex-1 overflow-hidden pr-4 min-w-0">
-                    <div className="flex items-center gap-2 flex-nowrap min-w-0">
-                      <h3 className="text-[14px] font-medium text-foreground truncate shrink-0 max-w-[200px]">{skill.name}</h3>
+                  {/* Card top: icon + name + toggle */}
+                  <div className="flex items-start gap-3 px-4 pt-4 pb-2">
+                    <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl bg-black/5 dark:bg-white/8 border border-black/5 dark:border-white/5 text-xl">
+                      {skill.icon || '🔧'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-[14px] font-semibold text-foreground truncate leading-tight">{skill.name}</h3>
+                        <div onClick={e => e.stopPropagation()} className="shrink-0">
+                          <Switch
+                            checked={skill.enabled}
+                            onCheckedChange={(checked) => handleToggle(skill.id, checked)}
+                            disabled={skill.isCore}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[12px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                        {skill.description}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Card bottom: source badge + version */}
+                  <div className="flex items-center justify-between px-4 py-2.5 mt-auto border-t border-black/5 dark:border-white/5">
+                    <div className="flex items-center gap-1.5">
                       {skill.isCore ? (
                         <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
                       ) : skill.isBundled ? (
                         <Puzzle className="h-3 w-3 text-blue-500/70 shrink-0" />
                       ) : null}
-                      <Badge variant="secondary" className="px-1.5 py-0 h-5 text-[10px] font-medium bg-black/5 dark:bg-white/10 border-0 shadow-none shrink-0 whitespace-nowrap">
+                      <Badge variant="secondary" className="px-1.5 py-0 h-5 text-[10px] font-medium bg-black/5 dark:bg-white/10 border-0 shadow-none whitespace-nowrap">
                         {resolveSkillSourceLabel(skill, t)}
                       </Badge>
-                      {skill.slug && skill.slug !== skill.name ? (
-                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 text-muted-foreground shrink-0 whitespace-nowrap">
-                          {skill.slug}
-                        </span>
-                      ) : null}
                     </div>
-                    <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1 leading-relaxed">
-                      {skill.description}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
                     {skill.version && (
-                      <span className="text-[12px] font-mono text-muted-foreground">
+                      <span className="text-[11px] font-mono text-muted-foreground">
                         v{skill.version}
                       </span>
                     )}
-                    <Switch
-                      checked={skill.enabled}
-                      onCheckedChange={(checked) => handleToggle(skill.id, checked)}
-                      disabled={skill.isCore}
-                    />
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
