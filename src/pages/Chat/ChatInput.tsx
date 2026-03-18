@@ -27,9 +27,19 @@ import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
-import type { AgentSummary } from '@/types/agent';
+import { useProviderStore } from '@/stores/providers';
+import {
+  buildEnabledProviderModels,
+  resolveCurrentEffectiveProviderModel,
+} from '@/lib/provider-accounts';
 import { useTranslation } from 'react-i18next';
-import { Select } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -121,24 +131,50 @@ export function ChatInput({
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [targetAgentId, setTargetAgentId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [isSwitchingModel, setIsSwitchingModel] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
+  const hasRequestedProviderSnapshotRef = useRef(false);
   const agents = useAgentsStore((s) => s.agents);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
   const currentAgentName = useMemo(
     () => agents.find((agent) => agent.id === currentAgentId)?.name ?? currentAgentId,
     [agents, currentAgentId]
   );
-  const mentionableAgents = useMemo(
-    () => agents.filter((agent) => agent.id !== currentAgentId),
-    [agents, currentAgentId]
-  );
   const selectedTarget = useMemo(
     () => agents.find((agent) => agent.id === targetAgentId) ?? null,
     [agents, targetAgentId]
   );
-  const showAgentPicker = mentionableAgents.length > 0;
+  const providerAccounts = useProviderStore((s) => s.accounts);
+  const providerStatuses = useProviderStore((s) => s.statuses);
+  const providerVendors = useProviderStore((s) => s.vendors);
+  const providerDefaultAccountId = useProviderStore((s) => s.defaultAccountId);
+  const refreshProviderSnapshot = useProviderStore((s) => s.refreshProviderSnapshot);
+  const providerLoading = useProviderStore((s) => s.loading);
+  const switchCurrentProviderModel = useProviderStore((s) => s.switchCurrentProviderModel);
+  const enabledProviderModels = useMemo(
+    () => buildEnabledProviderModels(providerAccounts, providerStatuses, providerVendors),
+    [providerAccounts, providerStatuses, providerVendors]
+  );
+  const currentEffectiveProviderModel = useMemo(
+    () =>
+      resolveCurrentEffectiveProviderModel(
+        providerAccounts,
+        providerStatuses,
+        providerVendors,
+        providerDefaultAccountId
+      ),
+    [providerAccounts, providerStatuses, providerVendors, providerDefaultAccountId]
+  );
+
+  useEffect(() => {
+    if (hasRequestedProviderSnapshotRef.current) return;
+    hasRequestedProviderSnapshotRef.current = true;
+    if (providerAccounts.length === 0 && providerStatuses.length === 0) {
+      void refreshProviderSnapshot();
+    }
+  }, [providerAccounts.length, providerStatuses.length, refreshProviderSnapshot]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -439,10 +475,25 @@ export function ChatInput({
     [stageBufferFiles]
   );
 
+  const handleProviderModelChange = useCallback(
+    async (nextAccountId: string) => {
+      if (!nextAccountId || nextAccountId === currentEffectiveProviderModel?.accountId) return;
+      setIsSwitchingModel(true);
+      try {
+        await switchCurrentProviderModel(nextAccountId);
+      } catch (error) {
+        console.error('[chat] Failed to switch provider model:', error);
+      } finally {
+        setIsSwitchingModel(false);
+      }
+    },
+    [currentEffectiveProviderModel?.accountId, switchCurrentProviderModel]
+  );
+
   return (
     <div
       className={cn(
-        'p-4 pb-6 w-full mx-auto transition-all duration-300',
+        'p-4 pb-2 w-full mx-auto transition-all duration-300',
         isEmpty ? 'max-w-3xl' : 'max-w-4xl'
       )}
       onDragOver={handleDragOver}
@@ -524,11 +575,41 @@ export function ChatInput({
                 <Paperclip className="h-4 w-4" />
               </Button>
 
-              <div className='flex items-center gap-2'>
-                <Select 
-                  className='border-none'
+              <div className="flex items-center gap-2">
+                <Select
+                  value={currentEffectiveProviderModel?.accountId ?? ''}
+                  disabled={
+                    disabled ||
+                    sending ||
+                    providerLoading ||
+                    isSwitchingModel ||
+                    enabledProviderModels.length === 0
+                  }
+                  onValueChange={(nextAccountId) => {
+                    void handleProviderModelChange(nextAccountId);
+                  }}
                 >
-
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8  w-auto border-none bg-transparent px-2 py-1 text-xs text-muted-foreground"
+                    title={t('composer.modelSelectorTitle')}
+                    aria-label={t('composer.modelSelectorTitle')}
+                  >
+                    <SelectValue placeholder={t('composer.noAvailableModels')} />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {enabledProviderModels.length === 0 ? (
+                      <SelectItem value="__no_available_models__" disabled>
+                        {t('composer.noAvailableModels')}
+                      </SelectItem>
+                    ) : (
+                      enabledProviderModels.map((model) => (
+                        <SelectItem key={model.accountId} value={model.accountId}>
+                          {model.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
                 </Select>
                 {/* Send Button */}
                 <Button
@@ -568,6 +649,10 @@ export function ChatInput({
             </Button>
           </div>
         )}
+
+        <div className="w-full mt-2 text-center text-xs text-muted-foreground/60">
+          {t('composer.localAgentNotice')}
+        </div>
       </div>
     </div>
   );
@@ -633,29 +718,5 @@ function AttachmentPreview({
         <X className="h-3 w-3" />
       </button>
     </div>
-  );
-}
-
-function AgentPickerItem({
-  agent,
-  selected,
-  onSelect,
-}: {
-  agent: AgentSummary;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'flex w-full flex-col items-start rounded-xl px-3 py-2 text-left transition-colors',
-        selected ? 'bg-primary/10 text-foreground' : 'hover:bg-black/5 dark:hover:bg-white/5'
-      )}
-    >
-      <span className="text-[14px] font-medium text-foreground">{agent.name}</span>
-      <span className="text-[11px] text-muted-foreground">{agent.modelDisplay}</span>
-    </button>
   );
 }

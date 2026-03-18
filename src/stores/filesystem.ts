@@ -60,9 +60,12 @@ const HIDDEN_RUNTIME_FILES = new Set([
   'BOOTSTRAP.md',
   'BOOTSRAP.md',
   'README.md',
-  'READMR.md',
 ]);
 const LEGACY_WORKSPACE_SHORTCUTS_KEY = 'clawx:workspace-shortcuts';
+
+function normalizeFsPath(path: string): string {
+  return path.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
+}
 
 function readLegacyProjectShortcuts(): string[] {
   if (typeof window === 'undefined') return [];
@@ -100,7 +103,11 @@ function sanitizeTreeForUi(
   tree: FileNode,
   projectPath: string | null,
 ): FileNode {
-  if (!projectPath || tree.type !== 'folder' || tree.path !== projectPath) {
+  if (!projectPath || tree.type !== 'folder') {
+    return tree;
+  }
+
+  if (normalizeFsPath(tree.path) !== normalizeFsPath(projectPath)) {
     return tree;
   }
 
