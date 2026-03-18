@@ -108,6 +108,40 @@
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
 }
 
+/* Chat panel: show vertical scrollbar only on hover */
+.chat-messages-scroll {
+    /* Keep a stable scrollbar gutter to avoid layout shift. */
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.chat-messages-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.chat-messages-scroll:hover {
+    scrollbar-color: hsl(var(--border)) transparent;
+}
+
+.chat-messages-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-messages-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+}
+
+.chat-messages-scroll:hover::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+}
+
+.chat-messages-scroll:hover::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.3);
+}
+
 /* Prose styling for markdown */
 .prose {
     line-height: 1.6;

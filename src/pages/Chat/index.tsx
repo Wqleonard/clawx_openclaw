@@ -791,8 +791,8 @@ export function Chat() {
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 min-h-0 overflow-auto">
-          <div ref={scrollRef} className="w-full px-4 min-w-0 overflow-x-auto">
+        <div ref={scrollRef} className="chat-messages-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <div className="w-full px-4 min-w-0 overflow-x-auto">
             <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-4xl space-y-4">
               {isEmpty ? (
                 <WelcomeScreen />
