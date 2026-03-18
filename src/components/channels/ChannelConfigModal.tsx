@@ -19,7 +19,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { useChannelsStore } from '@/stores/channels';
 
 import { hostApiFetch } from '@/lib/host-api';
 import { subscribeHostEvent } from '@/lib/host-events';
@@ -68,7 +67,6 @@ export function ChannelConfigModal({
   onChannelSaved,
 }: ChannelConfigModalProps) {
   const { t } = useTranslation('channels');
-  const { channels, addChannel, fetchChannels } = useChannelsStore();
   const [selectedType, setSelectedType] = useState<ChannelType | null>(initialSelectedType);
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [channelName, setChannelName] = useState('');
@@ -154,23 +152,8 @@ export function ChannelConfigModal({
   }, [selectedType, loadingConfig, showChannelName]);
 
   const finishSave = useCallback(async (channelType: ChannelType) => {
-    const displayName = showChannelName && channelName.trim()
-      ? channelName.trim()
-      : CHANNEL_NAMES[channelType];
-    const existingChannel = channels.find((channel) => channel.type === channelType);
-
-    if (!existingChannel) {
-      await addChannel({
-        type: channelType,
-        name: displayName,
-        token: meta?.configFields[0]?.key ? configValues[meta.configFields[0].key] : undefined,
-      });
-    } else {
-      await fetchChannels();
-    }
-
     await onChannelSaved?.(channelType);
-  }, [addChannel, channelName, channels, configValues, fetchChannels, meta?.configFields, onChannelSaved, showChannelName]);
+  }, [onChannelSaved]);
 
   useEffect(() => {
     if (selectedType !== 'whatsapp') return;
@@ -184,7 +167,6 @@ export function ChannelConfigModal({
     const onSuccess = async (...args: unknown[]) => {
       const data = args[0] as { accountId?: string } | undefined;
       void data?.accountId;
-      toast.success(t('toast.whatsappConnected'));
       try {
         const saveResult = await hostApiFetch<{ success?: boolean; error?: string }>('/api/channels/config', {
           method: 'POST',
@@ -337,10 +319,6 @@ export function ChannelConfigModal({
       }
 
       await finishSave(selectedType);
-
-      toast.success(t('toast.channelSaved', { name: meta.name }));
-      toast.success(t('toast.channelConnecting', { name: meta.name }));
-      await new Promise((resolve) => setTimeout(resolve, 800));
       onClose();
     } catch (error) {
       toast.error(t('toast.configFailed', { error: String(error) }));
@@ -390,6 +368,13 @@ export function ChannelConfigModal({
           onEscapeKeyDown={onClose}
           className="fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[90vh] p-4 outline-none"
         >
+          <DialogPrimitive.Title className="sr-only">
+            {selectedType
+              ? isExistingConfig
+                ? t('dialog.updateTitle', { name: CHANNEL_NAMES[selectedType] })
+                : t('dialog.configureTitle', { name: CHANNEL_NAMES[selectedType] })
+              : t('dialog.addTitle')}
+          </DialogPrimitive.Title>
           <Card
             className="w-full max-h-[calc(90vh-2rem)] flex flex-col rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden"
             onClick={(event) => event.stopPropagation()}

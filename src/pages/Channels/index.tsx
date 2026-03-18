@@ -2,7 +2,7 @@
  * Channels Page
  * Manage messaging channel connections with configuration UI
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +41,13 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
   const [selectedChannelType, setSelectedChannelType] = useState<ChannelType | null>(null);
   const [configuredTypes, setConfiguredTypes] = useState<string[]>([]);
   const [channelToDelete, setChannelToDelete] = useState<{ id: string; type: ChannelType } | null>(null);
+  const [pendingGatewayApply, setPendingGatewayApply] = useState(false);
+  const previousGatewayStateRef = useRef(gatewayStatus.state);
+  const blurActiveElement = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
 
   useEffect(() => {
     void fetchChannels();
@@ -60,6 +67,55 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
     }
   }, []);
 
+  const refreshChannelsState = useCallback(async () => {
+    await Promise.all([fetchChannels(), fetchConfiguredTypes()]);
+  }, [fetchChannels, fetchConfiguredTypes]);
+
+  const refreshAfterGatewaySettle = useCallback(async () => {
+    try {
+      // 配置文件的落盘结果可以立即读取，先刷新一次“已配置类型”以确保入口状态尽快正确。
+      await fetchConfiguredTypes();
+
+      const readGatewayState = () => useGatewayStore.getState().status.state;
+      let observedTransition = readGatewayState() !== 'running';
+
+      // 后端使用 debounced restart，状态切换可能晚于配置接口返回。
+      // 先短暂等待状态从 running 进入过渡态，避免提示提前消失。
+      if (!observedTransition) {
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, 250);
+          });
+          if (readGatewayState() !== 'running') {
+            observedTransition = true;
+            break;
+          }
+        }
+      }
+
+      if (!observedTransition) {
+        await refreshChannelsState();
+        return;
+      }
+
+      // 已观察到过渡态后，等待回到 running 再刷新。
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 1000);
+        });
+        if (readGatewayState() === 'running') {
+          await refreshChannelsState();
+          return;
+        }
+      }
+
+      // 超时后兜底再拉一次，避免极端情况下 UI 长时间不更新。
+      await refreshChannelsState();
+    } finally {
+      setPendingGatewayApply(false);
+    }
+  }, [fetchConfiguredTypes, refreshChannelsState]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void fetchConfiguredTypes();
@@ -78,6 +134,19 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
       }
     };
   }, [fetchChannels, fetchConfiguredTypes]);
+
+  useEffect(() => {
+    const previous = previousGatewayStateRef.current;
+    if (previous !== gatewayStatus.state && gatewayStatus.state === 'running') {
+      previousGatewayStateRef.current = gatewayStatus.state;
+      const timer = window.setTimeout(() => {
+        void refreshChannelsState();
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+    previousGatewayStateRef.current = gatewayStatus.state;
+    return undefined;
+  }, [gatewayStatus.state, refreshChannelsState]);
 
   const displayedChannelTypes = getPrimaryChannels();
 
@@ -102,6 +171,9 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
     */
 
   const safeChannels = Array.isArray(channels) ? channels : [];
+  const isGatewayUnavailable = gatewayStatus.state === 'stopped' || gatewayStatus.state === 'error';
+  const isGatewayTransitioning = gatewayStatus.state === 'starting' || gatewayStatus.state === 'reconnecting';
+  const shouldShowGatewayRestarting = pendingGatewayApply || isGatewayTransitioning;
   const configuredPlaceholderChannels: Channel[] = visibleChannelTypes
     .filter((type) => configuredTypes.includes(type) && !safeChannels.some((channel) => channel.type === type))
     .map((type) => ({
@@ -147,11 +219,20 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
         )}
 
         <div className={cn("flex-1 overflow-y-auto min-h-0", hideHeader ? "" : "pr-2 pb-10 -mr-2")}>
-          {gatewayStatus.state !== 'running' && (
+          {isGatewayUnavailable && (
             <div className="mb-4 p-4 rounded-xl border border-yellow-500/50 bg-yellow-500/10 flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
               <span className="text-yellow-700 dark:text-yellow-400 text-sm font-medium">
                 {t('gatewayWarning')}
+              </span>
+            </div>
+          )}
+
+          {shouldShowGatewayRestarting && (
+            <div className="mb-4 p-4 rounded-xl border border-blue-500/40 bg-blue-500/10 flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <span className="text-blue-700 dark:text-blue-400 text-sm font-medium">
+                {t('gatewayRestartingWarning')}
               </span>
             </div>
           )}
@@ -180,10 +261,14 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
                     channel={channel}
                     hideHeader={hideHeader}
                     onClick={() => {
+                      blurActiveElement();
                       setSelectedChannelType(channel.type);
                       setShowAddDialog(true);
                     }}
-                    onDelete={() => setChannelToDelete({ id: channel.id, type: channel.type })}
+                    onDelete={() => {
+                      blurActiveElement();
+                      setChannelToDelete({ id: channel.id, type: channel.type });
+                    }}
                   />
                 ))}
               </div>
@@ -211,6 +296,7 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
                   <button
                     key={type}
                     onClick={() => {
+                      blurActiveElement();
                       setSelectedChannelType(type);
                       setShowAddDialog(true);
                     }}
@@ -269,10 +355,11 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
             setShowAddDialog(false);
             setSelectedChannelType(null);
           }}
-          onChannelSaved={async () => {
-            await Promise.all([fetchChannels(), fetchConfiguredTypes()]);
+          onChannelSaved={() => {
+            setPendingGatewayApply(true);
             setShowAddDialog(false);
             setSelectedChannelType(null);
+            void refreshAfterGatewaySettle();
           }}
         />
       )}
@@ -286,9 +373,11 @@ export function Channels({ hideHeader = false }: { hideHeader?: boolean } = {}) 
         variant="destructive"
         onConfirm={async () => {
           if (channelToDelete) {
-            await deleteChannel(channelToDelete.id);
-            await Promise.all([fetchChannels(), fetchConfiguredTypes()]);
+            setPendingGatewayApply(true);
+            const targetChannelId = channelToDelete.id;
             setChannelToDelete(null);
+            await deleteChannel(targetChannelId);
+            void refreshAfterGatewaySettle();
           }
         }}
         onCancel={() => setChannelToDelete(null)}

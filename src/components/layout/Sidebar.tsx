@@ -26,11 +26,12 @@ import { useAgentsStore } from '@/stores/agents';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components/ui/dialog';
 // import { hostApiFetch } from '@/lib/host-api';
 import { useTranslation } from 'react-i18next';
 import logoSvg from '@/assets/logo.svg';
 import { Preferences } from '@/pages/Preferences';
+
 
 type SessionBucketKey =
   | 'today'
@@ -416,6 +417,9 @@ export function Sidebar() {
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
         >
+          <VisuallyHidden>
+            <DialogTitle>{t('common:sidebar.settings')}</DialogTitle>
+          </VisuallyHidden>
           <Preferences />
         </DialogContent>
       </Dialog>

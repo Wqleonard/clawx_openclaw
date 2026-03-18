@@ -12,7 +12,7 @@ import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useSettingsStore } from '@/stores/settings';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components/ui/dialog';
 import { Preferences } from '@/pages/Preferences';
 
 type ProjectItem = {
@@ -493,6 +493,9 @@ export function ProjectsRail() {
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
         >
+          <VisuallyHidden>
+            <DialogTitle>{t('common:sidebar.settings')}</DialogTitle>
+          </VisuallyHidden>
           <Preferences />
         </DialogContent>
       </Dialog>
