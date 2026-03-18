@@ -3,6 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -89,6 +90,7 @@ function HeadingLevelIcon({ level }: { level: HeadingLevelValue }) {
 }
 
 export function MarkdownEditor({ value, mode, onModeChange, onChange, className }: MarkdownEditorProps) {
+  const { t } = useTranslation('chat');
   const suppressNextUpdate = useRef(0);
   const onChangeRef = useRef(onChange);
   const skipNextHeadingValueChangeRef = useRef<Exclude<HeadingLevelValue, 'paragraph'> | null>(null);
@@ -165,32 +167,6 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
     onModeChange?.(isSourceMode ? 'rendered' : 'source');
   };
 
-  if (isSourceMode) {
-    return (
-      <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
-        <TooltipProvider>
-          <Toolbar className="shrink-0">
-            <ToolbarGroup>
-              <ToolbarButton
-                tooltip="切换到预览模式"
-                onClick={toggleMode}
-                active={isSourceMode}
-              >
-                <ArrowRightLeft className="h-4 w-4" />
-              </ToolbarButton>
-            </ToolbarGroup>
-          </Toolbar>
-        </TooltipProvider>
-        <textarea
-          className="h-full w-full flex-1 resize-none border-0 bg-transparent p-4 font-mono text-base leading-6 text-foreground outline-none"
-          value={value}
-          onChange={(event) => onChangeRef.current?.(event.target.value)}
-          spellCheck={false}
-        />
-      </div>
-    );
-  }
-
   if (!editor) return null;
 
   const applyHeadingLevel = (value: HeadingLevelValue) => {
@@ -224,15 +200,15 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
         <Toolbar className="shrink-0">
           <ToolbarGroup>
             <ToolbarButton
-              tooltip="撤销"
-              disabled={!editor.can().chain().focus().undo().run()}
+              tooltip={t('markdownEditor.toolbar.undo')}
+              disabled={!editor.can().chain().focus().undo().run() || isSourceMode}
               onClick={() => editor.chain().focus().undo().run()}
             >
               <Undo2 className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton
-              tooltip="重做"
-              disabled={!editor.can().chain().focus().redo().run()}
+              tooltip={t('markdownEditor.toolbar.redo')}
+              disabled={!editor.can().chain().focus().redo().run() || isSourceMode}
               onClick={() => editor.chain().focus().redo().run()}
             >
               <Redo2 className="h-4 w-4" />
@@ -252,11 +228,12 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
                 }
                 applyHeadingLevel(value);
               }}
+              disabled={isSourceMode}
             >
               <SelectTrigger
                 size="sm"
                 className="h-8 gap-1.5 p-0 px-1 border-transparent bg-transparent hover:bg-black/5 dark:hover:bg-white/10"
-                aria-label="标题级别"
+                aria-label={t('markdownEditor.toolbar.headingLevel')}
               >
                 <HeadingLevelIcon level={headingLevel} />
               </SelectTrigger>
@@ -301,30 +278,34 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
 
           <ToolbarGroup>
             <ToolbarButton
-              tooltip="粗体"
+              tooltip={t('markdownEditor.toolbar.bold')}
               active={editor.isActive('bold')}
               onClick={() => editor.chain().focus().toggleBold().run()}
+              disabled={isSourceMode}
             >
               <Bold className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton
-              tooltip="斜体"
+              tooltip={t('markdownEditor.toolbar.italic')}
               active={editor.isActive('italic')}
               onClick={() => editor.chain().focus().toggleItalic().run()}
+              disabled={isSourceMode}
             >
               <Italic className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton
-              tooltip="删除线"
+              tooltip={t('markdownEditor.toolbar.strikethrough')}
               active={editor.isActive('strike')}
               onClick={() => editor.chain().focus().toggleStrike().run()}
+              disabled={isSourceMode}
             >
               <Strikethrough className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton
-              tooltip="行内代码"
+              tooltip={t('markdownEditor.toolbar.inlineCode')}
               active={editor.isActive('code')}
               onClick={() => editor.chain().focus().toggleCode().run()}
+              disabled={isSourceMode}
             >
               <Code className="h-4 w-4" />
             </ToolbarButton>
@@ -334,37 +315,45 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
 
           <ToolbarGroup>
             <ToolbarButton
-              tooltip="无序列表"
+              tooltip={t('markdownEditor.toolbar.bulletList')}
               active={editor.isActive('bulletList')}
               onClick={() => editor.chain().focus().toggleBulletList().run()}
+              disabled={isSourceMode}
             >
               <List className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton
-              tooltip="有序列表"
+              tooltip={t('markdownEditor.toolbar.orderedList')}
               active={editor.isActive('orderedList')}
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              disabled={isSourceMode}
             >
               <ListOrdered className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton
-              tooltip="引用"
+              tooltip={t('markdownEditor.toolbar.blockquote')}
               active={editor.isActive('blockquote')}
               onClick={() => editor.chain().focus().toggleBlockquote().run()}
+              disabled={isSourceMode}
             >
               <Quote className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton
-              tooltip="代码块"
+              tooltip={t('markdownEditor.toolbar.codeBlock')}
               active={editor.isActive('codeBlock')}
               onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+              disabled={isSourceMode}
             >
               <CodeXml className="h-4 w-4"/>
             </ToolbarButton>
           </ToolbarGroup>
           <ToolbarGroup>
             <ToolbarButton
-              tooltip={mode === 'rendered' ? '切换到源码模式' : '切换到预览模式'}
+              tooltip={
+                mode === 'rendered'
+                  ? t('markdownEditor.toolbar.switchToSource')
+                  : t('markdownEditor.toolbar.switchToRendered')
+              }
               onClick={toggleMode}
               active={isSourceMode}
             >
@@ -374,9 +363,21 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
         </Toolbar>
       </TooltipProvider>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        <EditorContent editor={editor} className="h-full" />
-      </div>
+
+      {
+        isSourceMode ? (
+          <textarea
+          className="h-full w-full flex-1 resize-none border-0 bg-transparent p-4 font-mono text-base leading-6 text-foreground outline-none"
+          value={value}
+          onChange={(event) => onChangeRef.current?.(event.target.value)}
+          spellCheck={false}
+        />
+        ) : (
+          <div className="min-h-0 flex-1 overflow-auto">
+            <EditorContent editor={editor} className="h-full" />
+          </div>
+        )
+      }
     </div>
   );
 }

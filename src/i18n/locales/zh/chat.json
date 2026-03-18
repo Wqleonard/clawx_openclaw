@@ -70,5 +70,22 @@
         "removeFromContext": "从上下文移除",
         "defaultNewFolderName": "新建文件夹",
         "defaultNewMarkdownFileName": "新建文件.md"
+    },
+    "markdownEditor": {
+        "toolbar": {
+            "undo": "撤销",
+            "redo": "重做",
+            "headingLevel": "标题级别",
+            "bold": "粗体",
+            "italic": "斜体",
+            "strikethrough": "删除线",
+            "inlineCode": "行内代码",
+            "bulletList": "无序列表",
+            "orderedList": "有序列表",
+            "blockquote": "引用",
+            "codeBlock": "代码块",
+            "switchToSource": "切换到源码模式",
+            "switchToRendered": "切换到预览模式"
+        }
     }
 }

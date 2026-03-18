@@ -985,34 +985,6 @@ export function Chat() {
               </div>
             ) : (
               <div className="w-full h-full flex flex-col">
-                <div className="w-full flex items-center justify-start gap-2 px-4 py-1">
-                  <button
-                    type="button"
-                    onClick={() => setMdViewMode('source')}
-                    className={cn(
-                      'rounded px-2 py-1 text-xs transition-colors',
-                      mdViewMode === 'source'
-                        ? 'bg-muted text-foreground'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    )}
-                    title="切换到源码视图"
-                  >
-                    源码
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMdViewMode('rendered')}
-                    className={cn(
-                      'rounded px-2 py-1 text-xs transition-colors',
-                      mdViewMode === 'rendered'
-                        ? 'bg-muted text-foreground'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    )}
-                    title="切换到渲染视图"
-                  >
-                    渲染
-                  </button>
-                </div>
                 <MarkdownEditor
                   className="flex-1 min-h-0"
                   value={activeMarkdownContent}

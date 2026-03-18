@@ -70,5 +70,22 @@
         "removeFromContext": "Remove from Context",
         "defaultNewFolderName": "new-folder",
         "defaultNewMarkdownFileName": "new-file.md"
+    },
+    "markdownEditor": {
+        "toolbar": {
+            "undo": "Undo",
+            "redo": "Redo",
+            "headingLevel": "Heading level",
+            "bold": "Bold",
+            "italic": "Italic",
+            "strikethrough": "Strikethrough",
+            "inlineCode": "Inline code",
+            "bulletList": "Bullet list",
+            "orderedList": "Ordered list",
+            "blockquote": "Blockquote",
+            "codeBlock": "Code block",
+            "switchToSource": "Switch to source mode",
+            "switchToRendered": "Switch to rendered mode"
+        }
     }
 }

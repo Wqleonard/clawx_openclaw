@@ -70,5 +70,22 @@
         "removeFromContext": "コンテキストから削除",
         "defaultNewFolderName": "新しいフォルダー",
         "defaultNewMarkdownFileName": "新しいファイル.md"
+    },
+    "markdownEditor": {
+        "toolbar": {
+            "undo": "元に戻す",
+            "redo": "やり直す",
+            "headingLevel": "見出しレベル",
+            "bold": "太字",
+            "italic": "斜体",
+            "strikethrough": "取り消し線",
+            "inlineCode": "インラインコード",
+            "bulletList": "箇条書き",
+            "orderedList": "番号付きリスト",
+            "blockquote": "引用",
+            "codeBlock": "コードブロック",
+            "switchToSource": "ソースモードに切り替え",
+            "switchToRendered": "プレビューモードに切り替え"
+        }
     }
 }
