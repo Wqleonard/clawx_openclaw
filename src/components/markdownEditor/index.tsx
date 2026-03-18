@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar';
 import { cn } from '@/lib/utils';
 import {
+  ArrowRightLeft,
   Bold,
   Code,
   CodeXml,
@@ -30,10 +31,12 @@ import {
   Strikethrough,
   Undo2,
 } from 'lucide-react';
+import Mermaid from '../extensions/mermaid/Mermaid';
 
 type MarkdownEditorProps = {
   value: string;
   mode: 'source' | 'rendered';
+  onModeChange?: (mode: 'source' | 'rendered') => void;
   onChange?: (markdown: string) => void;
   className?: string;
 };
@@ -85,9 +88,10 @@ function HeadingLevelIcon({ level }: { level: HeadingLevelValue }) {
   return <Heading className="h-4 w-4" />;
 }
 
-export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEditorProps) {
+export function MarkdownEditor({ value, mode, onModeChange, onChange, className }: MarkdownEditorProps) {
   const suppressNextUpdate = useRef(0);
   const onChangeRef = useRef(onChange);
+  const skipNextHeadingValueChangeRef = useRef<Exclude<HeadingLevelValue, 'paragraph'> | null>(null);
   const [headingLevel, setHeadingLevel] = useState<HeadingLevelValue>('paragraph');
 
   useEffect(() => {
@@ -95,7 +99,7 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
   }, [onChange]);
 
   const editor = useEditor({
-    extensions: [StarterKit, Markdown],
+    extensions: [StarterKit, Markdown,Mermaid],
     content: value,
     contentType: 'markdown',
     editable: mode === 'rendered',
@@ -156,24 +160,40 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
     };
   }, [editor]);
 
-  if (mode === 'source') {
+  const isSourceMode = mode === 'source';
+  const toggleMode = () => {
+    onModeChange?.(isSourceMode ? 'rendered' : 'source');
+  };
+
+  if (isSourceMode) {
     return (
-      <textarea
-        className={cn(
-          'h-full w-full resize-none border-0 bg-transparent p-4 font-mono text-base leading-6 text-foreground outline-none',
-          className
-        )}
-        value={value}
-        onChange={(event) => onChangeRef.current?.(event.target.value)}
-        spellCheck={false}
-      />
+      <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
+        <TooltipProvider>
+          <Toolbar className="shrink-0">
+            <ToolbarGroup>
+              <ToolbarButton
+                tooltip="切换到预览模式"
+                onClick={toggleMode}
+                active={isSourceMode}
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+              </ToolbarButton>
+            </ToolbarGroup>
+          </Toolbar>
+        </TooltipProvider>
+        <textarea
+          className="h-full w-full flex-1 resize-none border-0 bg-transparent p-4 font-mono text-base leading-6 text-foreground outline-none"
+          value={value}
+          onChange={(event) => onChangeRef.current?.(event.target.value)}
+          spellCheck={false}
+        />
+      </div>
     );
   }
 
   if (!editor) return null;
 
   const applyHeadingLevel = (value: HeadingLevelValue) => {
-    console.log('applyHeadingLevel', value);
     if (value === 'paragraph') {
       editor.chain().focus().setParagraph().run();
       return;
@@ -187,13 +207,13 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
     editor.chain().focus().setHeading({ level: levelMap[value] }).run();
   };
 
-  const handleHeadingItemClick =
+  const handleHeadingItemPointerDown =
     (level: Exclude<HeadingLevelValue, 'paragraph'>) =>
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      console.log('handleHeadingItemClick', level);
+    (event: React.PointerEvent<HTMLDivElement>) => {
       if (event.defaultPrevented) return;
       if (headingLevel === level) {
         event.preventDefault();
+        skipNextHeadingValueChangeRef.current = level;
         applyHeadingLevel('paragraph');
       }
     };
@@ -223,9 +243,13 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
 
           <ToolbarGroup>
             <Select
-              value={headingLevel === 'paragraph' ? undefined : headingLevel}
+              value={headingLevel}
               onValueChange={(next) => {
-                const value = next as Exclude<HeadingLevelValue, 'paragraph'>;
+                const value = next as HeadingLevelValue;
+                if (skipNextHeadingValueChangeRef.current === value) {
+                  skipNextHeadingValueChangeRef.current = null;
+                  return;
+                }
                 applyHeadingLevel(value);
               }}
             >
@@ -239,7 +263,7 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
               <SelectContent align="start">
                 <SelectItem
                   value="h1"
-                  onClick={handleHeadingItemClick('h1')}
+                  onPointerDown={handleHeadingItemPointerDown('h1')}
                 >
                   <div className="flex items-center gap-2">
                     <Heading1 className="h-4 w-4" />
@@ -247,7 +271,7 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
                 </SelectItem>
                 <SelectItem
                   value="h2"
-                  onClick={handleHeadingItemClick('h2')}
+                  onPointerDown={handleHeadingItemPointerDown('h2')}
                 >
                   <div className="flex items-center gap-2">
                     <Heading2 className="h-4 w-4" />
@@ -255,7 +279,7 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
                 </SelectItem>
                 <SelectItem
                   value="h3"
-                  onClick={handleHeadingItemClick('h3')}
+                  onPointerDown={handleHeadingItemPointerDown('h3')}
                 >
                   <div className="flex items-center gap-2">
                     <Heading3 className="h-4 w-4" />
@@ -263,7 +287,7 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
                 </SelectItem>
                 <SelectItem
                   value="h4"
-                  onClick={handleHeadingItemClick('h4')}
+                  onPointerDown={handleHeadingItemPointerDown('h4')}
                 >
                   <div className="flex items-center gap-2">
                     <Heading4 className="h-4 w-4" />
@@ -336,6 +360,15 @@ export function MarkdownEditor({ value, mode, onChange, className }: MarkdownEdi
               onClick={() => editor.chain().focus().toggleCodeBlock().run()}
             >
               <CodeXml className="h-4 w-4"/>
+            </ToolbarButton>
+          </ToolbarGroup>
+          <ToolbarGroup>
+            <ToolbarButton
+              tooltip={mode === 'rendered' ? '切换到源码模式' : '切换到预览模式'}
+              onClick={toggleMode}
+              active={isSourceMode}
+            >
+              <ArrowRightLeft className="h-4 w-4" />
             </ToolbarButton>
           </ToolbarGroup>
         </Toolbar>

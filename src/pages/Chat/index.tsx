@@ -26,7 +26,6 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
 import { Button } from '@/components/ui/button';
-import { SimpleEditor } from '@/components/tiptap-templates/simple/simple-editor';
 
 const INITIAL_NOW_MS = Date.now();
 
@@ -986,7 +985,7 @@ export function Chat() {
               </div>
             ) : (
               <div className="w-full h-full flex flex-col">
-                {/* <div className="w-full flex items-center justify-start gap-2 px-4 py-1">
+                <div className="w-full flex items-center justify-start gap-2 px-4 py-1">
                   <button
                     type="button"
                     onClick={() => setMdViewMode('source')}
@@ -1013,11 +1012,12 @@ export function Chat() {
                   >
                     渲染
                   </button>
-                </div> */}
+                </div>
                 <MarkdownEditor
                   className="flex-1 min-h-0"
                   value={activeMarkdownContent}
                   mode={mdViewMode}
+                  onModeChange={setMdViewMode}
                   onChange={handleMarkdownChange}
                 />
               </div>
