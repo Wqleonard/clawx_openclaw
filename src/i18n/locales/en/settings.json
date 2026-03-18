@@ -1,6 +1,33 @@
 {
   "title": "Settings",
   "subtitle": "Configure your BoomClaw experience",
+  "preferencesNav": {
+    "groups": {
+      "myAccount": "My Account",
+      "aiCapabilities": "AI Capabilities",
+      "workspacePrivacy": "Workspace & Data Storage",
+      "helpInfo": "Help & Info"
+    },
+    "items": {
+      "account": "Account",
+      "accountSecurity": "Account & Security",
+      "appPreferences": "App Preferences",
+      "billingUsage": "Points & Usage",
+      "models": "Models & Gateway",
+      "skills": "Skills",
+      "channels": "Bot Integrations",
+      "workspace": "Workspace",
+      "privacy": "Data Storage",
+      "feedback": "Send Feedback",
+      "about": "About",
+      "points": "Points",
+      "usage": "Usage"
+    },
+    "tabs": {
+      "models": "Models",
+      "gateway": "Gateway"
+    }
+  },
   "account": {
     "title": "Account",
     "guest": "Not logged in",
@@ -45,7 +72,11 @@
     },
     "sections": {
       "model": "Model Settings",
-      "fallback": "Fallback Settings"
+      "fallback": "Fallback Settings",
+      "builtinModels": "Built-in Models",
+      "customModels": "Custom Models",
+      "addCustomModel": "+ Add Custom Model",
+      "empty": "No models configured"
     },
     "add": "Add Provider",
     "custom": "Custom",

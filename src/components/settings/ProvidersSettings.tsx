@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -122,18 +123,35 @@ export function ProvidersSettings() {
   } = useProviderStore();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [dialogInitialType, setDialogInitialType] = useState<ProviderType | null>(null);
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
+  const [togglingProviderId, setTogglingProviderId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
   const existingVendorIds = new Set(accounts.map((account) => account.vendorId));
   const displayProviders = useMemo(
     () => buildProviderListItems(accounts, statuses, vendors, defaultAccountId),
     [accounts, statuses, vendors, defaultAccountId],
   );
+  const builtinProviders = useMemo(
+    () => displayProviders.filter((item) => item.account.vendorId !== 'custom'),
+    [displayProviders],
+  );
+  const customProviders = useMemo(
+    () => displayProviders.filter((item) => item.account.vendorId === 'custom'),
+    [displayProviders],
+  );
 
   // Fetch providers on mount
   useEffect(() => {
     refreshProviderSnapshot();
   }, [refreshProviderSnapshot]);
+
+  useEffect(() => {
+    if (selectedProviderId && !displayProviders.some((item) => item.account.id === selectedProviderId)) {
+      setSelectedProviderId(null);
+    }
+  }, [displayProviders, selectedProviderId]);
 
   const handleAddProvider = async (
     type: ProviderType,
@@ -189,69 +207,125 @@ export function ProvidersSettings() {
     }
   };
 
+  const handleOpenAddDialog = (initialType: ProviderType | null = null) => {
+    setDialogInitialType(initialType);
+    setShowAddDialog(true);
+  };
+
+  const handleCloseAddDialog = () => {
+    setShowAddDialog(false);
+    setDialogInitialType(null);
+  };
+
+  const renderProviderList = (items: ProviderListItem[], section: 'builtin' | 'custom') => {
+    if (items.length === 0) {
+      return (
+        <div className="flex items-center justify-center py-8 text-[13px] text-muted-foreground rounded-2xl border border-dashed border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]">
+          {t('aiProviders.sections.empty')}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {items.map((item) => (
+          <ProviderCard
+            key={item.account.id}
+            item={item}
+            allProviders={displayProviders}
+            isDefault={item.account.id === defaultAccountId}
+            isEditing={editingProvider === item.account.id}
+            onEdit={() => setEditingProvider(item.account.id)}
+            onCancelEdit={() => setEditingProvider(null)}
+            onDelete={() => handleDeleteProvider(item.account.id)}
+            onSetDefault={() => handleSetDefault(item.account.id)}
+            onSaveEdits={async (payload) => {
+              const updates: Partial<ProviderAccount> = {};
+              if (payload.updates) {
+                if (payload.updates.baseUrl !== undefined) updates.baseUrl = payload.updates.baseUrl;
+                if (payload.updates.apiProtocol !== undefined) updates.apiProtocol = payload.updates.apiProtocol;
+                if (payload.updates.model !== undefined) updates.model = payload.updates.model;
+                if (payload.updates.fallbackModels !== undefined) updates.fallbackModels = payload.updates.fallbackModels;
+                if (payload.updates.fallbackProviderIds !== undefined) {
+                  updates.fallbackAccountIds = payload.updates.fallbackProviderIds;
+                }
+              }
+              await updateAccount(
+                item.account.id,
+                updates,
+                payload.newApiKey
+              );
+              setEditingProvider(null);
+            }}
+            onValidateKey={(key, options) => validateAccountApiKey(item.account.id, key, options)}
+            devModeUnlocked={devModeUnlocked}
+            showEnableSwitch={section === 'builtin'}
+            toggleLoading={togglingProviderId === item.account.id}
+            isActionSelected={selectedProviderId === item.account.id}
+            onSelect={() => setSelectedProviderId(item.account.id)}
+            onToggleEnabled={async (enabled) => {
+              setTogglingProviderId(item.account.id);
+              try {
+                await updateAccount(item.account.id, { enabled });
+                toast.success(t('aiProviders.toast.updated'));
+              } catch (error) {
+                toast.error(`${t('aiProviders.toast.failedUpdate')}: ${error}`);
+              } finally {
+                setTogglingProviderId(null);
+              }
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-serif text-foreground font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-          {/* {t('aiProviders.title', 'AI Providers')} */}
-        </h2>
-        <Button onClick={() => setShowAddDialog(true)} className="rounded-full px-5 h-9 shadow-none font-medium text-[13px]">
-          <Plus className="h-4 w-4 mr-2" />
-          {t('aiProviders.add')}
-        </Button>
-      </div>
-
       {loading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground bg-black/5 dark:bg-white/5 rounded-3xl border border-transparent border-dashed">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : displayProviders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground bg-black/5 dark:bg-white/5 rounded-3xl border border-transparent border-dashed">
-          <Key className="h-12 w-12 mb-4 opacity-50" />
-          <h3 className="text-[15px] font-medium mb-1 text-foreground">{t('aiProviders.empty.title')}</h3>
-          <p className="text-[13px] text-center mb-6 max-w-sm">
-            {t('aiProviders.empty.desc')}
-          </p>
-          <Button onClick={() => setShowAddDialog(true)} className="rounded-full px-6 h-10 bg-[#0a84ff] hover:bg-[#007aff] text-white">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('aiProviders.empty.cta')}
-          </Button>
-        </div>
       ) : (
-        <div className="space-y-3">
-          {displayProviders.map((item) => (
-            <ProviderCard
-              key={item.account.id}
-              item={item}
-              allProviders={displayProviders}
-              isDefault={item.account.id === defaultAccountId}
-              isEditing={editingProvider === item.account.id}
-              onEdit={() => setEditingProvider(item.account.id)}
-              onCancelEdit={() => setEditingProvider(null)}
-              onDelete={() => handleDeleteProvider(item.account.id)}
-              onSetDefault={() => handleSetDefault(item.account.id)}
-              onSaveEdits={async (payload) => {
-                const updates: Partial<ProviderAccount> = {};
-                if (payload.updates) {
-                  if (payload.updates.baseUrl !== undefined) updates.baseUrl = payload.updates.baseUrl;
-                  if (payload.updates.apiProtocol !== undefined) updates.apiProtocol = payload.updates.apiProtocol;
-                  if (payload.updates.model !== undefined) updates.model = payload.updates.model;
-                  if (payload.updates.fallbackModels !== undefined) updates.fallbackModels = payload.updates.fallbackModels;
-                  if (payload.updates.fallbackProviderIds !== undefined) {
-                    updates.fallbackAccountIds = payload.updates.fallbackProviderIds;
-                  }
-                }
-                await updateAccount(
-                  item.account.id,
-                  updates,
-                  payload.newApiKey
-                );
-                setEditingProvider(null);
-              }}
-              onValidateKey={(key, options) => validateAccountApiKey(item.account.id, key, options)}
-              devModeUnlocked={devModeUnlocked}
-            />
-          ))}
+        <div className="space-y-4">
+          {displayProviders.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-black/5 dark:bg-white/5 rounded-3xl border border-transparent border-dashed">
+              <Key className="h-10 w-10 mb-3 opacity-50" />
+              <h3 className="text-[14px] font-medium mb-1 text-foreground">{t('aiProviders.empty.title')}</h3>
+              <p className="text-[13px] text-center mb-4 max-w-sm">
+                {t('aiProviders.empty.desc')}
+              </p>
+              <Button onClick={() => handleOpenAddDialog()} className="rounded-full px-5 h-9 bg-[#0a84ff] hover:bg-[#007aff] text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                {t('aiProviders.empty.cta')}
+              </Button>
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[14px] font-semibold text-foreground">
+                {t('aiProviders.sections.builtinModels')}
+              </h3>
+              <Button onClick={() => handleOpenAddDialog()} variant="outline" className="rounded-full px-4 h-8 text-[12px]">
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                {t('aiProviders.add')}
+              </Button>
+            </div>
+            {renderProviderList(builtinProviders, 'builtin')}
+          </div>
+
+          <div className="rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[14px] font-semibold text-foreground">
+                {t('aiProviders.sections.customModels')}
+              </h3>
+              <Button onClick={() => handleOpenAddDialog('custom')} variant="outline" className="rounded-full px-4 h-8 text-[12px]">
+                {t('aiProviders.sections.addCustomModel')}
+              </Button>
+            </div>
+            {renderProviderList(customProviders, 'custom')}
+          </div>
         </div>
       )}
 
@@ -260,7 +334,8 @@ export function ProvidersSettings() {
         <AddProviderDialog
           existingVendorIds={existingVendorIds}
           vendors={vendors}
-          onClose={() => setShowAddDialog(false)}
+          initialType={dialogInitialType}
+          onClose={handleCloseAddDialog}
           onAdd={handleAddProvider}
           onValidateKey={(type, key, options) => validateAccountApiKey(type, key, options)}
           devModeUnlocked={devModeUnlocked}
@@ -285,6 +360,11 @@ interface ProviderCardProps {
     options?: { baseUrl?: string; apiProtocol?: ProviderAccount['apiProtocol'] }
   ) => Promise<{ valid: boolean; error?: string }>;
   devModeUnlocked: boolean;
+  showEnableSwitch?: boolean;
+  toggleLoading?: boolean;
+  isActionSelected?: boolean;
+  onSelect?: () => void;
+  onToggleEnabled?: (enabled: boolean) => Promise<void>;
 }
 
 
@@ -301,6 +381,11 @@ function ProviderCard({
   onSaveEdits,
   onValidateKey,
   devModeUnlocked,
+  showEnableSwitch = false,
+  toggleLoading = false,
+  isActionSelected = false,
+  onSelect,
+  onToggleEnabled,
 }: ProviderCardProps) {
   const { t, i18n } = useTranslation('settings');
   const { account, vendor, status } = item;
@@ -430,12 +515,39 @@ function ProviderCard({
     <div
       className={cn(
         "group flex flex-col p-4 rounded-2xl transition-all relative overflow-hidden hover:bg-black/5 dark:hover:bg-white/5",
+        !isEditing && !isDefault && "cursor-pointer",
         isDefault
           ? "bg-black/[0.04] dark:bg-white/[0.06] border border-transparent"
           : "bg-transparent border border-transparent"
       )}
+      onClick={() => {
+        onSelect?.();
+        if (!isEditing && !isDefault) {
+          onSetDefault();
+        }
+      }}
     >
       <div className="flex items-center">
+        {!isEditing && (
+          <div className={cn(
+            'mr-2 transition-opacity',
+            isDefault && isActionSelected ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          )}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-white dark:hover:bg-card shadow-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              title={t('aiProviders.card.delete')}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         <div className="flex items-center gap-4 flex-1 min-w-0 pr-2">
           <div className="h-[42px] w-[42px] shrink-0 flex items-center justify-center text-foreground border border-black/5 dark:border-white/10 rounded-full bg-black/5 dark:bg-white/5 shadow-sm group-hover:scale-105 transition-transform">
             {getProviderIconUrl(account.vendorId) ? (
@@ -489,39 +601,38 @@ function ProviderCard({
           </div>
         </div>
 
+        {showEnableSwitch && onToggleEnabled && (
+          <div className="mr-2">
+            <Switch
+              checked={account.enabled}
+              onCheckedChange={(checked) => {
+                void onToggleEnabled(checked);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              disabled={toggleLoading}
+            />
+          </div>
+        )}
+
         {!isEditing && (
-          <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {!isDefault && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-muted-foreground hover:text-blue-600 hover:bg-white dark:hover:bg-card shadow-sm"
-                onClick={onSetDefault}
-                title={t('aiProviders.card.setDefault')}
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-            )}
+          <div className={cn(
+            'absolute top-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
+            showEnableSwitch ? 'right-14' : 'right-4'
+          )}>
             {!isBaowenmaoPreset && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-white dark:hover:bg-card shadow-sm"
-                onClick={onEdit}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
                 title={t('aiProviders.card.editKey')}
               >
                 <Edit className="h-4 w-4" />
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-white dark:hover:bg-card shadow-sm"
-              onClick={onDelete}
-              title={t('aiProviders.card.delete')}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
           </div>
         )}
       </div>
@@ -752,6 +863,7 @@ function ProviderCard({
 interface AddProviderDialogProps {
   existingVendorIds: Set<string>;
   vendors: ProviderVendorInfo[];
+  initialType?: ProviderType | null;
   onClose: () => void;
   onAdd: (
     type: ProviderType,
@@ -770,13 +882,14 @@ interface AddProviderDialogProps {
 function AddProviderDialog({
   existingVendorIds,
   vendors,
+  initialType,
   onClose,
   onAdd,
   onValidateKey,
   devModeUnlocked,
 }: AddProviderDialogProps) {
   const { t, i18n } = useTranslation('settings');
-  const [selectedType, setSelectedType] = useState<ProviderType | null>(null);
+  const [selectedType, setSelectedType] = useState<ProviderType | null>(initialType ?? null);
   const [name, setName] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -817,6 +930,16 @@ function AddProviderDialog({
       : (selectedType === 'google' ? 'oauth_browser' : null));
   // Effective OAuth mode: pure OAuth providers, or dual-mode with oauth selected
   const useOAuthFlow = isOAuth && (!supportsApiKey || authMode === 'oauth');
+
+  useEffect(() => {
+    if (!selectedType || !typeInfo) {
+      return;
+    }
+    setName(typeInfo.id === 'custom' ? t('aiProviders.custom') : typeInfo.name);
+    setBaseUrl(typeInfo.defaultBaseUrl || '');
+    setModelId(typeInfo.defaultModelId || '');
+    setValidationError(null);
+  }, [selectedType, typeInfo, t]);
 
   useEffect(() => {
     if (!selectedVendor || !isOAuth || !supportsApiKey) {
@@ -1067,12 +1190,7 @@ function AddProviderDialog({
               {availableTypes.map((type) => (
                 <button
                   key={type.id}
-                  onClick={() => {
-                    setSelectedType(type.id);
-                    setName(type.id === 'custom' ? t('aiProviders.custom') : type.name);
-                    setBaseUrl(type.defaultBaseUrl || '');
-                    setModelId(type.defaultModelId || '');
-                  }}
+                  onClick={() => setSelectedType(type.id)}
                   className="p-4 rounded-2xl border border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-center group"
                 >
                   <div className="h-12 w-12 mx-auto mb-3 flex items-center justify-center bg-black/5 dark:bg-white/5 rounded-xl shadow-sm border border-black/5 dark:border-white/5 group-hover:scale-105 transition-transform">

@@ -4,6 +4,7 @@
 // import { useSettingsStore } from '@/stores/settings';
 import { useUpdateStore } from '@/stores/update';
 import { useTranslation } from 'react-i18next';
+import { invokeIpc } from '@/lib/api-client';
 // import { cn } from '@/lib/utils';
 
 function SectionCard({ children }: { children: React.ReactNode }) {
@@ -34,6 +35,7 @@ export function AboutSection() {
   // const { autoCheckUpdate, setAutoCheckUpdate, autoDownloadUpdate, setAutoDownloadUpdate } = useSettingsStore();
   const currentVersion = useUpdateStore((state) => state.currentVersion);
   // const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
+  const openUrl = (url: string) => invokeIpc('shell:openExternal', url);
 
   return (
     <div className="p-8 space-y-6 max-w-2xl mx-auto">
@@ -99,6 +101,41 @@ export function AboutSection() {
           />
         </SectionCard>
       </div> */}
+
+      <div>
+        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
+          {isZh ? '备案信息' : 'Compliance'}
+        </h2>
+        <SectionCard>
+          {[
+            { label: isZh ? 'ICP 备案/许可证号' : 'ICP License', value: '沪ICP备XXXXXXXX号' },
+            { label: isZh ? '算法备案' : 'Algorithm Registration', value: 'XXXXXXXXXXXXXXXXXX' },
+            { label: isZh ? '大模型备案登记' : 'LLM Registration', value: 'XXXXXXXXXXXXXXXXXX' },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5"
+            >
+              <p className="text-[14px] font-medium text-foreground">{item.label}</p>
+              <p className="text-[12px] font-mono text-muted-foreground">{item.value}</p>
+            </div>
+          ))}
+          <div className="px-5 py-3 flex gap-4">
+            <button
+              onClick={() => openUrl('https://boomclaw.com/privacy')}
+              className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {isZh ? '隐私政策' : 'Privacy Policy'}
+            </button>
+            <button
+              onClick={() => openUrl('https://boomclaw.com/terms')}
+              className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {isZh ? '用户协议' : 'Terms of Service'}
+            </button>
+          </div>
+        </SectionCard>
+      </div>
 
       {/* Copyright */}
       <div className="pt-2 text-center space-y-1">

@@ -1,6 +1,33 @@
 {
   "title": "設定",
   "subtitle": "BoomClaw の体験をカスタマイズ",
+  "preferencesNav": {
+    "groups": {
+      "myAccount": "マイアカウント",
+      "aiCapabilities": "AI 機能",
+      "workspacePrivacy": "ワークスペースとデータ保存",
+      "helpInfo": "ヘルプと情報"
+    },
+    "items": {
+      "account": "アカウント",
+      "accountSecurity": "アカウントとセキュリティ",
+      "appPreferences": "アプリ環境設定",
+      "billingUsage": "ポイントと利用状況",
+      "models": "モデルとゲートウェイ",
+      "skills": "スキル",
+      "channels": "ボット連携",
+      "workspace": "ワークスペース",
+      "privacy": "データ保存",
+      "feedback": "フィードバック送信",
+      "about": "バージョン情報",
+      "points": "ポイント",
+      "usage": "利用状況"
+    },
+    "tabs": {
+      "models": "モデル",
+      "gateway": "ゲートウェイ"
+    }
+  },
   "account": {
     "title": "アカウント",
     "guest": "未ログイン",
@@ -45,7 +72,11 @@
     },
     "sections": {
       "model": "モデル設定",
-      "fallback": "フォールバック設定"
+      "fallback": "フォールバック設定",
+      "builtinModels": "内蔵モデル",
+      "customModels": "カスタムモデル",
+      "addCustomModel": "+ カスタムモデルを追加",
+      "empty": "モデルがまだ設定されていません"
     },
     "add": "プロバイダーを追加",
     "custom": "カスタム",
