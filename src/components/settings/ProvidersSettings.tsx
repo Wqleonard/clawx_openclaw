@@ -55,7 +55,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { hostApiFetch } from '@/lib/host-api';
 import { subscribeHostEvent } from '@/lib/host-events';
 
-const inputClasses = 'h-[44px] rounded-xl font-mono text-[13px] bg-[#eeece3] dark:bg-muted border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 shadow-sm transition-all text-foreground placeholder:text-foreground/40';
+const inputClasses = 'h-[44px] rounded-xl font-mono text-[13px] bg-[#eeece3] dark:bg-muted border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-black/20 dark:focus-visible:ring-white/20 focus-visible:border-black/30 dark:focus-visible:border-white/30 shadow-sm transition-all text-foreground placeholder:text-foreground/40';
 const labelClasses = 'text-[14px] text-foreground/80 font-bold';
 
 function normalizeFallbackProviderIds(ids?: string[]): string[] {
@@ -134,11 +134,15 @@ export function ProvidersSettings() {
     [accounts, statuses, vendors, defaultAccountId],
   );
   const builtinProviders = useMemo(
-    () => displayProviders.filter((item) => item.account.vendorId !== 'custom'),
+    () => displayProviders.filter((item) =>
+      BAOWENMAO_PRESET_ACCOUNTS.some((preset) => preset.id === item.account.id)
+    ),
     [displayProviders],
   );
   const customProviders = useMemo(
-    () => displayProviders.filter((item) => item.account.vendorId === 'custom'),
+    () => displayProviders.filter((item) =>
+      !BAOWENMAO_PRESET_ACCOUNTS.some((preset) => preset.id === item.account.id)
+    ),
     [displayProviders],
   );
 
@@ -171,11 +175,6 @@ export function ProvidersSettings() {
         updatedAt: new Date().toISOString(),
       }, effectiveApiKey);
 
-      // Auto-set as default if no default is currently configured
-      if (!defaultAccountId) {
-        await setDefaultAccount(id);
-      }
-
       setShowAddDialog(false);
       toast.success(t('aiProviders.toast.added'));
     } catch (error) {
@@ -185,7 +184,19 @@ export function ProvidersSettings() {
 
   const handleDeleteProvider = async (providerId: string) => {
     try {
+      const wasDefault = defaultAccountId === providerId;
       await removeAccount(providerId);
+      if (wasDefault) {
+        const fallbackId = BAOWENMAO_PRESET_ACCOUNTS.find((p) => p.isDefault)?.id
+          ?? BAOWENMAO_PRESET_ACCOUNTS[0]?.id;
+        if (fallbackId) {
+          try {
+            await setDefaultAccount(fallbackId);
+          } catch {
+            // best-effort, ignore
+          }
+        }
+      }
       toast.success(t('aiProviders.toast.deleted'));
     } catch (error) {
       toast.error(`${t('aiProviders.toast.failedDelete')}: ${error}`);
@@ -253,9 +264,9 @@ export function ProvidersSettings() {
             }}
             onValidateKey={(key, options) => validateAccountApiKey(item.account.id, key, options)}
             devModeUnlocked={devModeUnlocked}
-            showEnableSwitch={section === 'builtin'}
+            showEnableSwitch={true}
             toggleLoading={togglingProviderId === item.account.id}
-            minimalView={section === 'builtin'}
+            minimalView={true}
             isEditable={section === 'custom'}
             onToggleEnabled={async (enabled) => {
               setTogglingProviderId(item.account.id);
@@ -296,7 +307,7 @@ export function ProvidersSettings() {
               <p className="text-[13px] text-center mb-4 max-w-sm">
                 {t('aiProviders.empty.desc')}
               </p>
-              <Button onClick={() => handleOpenAddDialog()} className="rounded-full px-5 h-9 bg-[#0a84ff] hover:bg-[#007aff] text-white">
+              <Button onClick={() => handleOpenAddDialog()} className="rounded-full px-5 h-9 bg-primary text-white hover:bg-primary/90">
                 <Plus className="h-4 w-4 mr-2" />
                 {t('aiProviders.empty.cta')}
               </Button>
@@ -304,15 +315,9 @@ export function ProvidersSettings() {
           )}
 
           <div className="rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] p-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[14px] font-semibold text-foreground">
-                {t('aiProviders.sections.builtinModels')}
-              </h3>
-              <Button onClick={() => handleOpenAddDialog()} variant="outline" className="rounded-full px-4 h-8 text-[12px]">
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                {t('aiProviders.add')}
-              </Button>
-            </div>
+            <h3 className="text-[14px] font-semibold text-foreground">
+              {t('aiProviders.sections.builtinModels')}
+            </h3>
             {renderProviderList(builtinProviders, 'builtin')}
           </div>
 
@@ -321,8 +326,9 @@ export function ProvidersSettings() {
               <h3 className="text-[14px] font-semibold text-foreground">
                 {t('aiProviders.sections.customModels')}
               </h3>
-              <Button onClick={() => handleOpenAddDialog('custom')} variant="outline" className="rounded-full px-4 h-8 text-[12px]">
-                {t('aiProviders.sections.addCustomModel')}
+              <Button onClick={() => handleOpenAddDialog()} variant="outline" className="rounded-full px-4 h-8 text-[12px]">
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                {t('aiProviders.add')}
               </Button>
             </div>
             {renderProviderList(customProviders, 'custom')}
@@ -378,7 +384,7 @@ function ProviderCard({
   onEdit,
   onCancelEdit,
   onDelete,
-  onSetDefault,
+  onSetDefault: _onSetDefault,
   onSaveEdits,
   onValidateKey,
   devModeUnlocked,
@@ -389,6 +395,7 @@ function ProviderCard({
   onToggleEnabled,
 }: ProviderCardProps) {
   const { t, i18n } = useTranslation('settings');
+  const isZh = i18n.language?.startsWith('zh');
   const { account, vendor, status } = item;
   const [newKey, setNewKey] = useState('');
   const [baseUrl, setBaseUrl] = useState(account.baseUrl || '');
@@ -506,7 +513,7 @@ function ProviderCard({
   };
 
   const currentInputClasses = isDefault
-    ? "h-[40px] rounded-xl font-mono text-[13px] bg-white dark:bg-card border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-blue-500/50 shadow-sm"
+    ? "h-[40px] rounded-xl font-mono text-[13px] bg-white dark:bg-card border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-black/20 dark:focus-visible:ring-white/20 shadow-sm"
     : inputClasses;
 
   const currentLabelClasses = isDefault ? "text-[13px] text-muted-foreground" : labelClasses;
@@ -535,10 +542,10 @@ function ProviderCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[15px] truncate">{displayName}</span>
-              {!minimalView && isDefault && (
+              {isDefault && (
                 <span className="flex items-center gap-1 font-mono text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.08] border-0 shadow-none text-foreground/70">
                   <Check className="h-3 w-3" />
-                  {t('aiProviders.card.default')}
+                  {isZh ? '当前' : 'Current'}
                 </span>
               )}
             </div>
@@ -589,25 +596,9 @@ function ProviderCard({
         {!isEditing && (
           <div className={cn(
             'absolute flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
-            minimalView
-              ? (showEnableSwitch ? 'right-20 top-1/2 -translate-y-1/2' : 'right-4 top-1/2 -translate-y-1/2')
-              : (showEnableSwitch ? 'right-14 top-4' : 'right-4 top-4')
+            'right-20 top-1/2 -translate-y-1/2'
           )}>
-            {!minimalView && isEditable && onSetDefault && !isDefault && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-muted-foreground hover:text-blue-600 hover:bg-white dark:hover:bg-card shadow-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void onSetDefault();
-                }}
-                title={t('aiProviders.card.setDefault')}
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-            )}
-            {!minimalView && isEditable && !isBaowenmaoPreset && (
+            {isEditable && !isBaowenmaoPreset && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -649,7 +640,7 @@ function ProviderCard({
                   : 'https://icnnp7d0dymg.feishu.cn/wiki/BmiLwGBcEiloZDkdYnGc8RWnn6d#Ee1ldfvKJoVGvfxc32mcILwenth'}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[12px] text-blue-500 hover:text-blue-600 font-medium inline-flex items-center gap-1"
+                className="text-[12px] text-foreground/40 hover:text-primary font-medium inline-flex items-center gap-1 transition-colors"
               >
                 {t('aiProviders.dialog.customDoc')}
                 <ExternalLink className="h-3 w-3" />
@@ -728,8 +719,8 @@ function ProviderCard({
                     onChange={(e) => setFallbackModelsText(e.target.value)}
                     placeholder={t('aiProviders.dialog.fallbackModelIdsPlaceholder')}
                     className={isDefault
-                      ? "min-h-24 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-card px-3 py-2 text-[13px] font-mono outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 shadow-sm"
-                      : "min-h-24 w-full rounded-xl border border-black/10 dark:border-white/10 bg-[#eeece3] dark:bg-muted px-3 py-2 text-[13px] font-mono outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 shadow-sm transition-all text-foreground placeholder:text-foreground/40"}
+                      ? "min-h-24 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-card px-3 py-2 text-[13px] font-mono outline-none focus-visible:ring-2 focus-visible:ring-black/20 dark:focus-visible:ring-white/20 shadow-sm"
+                      : "min-h-24 w-full rounded-xl border border-black/10 dark:border-white/10 bg-[#eeece3] dark:bg-muted px-3 py-2 text-[13px] font-mono outline-none focus-visible:ring-2 focus-visible:ring-black/20 dark:focus-visible:ring-white/20 focus-visible:border-black/30 dark:focus-visible:border-white/30 shadow-sm transition-all text-foreground placeholder:text-foreground/40"}
                   />
                   <p className="text-[12px] text-muted-foreground">
                     {t('aiProviders.dialog.fallbackModelIdsHelp')}
@@ -747,9 +738,9 @@ function ProviderCard({
                             type="checkbox"
                             checked={fallbackProviderIds.includes(candidate.account.id)}
                             onChange={() => toggleFallbackProvider(candidate.account.id)}
-                            className="rounded border-black/20 dark:border-white/20 text-blue-500 focus:ring-blue-500/50"
+                            className="rounded border-black/20 dark:border-white/20 text-foreground focus:ring-black/20 dark:focus:ring-white/20"
                           />
-                          <span className="font-medium group-hover/label:text-blue-500 transition-colors">{candidate.account.label}</span>
+                          <span className="font-medium group-hover/label:text-foreground transition-colors">{candidate.account.label}</span>
                           <span className="text-[12px] text-muted-foreground">
                             {candidate.account.model || candidate.vendor?.name || candidate.account.vendorId}
                           </span>
@@ -784,7 +775,7 @@ function ProviderCard({
                   href={typeInfo.apiKeyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[13px] text-blue-500 hover:text-blue-600 hover:underline flex items-center gap-1"
+                  className="text-[13px] text-foreground/40 hover:text-primary hover:underline flex items-center gap-1 transition-colors"
                   tabIndex={-1}
                 >
                   {t('aiProviders.oauth.getApiKey')} <ExternalLink className="h-3 w-3" />
@@ -958,7 +949,13 @@ function AddProviderDialog({
   });
 
   // Manage OAuth events
+  // Use a ref to guard against React StrictMode double-invocation of effects,
+  // which would register duplicate listeners and fire toast/callbacks twice.
+  const oauthListenersRegistered = React.useRef(false);
   useEffect(() => {
+    if (oauthListenersRegistered.current) return;
+    oauthListenersRegistered.current = true;
+
     const handleCode = (data: unknown) => {
       const payload = data as Record<string, unknown>;
       if (payload?.mode === 'manual') {
@@ -978,29 +975,20 @@ function AddProviderDialog({
       setOauthError(null);
     };
 
-    const handleSuccess = async (data: unknown) => {
+    const handleSuccess = async (_data: unknown) => {
       setOauthFlowing(false);
       setOauthData(null);
       setManualCodeInput('');
       setValidationError(null);
 
       const { onClose: close, t: translate } = latestRef.current;
-      const payload = (data as { accountId?: string } | undefined) || undefined;
-      const accountId = payload?.accountId || pendingOAuthRef.current?.accountId;
 
       // device-oauth.ts already saved the provider config to the backend,
       // including the dynamically resolved baseUrl for the region (e.g. CN vs Global).
-      // If we call add() here with undefined baseUrl, it will overwrite and erase it!
-      // So we just fetch the latest list from the backend to update the UI.
+      // Just refresh the list — do NOT auto-set default here.
       try {
         const store = useProviderStore.getState();
         await store.refreshProviderSnapshot();
-
-        // OAuth sign-in should immediately become active default to avoid
-        // leaving runtime on an API-key-only provider/model.
-        if (accountId) {
-          await store.setDefaultAccount(accountId);
-        }
       } catch (err) {
         console.error('Failed to refresh providers after OAuth:', err);
       }
@@ -1021,6 +1009,7 @@ function AddProviderDialog({
     const offError = subscribeHostEvent('oauth:error', handleError);
 
     return () => {
+      oauthListenersRegistered.current = false;
       offCode();
       offSuccess();
       offError();
@@ -1226,7 +1215,7 @@ function AddProviderDialog({
                       setBaseUrl('');
                       setModelId('');
                     }}
-                    className="text-[13px] text-blue-500 hover:text-blue-600 font-medium"
+                    className="text-[13px] text-foreground/40 hover:text-primary font-medium transition-colors"
                   >
                     {t('aiProviders.dialog.change')}
                   </button>
@@ -1239,7 +1228,7 @@ function AddProviderDialog({
                           : 'https://icnnp7d0dymg.feishu.cn/wiki/BmiLwGBcEiloZDkdYnGc8RWnn6d#Ee1ldfvKJoVGvfxc32mcILwenth'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[13px] text-blue-500 hover:text-blue-600 font-medium inline-flex items-center gap-1"
+                        className="text-[13px] text-foreground/40 hover:text-primary font-medium inline-flex items-center gap-1 transition-colors"
                       >
                         {t('aiProviders.dialog.customDoc')}
                         <ExternalLink className="h-3 w-3" />
@@ -1295,7 +1284,7 @@ function AddProviderDialog({
                           href={typeInfo.apiKeyUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[13px] text-blue-500 hover:text-blue-600 font-medium flex items-center gap-1"
+                          className="text-[13px] text-foreground/40 hover:text-primary font-medium flex items-center gap-1 transition-colors"
                           tabIndex={-1}
                         >
                           {t('aiProviders.oauth.getApiKey')} <ExternalLink className="h-3 w-3" />
@@ -1390,14 +1379,14 @@ function AddProviderDialog({
                 {/* Device OAuth Trigger — only shown when in OAuth mode */}
                 {useOAuthFlow && (
                   <div className="space-y-4 pt-2">
-                    <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-5 text-center">
-                      <p className="text-[13px] font-medium text-blue-600 dark:text-blue-400 mb-4 block">
+                    <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/8 dark:border-white/8 p-5 text-center">
+                      <p className="text-[13px] font-medium text-foreground/70 mb-4 block">
                         {t('aiProviders.oauth.loginPrompt')}
                       </p>
                       <Button
                         onClick={handleStartOAuth}
                         disabled={oauthFlowing}
-                        className="w-full rounded-full h-[42px] font-semibold bg-[#0a84ff] hover:bg-[#007aff] text-white shadow-sm"
+                        className="rounded-full h-[42px] px-8 font-semibold bg-primary text-white hover:bg-primary/90 shadow-sm"
                       >
                         {oauthFlowing ? (
                           <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('aiProviders.oauth.waiting')}</>
@@ -1409,23 +1398,20 @@ function AddProviderDialog({
 
                     {/* OAuth Active State Modal / Inline View */}
                     {oauthFlowing && (
-                      <div className="mt-4 p-5 border border-black/10 dark:border-white/10 rounded-2xl bg-white dark:bg-card shadow-sm relative overflow-hidden">
-                        {/* Background pulse effect */}
-                        <div className="absolute inset-0 bg-blue-500/5 animate-pulse" />
-
+                      <div className="mt-4 p-5 border border-black/10 dark:border-white/10 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] shadow-sm relative overflow-hidden">
                         <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-5">
                           {oauthError ? (
-                            <div className="text-red-500 space-y-3">
+                            <div className="text-destructive space-y-3">
                               <XCircle className="h-10 w-10 mx-auto" />
                               <p className="font-semibold text-[15px]">{t('aiProviders.oauth.authFailed')}</p>
                               <p className="text-[13px] opacity-80">{oauthError}</p>
-                              <Button variant="outline" size="sm" onClick={handleCancelOAuth} className="mt-2 rounded-full px-6 h-9">
+                              <Button variant="outline" size="sm" onClick={handleCancelOAuth} className="mt-2 rounded-full px-6 h-9 border-black/10 dark:border-white/10">
                                 Try Again
                               </Button>
                             </div>
                           ) : !oauthData ? (
                             <div className="space-y-4 py-6">
-                              <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto" />
+                              <Loader2 className="h-10 w-10 animate-spin text-foreground/40 mx-auto" />
                               <p className="text-[13px] font-medium text-muted-foreground animate-pulse">{t('aiProviders.oauth.requestingCode')}</p>
                             </div>
                           ) : oauthData.mode === 'manual' ? (
@@ -1438,8 +1424,8 @@ function AddProviderDialog({
                               </div>
 
                               <Button
-                                variant="secondary"
-                                className="w-full rounded-full h-[42px] font-semibold"
+                                variant="outline"
+                                className="rounded-full h-[42px] px-8 font-semibold border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5"
                                 onClick={() => invokeIpc('shell:openExternal', oauthData.authorizationUrl)}
                               >
                                 <ExternalLink className="h-4 w-4 mr-2" />
@@ -1454,14 +1440,14 @@ function AddProviderDialog({
                               />
 
                               <Button
-                                className="w-full rounded-full h-[42px] font-semibold bg-[#0a84ff] hover:bg-[#007aff] text-white"
+                                className="rounded-full h-[42px] px-8 font-semibold bg-primary text-white hover:bg-primary/90"
                                 onClick={handleSubmitManualOAuthCode}
                                 disabled={!manualCodeInput.trim()}
                               >
                                 Submit Code
                               </Button>
 
-                              <Button variant="ghost" className="w-full rounded-full h-[42px] font-semibold text-muted-foreground" onClick={handleCancelOAuth}>
+                              <Button variant="ghost" className="rounded-full h-[42px] px-8 font-semibold text-muted-foreground hover:text-foreground" onClick={handleCancelOAuth}>
                                 Cancel
                               </Button>
                             </div>
@@ -1494,8 +1480,8 @@ function AddProviderDialog({
                               </div>
 
                               <Button
-                                variant="secondary"
-                                className="w-full rounded-full h-[42px] font-semibold"
+                                variant="outline"
+                                className="rounded-full h-[42px] px-8 font-semibold border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5"
                                 onClick={() => invokeIpc('shell:openExternal', oauthData.verificationUri)}
                               >
                                 <ExternalLink className="h-4 w-4 mr-2" />
@@ -1503,11 +1489,11 @@ function AddProviderDialog({
                               </Button>
 
                               <div className="flex items-center justify-center gap-2 text-[13px] font-medium text-muted-foreground pt-2">
-                                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                                <Loader2 className="h-4 w-4 animate-spin text-foreground/40" />
                                 <span>{t('aiProviders.oauth.waitingApproval')}</span>
                               </div>
 
-                              <Button variant="ghost" className="w-full rounded-full h-[42px] font-semibold text-muted-foreground" onClick={handleCancelOAuth}>
+                              <Button variant="ghost" className="rounded-full h-[42px] px-8 font-semibold text-muted-foreground hover:text-foreground" onClick={handleCancelOAuth}>
                                 Cancel
                               </Button>
                             </div>
@@ -1524,7 +1510,7 @@ function AddProviderDialog({
               <div className="flex justify-end gap-3">
                 <Button
                   onClick={handleAdd}
-                  className={cn("rounded-full px-8 h-[42px] text-[13px] font-semibold bg-[#0a84ff] hover:bg-[#007aff] text-white shadow-sm", useOAuthFlow && "hidden")}
+                  className={cn("rounded-full px-8 h-[42px] text-[13px] font-semibold bg-primary text-white hover:bg-primary/90 shadow-sm", useOAuthFlow && "hidden")}
                   disabled={!selectedType || saving || (showModelIdField && modelId.trim().length === 0)}
                 >
                   {saving ? (

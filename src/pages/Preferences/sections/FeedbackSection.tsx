@@ -73,7 +73,7 @@ export function FeedbackSection() {
         <Button
           onClick={handleSubmit}
           disabled={!message.trim() || submitting}
-          className="rounded-xl h-9 px-8 text-[13px] font-medium"
+          className="rounded-xl h-9 px-8 text-[13px] font-medium text-white"
         >
           {submitting ? (isZh ? '提交中...' : 'Submitting...') : (isZh ? '提交' : 'Submit')}
         </Button>
