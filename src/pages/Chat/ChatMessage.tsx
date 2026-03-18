@@ -73,11 +73,11 @@ export const ChatMessage = memo(function ChatMessage({
       )}
     >
       {/* Avatar */}
-      {!isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
-          <Sparkles className="h-4 w-4" />
-        </div>
-      )}
+      {/*{!isUser && (*/}
+      {/*  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">*/}
+      {/*    <Sparkles className="h-4 w-4" />*/}
+      {/*  </div>*/}
+      {/*)}*/}
 
       {/* Content */}
       <div
@@ -97,7 +97,7 @@ export const ChatMessage = memo(function ChatMessage({
 
         {/* Tool use cards */}
         {visibleTools.length > 0 && (
-          <div className="space-y-1">
+          <div className="space-y-1 w-full">
             {visibleTools.map((tool, i) => (
               <ToolCard key={tool.id || i} name={tool.name} input={tool.input} />
             ))}
@@ -318,21 +318,21 @@ function AssistantHoverBar({ text, timestamp, onImportToEditor }: { text: string
         {timestamp ? formatTimestamp(timestamp) : ''}
       </span>
       <div className="flex items-center gap-0.5">
-        {onImportToEditor && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={importToEditor}
-            title="导入到编辑器"
-          >
-            {imported ? <Check className="h-3 w-3 text-green-500" /> : <ClipboardPaste className="h-3 w-3" />}
-          </Button>
-        )}
+        {/*{onImportToEditor && (*/}
+        {/*  <Button*/}
+        {/*    variant="ghost"*/}
+        {/*    size="icon"*/}
+        {/*    className="h-6 w-6"*/}
+        {/*    onClick={importToEditor}*/}
+        {/*    title="导入到编辑器"*/}
+        {/*  >*/}
+        {/*    {imported ? <Check className="h-3 w-3 text-green-500" /> : <ClipboardPaste className="h-3 w-3" />}*/}
+        {/*  </Button>*/}
+        {/*)}*/}
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
+          className="h-6 w-6 hover:bg-black/5 dark:hover:bg-white/10"
           onClick={copyContent}
           title="复制"
         >
@@ -357,11 +357,11 @@ function MessageBubble({
   return (
     <div
       className={cn(
-        'relative rounded-2xl px-4 py-3',
+        'relative rounded-2xl py-3',
         !isUser && 'w-full',
         isUser
-          ? 'bg-[#0a84ff] text-white shadow-sm'
-          : 'bg-black/5 dark:bg-white/5 text-foreground',
+          ? 'bg-[#0a84ff] text-white shadow-sm  px-4'
+          : 'text-foreground',
       )}
     >
       {isUser ? (

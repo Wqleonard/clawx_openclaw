@@ -354,14 +354,16 @@ export function FileTree({ className }: FileTreeProps) {
     event.preventDefault();
     event.stopPropagation();
     setSelectedNode(node);
-    const boundary = fileTreeRef.current?.getBoundingClientRect();
-    const fixedX = (boundary?.left ?? 0) + 8;
     setContextMenu({
-      x: fixedX,
-      y: event.clientY - 44,
+      x: event.clientX,
+      y: event.clientY,
       node,
     });
   };
+
+  useEffect(() => {
+    console.log(contextMenu)
+  }, [contextMenu]);
 
   const alertError = useCallback(
     (error: unknown) => {
@@ -598,7 +600,7 @@ export function FileTree({ className }: FileTreeProps) {
 
   const menuStyle = contextMenu
     ? {
-        left: 8,
+        left: contextMenu.x,
         top: contextMenu.y,
       }
     : undefined;
