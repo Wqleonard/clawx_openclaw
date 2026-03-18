@@ -122,6 +122,7 @@ export function Chat() {
   const setActiveFile = useFileSystemStore((s) => s.setActiveFile);
   const closeFile = useFileSystemStore((s) => s.closeFile);
   const applyProjectForSession = useFileSystemStore((s) => s.applyProjectForSession);
+  const initProject = useFileSystemStore((s) => s.initProject);
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
@@ -255,8 +256,19 @@ export function Chat() {
   }, []);
 
   useEffect(() => {
-    void applyProjectForSession(currentSessionKey);
-  }, [currentSessionKey, applyProjectForSession]);
+    // Look up the agent's workspace from the snapshot (set at creation time, stored in
+    // openclaw.json). Only call initProject to refresh the file tree — do NOT call
+    // syncAgentProjectBinding / applyProjectForSession, which would rewrite openclaw.json
+    // and trigger a Gateway reconnect on every agent switch.
+    const agentId = getAgentIdFromSessionKey(currentSessionKey);
+    const agent = agents.find((a) => a.id === agentId);
+    if (agent?.workspace) {
+      void initProject(agent.workspace);
+    } else {
+      // Fallback for sessions without a resolved agent (e.g. legacy sessions)
+      void applyProjectForSession(currentSessionKey);
+    }
+  }, [currentSessionKey, agents, initProject, applyProjectForSession]);
 
   // Update timestamp when sending starts
   useEffect(() => {
