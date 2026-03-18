@@ -23,9 +23,10 @@ import { useMinLoading } from '@/hooks/use-min-loading';
 import { useChatLayoutStore } from '@/stores/chat-layout';
 import { CHAT_PANEL_SIZE, useChatStyleStore } from '@/stores/chatStyle';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { FileTabs, FileTree } from '@/components/filesystem';
+import { FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
 import { Button } from '@/components/ui/button';
+import { SimpleEditor } from '@/components/tiptap-templates/simple/simple-editor';
 
 const INITIAL_NOW_MS = Date.now();
 
@@ -128,11 +129,7 @@ export function Chat() {
   const projectBindings = useFileSystemStore((s) => s.projectBindings);
   const projectShortcuts = useFileSystemStore((s) => s.projectShortcuts);
   const activeFile = useFileSystemStore((s) => s.activeFile);
-  const openFiles = useFileSystemStore((s) => s.openFiles);
   const fileContents = useFileSystemStore((s) => s.fileContents);
-  const dirtyFiles = useFileSystemStore((s) => s.dirtyFiles);
-  const setActiveFile = useFileSystemStore((s) => s.setActiveFile);
-  const closeFile = useFileSystemStore((s) => s.closeFile);
   const applyProjectForSession = useFileSystemStore((s) => s.applyProjectForSession);
   const initProject = useFileSystemStore((s) => s.initProject);
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
@@ -431,21 +428,9 @@ export function Chat() {
   const effectiveFileTreeWidth = projectPath && isFileTreeDrawerOpen ? fileTreeWidth : 0;
 
   const isEmpty = messages.length === 0 && !sending;
-  const markdownOpenFiles = useMemo(
-    () => openFiles.filter((filePath) => isMarkdownFile(filePath)),
-    [openFiles]
-  );
-  const activeMarkdownFile = useMemo(() => {
-    if (activeFile && isMarkdownFile(activeFile)) {
-      return activeFile;
-    }
-    return markdownOpenFiles[markdownOpenFiles.length - 1] ?? null;
-  }, [activeFile, markdownOpenFiles]);
+  const activeMarkdownFile =
+    activeFile && isMarkdownFile(activeFile) ? activeFile : null;
   const activeMarkdownContent = activeMarkdownFile ? (fileContents[activeMarkdownFile] ?? '') : '';
-  const markdownDirtyFiles = useMemo(
-    () => dirtyFiles.filter((filePath) => isMarkdownFile(filePath)),
-    [dirtyFiles]
-  );
   const handleMarkdownChange = useCallback(
     (nextMarkdown: string) => {
       if (!activeMarkdownFile) return;
@@ -994,22 +979,14 @@ export function Chat() {
         style={{ width: editorWidth }}
       >
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <FileTabs
-            openFiles={markdownOpenFiles}
-            activeFile={activeMarkdownFile}
-            dirtyFiles={markdownDirtyFiles}
-            onSelectFile={setActiveFile}
-            onCloseFile={closeFile}
-          />
-
           <div className="min-h-0 flex-1 overflow-hidden">
             {!activeMarkdownFile ? (
               <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                点击文件树中的 `.md` 文件后，会在这里新增标签页并显示内容
+                点击文件树中的 `.md` 文件后，会在这里直接显示内容
               </div>
             ) : (
-              <div className="w-full h-full">
-                <div className="w-full flex items-center justify-start gap-2 px-4 py-1">
+              <div className="w-full h-full flex flex-col">
+                {/* <div className="w-full flex items-center justify-start gap-2 px-4 py-1">
                   <button
                     type="button"
                     onClick={() => setMdViewMode('source')}
@@ -1036,9 +1013,9 @@ export function Chat() {
                   >
                     渲染
                   </button>
-                </div>
+                </div> */}
                 <MarkdownEditor
-                  className="h-full"
+                  className="flex-1 min-h-0"
                   value={activeMarkdownContent}
                   mode={mdViewMode}
                   onChange={handleMarkdownChange}
