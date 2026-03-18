@@ -125,8 +125,12 @@ async function ensureMainProjectSynced(
   const localProject = get().projectPath;
   if (!localProject) return null;
   const mainWorkspace = await invokeIpc<string | null>('fs:get-workspace');
+  // If project switched while awaiting IPC, treat this call as stale.
+  if (get().projectPath !== localProject) return null;
   if (mainWorkspace === localProject) return localProject;
   await invokeIpc<string>('fs:set-workspace', localProject);
+  // Double-check after write to avoid stale callers overriding newer project.
+  if (get().projectPath !== localProject) return null;
   return localProject;
 }
 
@@ -289,23 +293,23 @@ export const useFileSystemStore = create<FileSystemState>()(
       },
 
       refreshTree: async (dirPath) => {
-        console.log('refreshTree', dirPath)
         try {
-          const projectPath = await ensureMainProjectSynced(get);
-          console.log(projectPath)
-          if (!projectPath) {
+          const requestedProject = get().projectPath;
+          if (!requestedProject) {
             set({ tree: null, lastError: null });
+            return;
+          }
+          const projectPath = await ensureMainProjectSynced(get);
+          if (!projectPath) {
             return;
           }
           const targetDirPath = dirPath ?? projectPath;
           const tree = await invokeIpc<FileNode>('fs:read-tree', targetDirPath);
-          console.log(tree)
           // Project may switch while refreshing; ignore stale result.
           if (get().projectPath !== projectPath) {
             return;
           }
           const sanitizedTree = sanitizeTreeForUi(tree, projectPath);
-          console.log(sanitizedTree)
           set({ tree: sanitizedTree, lastError: null });
         } catch (error) {
           setStoreError(set, error);
