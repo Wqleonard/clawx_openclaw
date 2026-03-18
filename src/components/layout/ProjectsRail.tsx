@@ -295,8 +295,8 @@ export function ProjectsRail() {
 
     if (projectPath === target && nextShortcuts.length > 0) {
       const nextProject = nextShortcuts[0];
-      await initProject(nextProject);
       await switchToProjectSession(nextProject);
+      await initProject(nextProject);
       return;
     }
 

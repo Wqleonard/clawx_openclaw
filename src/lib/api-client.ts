@@ -205,7 +205,7 @@ function logApiAttempt(entry: {
   if (entry.ok) {
     // console.info(`${base} result=ok`);
   } else {
-    // console.warn(`${base} result=error`, entry.error);
+    console.warn(`${base} result=error`, entry.error);
   }
 }
 

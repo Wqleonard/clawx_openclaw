@@ -37,7 +37,8 @@
         "show": "表示",
         "hide": "非表示",
         "clear": "クリア",
-        "openDevTools": "開発者ツールを開く"
+        "openDevTools": "開発者ツールを開く",
+        "resizePanel": "ドラッグして幅を調整"
     },
     "status": {
         "running": "実行中",

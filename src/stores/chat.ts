@@ -158,6 +158,26 @@ function clearHistoryPoll(): void {
 
 const DEFAULT_CANONICAL_PREFIX = 'agent:main';
 const DEFAULT_SESSION_KEY = `${DEFAULT_CANONICAL_PREFIX}:main`;
+const CURRENT_SESSION_STORAGE_KEY = 'clawx:chat-current-session-key';
+
+function readPersistedCurrentSessionKey(): string | null {
+  try {
+    const value = localStorage.getItem(CURRENT_SESSION_STORAGE_KEY)?.trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+function persistCurrentSessionKey(sessionKey: string): void {
+  try {
+    localStorage.setItem(CURRENT_SESSION_STORAGE_KEY, sessionKey);
+  } catch {
+    // Ignore storage errors (private mode/quota/etc.).
+  }
+}
+
+const INITIAL_SESSION_KEY = readPersistedCurrentSessionKey() ?? DEFAULT_SESSION_KEY;
 
 // ── Local image cache ─────────────────────────────────────────
 // The Gateway doesn't store image attachments in session content blocks,
@@ -1030,8 +1050,8 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
   pendingToolImages: [],
 
   sessions: [],
-  currentSessionKey: DEFAULT_SESSION_KEY,
-  currentAgentId: 'main',
+  currentSessionKey: INITIAL_SESSION_KEY,
+  currentAgentId: getAgentIdFromSessionKey(INITIAL_SESSION_KEY),
   sessionLabels: {},
   sessionLastActivity: {},
 
@@ -1113,6 +1133,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
             ...discoveredActivity,
           },
         }));
+        persistCurrentSessionKey(nextSessionKey);
 
         if (currentSessionKey !== nextSessionKey) {
           get().loadHistory();
@@ -1161,6 +1182,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
   switchSession: (key: string) => {
     if (key === get().currentSessionKey) return;
     set((s) => buildSessionSwitchPatch(s, key));
+    persistCurrentSessionKey(key);
     get().loadHistory();
   },
 
@@ -1214,6 +1236,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
         currentSessionKey: next?.key ?? DEFAULT_SESSION_KEY,
         currentAgentId: getAgentIdFromSessionKey(next?.key ?? DEFAULT_SESSION_KEY),
       }));
+      persistCurrentSessionKey(next?.key ?? DEFAULT_SESSION_KEY);
       if (next) {
         get().loadHistory();
       }
@@ -1263,6 +1286,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
       lastUserMessageAt: null,
       pendingToolImages: [],
     }));
+    persistCurrentSessionKey(newKey);
   },
 
   // ── Cleanup empty session on navigate away ──
@@ -1449,6 +1473,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
 
     if (targetSessionKey !== get().currentSessionKey) {
       set((s) => buildSessionSwitchPatch(s, targetSessionKey));
+      persistCurrentSessionKey(targetSessionKey);
       await get().loadHistory(true);
     }
 
