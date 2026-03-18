@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { getPointsConsumption } from '@/api/users';
+import { getPointsConsumption, getUserInfoReq } from '@/api/users';
 import { useLoginStore } from '@/stores/loginStore';
+import type { UserInfo } from '@/stores/loginStore';
 
 const PAGE_SIZE = 20;
 
@@ -129,6 +130,7 @@ export function PointsSection() {
   const { i18n } = useTranslation();
   const isZh = i18n.language?.startsWith('zh');
   const userInfo = useLoginStore((state) => state.userInfo);
+  const saveUserInfo = useLoginStore((state) => state.saveUserInfo);
   const [refreshing, setRefreshing] = useState(false);
   const [records, setRecords] = useState<PointRecord[]>([]);
   const [page, setPage] = useState(1);
@@ -142,7 +144,31 @@ export function PointsSection() {
 
   const filtered = useMemo(() => records, [records]);
 
-  const total = records[0]?.remainingPoints ?? userInfo?.points ?? 0;
+  const total = userInfo?.points ?? 0;
+
+  const refreshUserInfo = useCallback(async () => {
+    try {
+      const profile = await getUserInfoReq() as unknown;
+      if (profile && typeof profile === 'object') {
+        const p = profile as Record<string, unknown>;
+        const points =
+          typeof p.points === 'number'
+            ? p.points
+            : Number(p.points ?? 0);
+        const normalized: UserInfo = {
+          id: String(p.id ?? p.userId ?? ''),
+          username: String(p.username ?? p.phone ?? p.mobile ?? ''),
+          points: Number.isFinite(points) ? points : 0,
+          role: String(p.role ?? 'user'),
+        };
+        if (normalized.username) {
+          saveUserInfo(normalized);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh user profile points:', error);
+    }
+  }, [saveUserInfo]);
 
   const categoryCards = useMemo(
     () => [
@@ -175,7 +201,10 @@ export function PointsSection() {
     else setLoading(true);
     setError(null);
     try {
-      const resp = await getPointsConsumption({ page: targetPage, page_size: PAGE_SIZE });
+      const [resp] = await Promise.all([
+        getPointsConsumption({ page: targetPage, page_size: PAGE_SIZE }),
+        refreshUserInfo(),
+      ]);
       const { items, hasMore: nextHasMore } = unpackPageResponse(resp, targetPage, PAGE_SIZE);
       const normalized = items.map((item, idx) => normalizeRecord(item, targetPage * PAGE_SIZE + idx));
       setRecords((prev) => (append ? [...prev, ...normalized] : normalized));
@@ -190,7 +219,7 @@ export function PointsSection() {
       setLoadingMore(false);
       setRefreshing(false);
     }
-  }, [isZh]);
+  }, [isZh, refreshUserInfo]);
 
   const handleRefresh = useCallback(async () => {
     if (refreshing || loading) return;
