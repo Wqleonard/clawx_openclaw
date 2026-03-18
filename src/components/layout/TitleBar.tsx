@@ -4,7 +4,16 @@
  * Windows/Linux: drag region on left, minimize/maximize/close on right.
  */
 import { useState, useEffect } from 'react';
-import { Minus, Square, X, Copy, PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import {
+  Minus,
+  Square,
+  X,
+  Copy,
+  PanelLeftOpen,
+  PanelLeftClose,
+  PanelRightOpen,
+  PanelRightClose,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
 import { Button } from '../ui/button';
@@ -44,20 +53,34 @@ function MacTitleBar() {
           <Button
             variant="ghost"
             size="icon"
-            className={cn('size-7 cursor-pointer', !isSessionListCollapsed ? 'bg-accent' : 'text-muted-foreground')}
+            className={cn(
+              'size-7 cursor-pointer',
+              !isSessionListCollapsed ? 'bg-accent' : 'text-muted-foreground'
+            )}
             onClick={handleToggleSessionPanel}
             title={isSessionListCollapsed ? t('common:actions.open') : t('common:actions.close')}
           >
-            {isSessionListCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            {isSessionListCollapsed ? (
+              <PanelLeftOpen className="size-4" />
+            ) : (
+              <PanelLeftClose className="size-4" />
+            )}
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className={cn('size-7 cursor-pointer', isFileTreeDrawerOpen ? 'bg-accent' : 'text-muted-foreground')}
+            className={cn(
+              'size-7 cursor-pointer',
+              isFileTreeDrawerOpen ? 'bg-accent' : 'text-muted-foreground'
+            )}
             onClick={handleOpenFolder}
             title={isFileTreeDrawerOpen ? t('common:actions.close') : t('fileTree.openFolder')}
           >
-            {isFileTreeDrawerOpen ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
+            {isFileTreeDrawerOpen ? (
+              <PanelRightClose className="size-4" />
+            ) : (
+              <PanelRightOpen className="size-4" />
+            )}
           </Button>
         </div>
       )}
@@ -106,8 +129,8 @@ function WindowsTitleBar() {
 
   return (
     <div className="drag-region flex h-10 shrink-0 items-center justify-between bg-background">
-      {projectPath && (
-        <div className="no-drag flex h-full items-center justify-center px-4">
+      <div className="no-drag flex h-full items-center justify-center px-4">
+        {projectPath && (
           <Button
             variant="ghost"
             size="icon"
@@ -124,8 +147,8 @@ function WindowsTitleBar() {
               <PanelLeftClose className="size-4" />
             )}
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       {/* Right: Window Controls */}
       <div className="no-drag flex h-full">
         {projectPath && (

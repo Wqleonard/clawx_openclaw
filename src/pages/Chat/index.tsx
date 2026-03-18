@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { AlertCircle, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -126,6 +126,7 @@ export function Chat() {
 
   const bindProjectToSession = useFileSystemStore((s) => s.bindProjectToSession);
   const projectBindings = useFileSystemStore((s) => s.projectBindings);
+  const projectShortcuts = useFileSystemStore((s) => s.projectShortcuts);
   const activeFile = useFileSystemStore((s) => s.activeFile);
   const openFiles = useFileSystemStore((s) => s.openFiles);
   const fileContents = useFileSystemStore((s) => s.fileContents);
@@ -220,7 +221,7 @@ export function Chat() {
         // find sessions by key prefix.  This avoids the projectBindings→switchSession
         // loop that caused the "jumps back to oldest conversation" bug.
         const normWs = (p: string) => p.replace(/[\\/]+/g, '/').replace(/\/+$/, '');
-        const matchingAgent = agents.find((a) => normWs(a.workspace) === normWs(workspacePath!));
+        const matchingAgent = agents.find((a) => normWs(a.workspace) === normWs(projectPath!));
 
         if (matchingAgent) {
           const currentAgentId = getAgentIdFromSessionKey(chatState.currentSessionKey);
@@ -305,6 +306,10 @@ export function Chat() {
     if (projectPath) {
       return;
     }
+    // No project exists at all: do not auto-recover workspace from session.
+    if (projectShortcuts.length === 0) {
+      return;
+    }
     // Look up the agent's workspace from the snapshot (set at creation time, stored in
     // openclaw.json). Only call initProject to refresh the file tree — do NOT call
     // syncAgentProjectBinding / applyProjectForSession, which would rewrite openclaw.json
@@ -317,7 +322,7 @@ export function Chat() {
       // Fallback for sessions without a resolved agent (e.g. legacy sessions)
       void applyProjectForSession(currentSessionKey);
     }
-  }, [projectPath, currentSessionKey, agents, initProject, applyProjectForSession]);
+  }, [projectPath, projectShortcuts, currentSessionKey, agents, initProject, applyProjectForSession]);
 
   // Update timestamp when sending starts
   useEffect(() => {
@@ -791,10 +796,18 @@ export function Chat() {
         </div>
 
         {/* Messages Area */}
-        <div ref={scrollRef} className="chat-messages-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div
+          ref={scrollRef}
+          className={cn(
+            'chat-messages-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden',
+            !projectPath && 'pointer-events-none opacity-70'
+          )}
+        >
           <div className="w-full px-4 min-w-0 overflow-x-auto">
             <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-4xl space-y-4">
-              {isEmpty ? (
+              {!projectPath ? (
+                <ProjectRequiredScreen />
+              ) : isEmpty ? (
                 <WelcomeScreen />
               ) : (
                 <>
@@ -868,7 +881,7 @@ export function Chat() {
         <ChatInput
           onSend={sendMessage}
           onStop={abortRun}
-          disabled={!isGatewayRunning}
+          disabled={!isGatewayRunning || !projectPath}
           sending={sending}
           isEmpty={isEmpty}
         />
@@ -1037,14 +1050,23 @@ function WelcomeScreen() {
   );
 }
 
+function ProjectRequiredScreen() {
+  const { t } = useTranslation('chat');
+  return (
+    <div className="flex h-[60vh] items-center justify-center text-center">
+      <p className="text-sm text-muted-foreground">{t('projectRequired')}</p>
+    </div>
+  );
+}
+
 // ── Typing Indicator ────────────────────────────────────────────
 
 function TypingIndicator() {
   return (
     <div className="flex gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
+      {/* <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
         <Sparkles className="h-4 w-4" />
-      </div>
+      </div> */}
       <div className="bg-black/5 dark:bg-white/5 text-foreground rounded-2xl px-4 py-3">
         <div className="flex gap-1">
           <span
@@ -1071,9 +1093,9 @@ function ActivityIndicator({ phase }: { phase: 'tool_processing' }) {
   void phase;
   return (
     <div className="flex gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
+      {/* <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
         <Sparkles className="h-4 w-4" />
-      </div>
+      </div> */}
       <div className="bg-black/5 dark:bg-white/5 text-foreground rounded-2xl px-4 py-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />

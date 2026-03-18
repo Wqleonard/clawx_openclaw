@@ -38,6 +38,7 @@
         "withinMonth": "1か月以内",
         "older": "1か月より前"
     },
+    "projectRequired": "プロジェクトが選択されていません。先にプロジェクトを選択してください。",
     "fileTree": {
         "title": "ファイル",
         "noWorkspace": "ワークスペースが選択されていません",
