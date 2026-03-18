@@ -280,6 +280,10 @@ export function ProjectsRail() {
 
     setIsAddingWorkspace(true);
     try {
+      // fs:create-folder can only create paths inside current main-process workspace.
+      // Ensure workspace is set to configured root before creating a new project folder.
+      await invokeIpc<string>('fs:set-workspace', allowedRoot);
+
       let suffix = 0;
       let selected = '';
       while (suffix < 10_000) {
@@ -310,6 +314,9 @@ export function ProjectsRail() {
       setShowAddAgentDialog(true);
       setShowAddProjectDialog(false);
       setNewProjectName('');
+    } catch (error) {
+      console.error(error);
+      toast.error(t('common:projectDialog.error'),{position:'top-center'});
     } finally {
       setIsAddingWorkspace(false);
     }

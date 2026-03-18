@@ -235,7 +235,11 @@ export function Chat() {
           // Switch to the most recent session for this agent.
           const agentSessions = [...chatState.sessions]
             .filter((s) => s.key.startsWith(`agent:${matchingAgent.id}:`))
-            .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+            .sort(
+              (a, b) =>
+                (chatState.sessionLastActivity[b.key] ?? 0) -
+                (chatState.sessionLastActivity[a.key] ?? 0)
+            );
           const targetKey = agentSessions[0]?.key ?? `agent:${matchingAgent.id}:main`;
           if (targetKey !== chatState.currentSessionKey) {
             if (isTaskAborted()) return;
@@ -247,7 +251,11 @@ export function Chat() {
         // Non-agent workspace: fall back to projectBindings lookup.
         const targetSessions = [...chatState.sessions]
           .filter((session) => fsState.projectBindings[session.key] === projectPath)
-          .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+          .sort(
+            (a, b) =>
+              (chatState.sessionLastActivity[b.key] ?? 0) -
+              (chatState.sessionLastActivity[a.key] ?? 0)
+          );
 
         if (targetSessions.length > 0) {
           const firstSessionKey = targetSessions[0].key;
@@ -322,7 +330,14 @@ export function Chat() {
       // Fallback for sessions without a resolved agent (e.g. legacy sessions)
       void applyProjectForSession(currentSessionKey);
     }
-  }, [projectPath, projectShortcuts, currentSessionKey, agents, initProject, applyProjectForSession]);
+  }, [
+    projectPath,
+    projectShortcuts,
+    currentSessionKey,
+    agents,
+    initProject,
+    applyProjectForSession,
+  ]);
 
   // Update timestamp when sending starts
   useEffect(() => {
@@ -679,6 +694,10 @@ export function Chat() {
       await bindProjectToSession(current.currentSessionKey, projectPath);
     }
   }, [projectPath, newSession, bindProjectToSession]);
+
+  if (!projectPath) {
+    return <ProjectRequiredScreen />;
+  }
 
   return (
     <div
@@ -1053,8 +1072,11 @@ function WelcomeScreen() {
 function ProjectRequiredScreen() {
   const { t } = useTranslation('chat');
   return (
-    <div className="flex h-[60vh] items-center justify-center text-center">
-      <p className="text-sm text-muted-foreground">{t('projectRequired')}</p>
+    <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
+      <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
+        <h1 className='mt-[15%] font-bold text-[52px]'>Story Claw</h1>
+        <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>
+      </div>
     </div>
   );
 }
