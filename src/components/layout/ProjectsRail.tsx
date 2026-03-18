@@ -4,6 +4,7 @@ import { SlidersHorizontal, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
+import { Input } from '@/components/ui/input';
 import { AddAgentDialog } from './AddAgentDialog';
 import { invokeIpc } from '@/lib/api-client';
 import { hostApiFetch } from '@/lib/host-api';
@@ -85,12 +86,6 @@ function normalizeComparePath(inputPath: string): string {
   return inputPath.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
-function isSameOrSubFolder(selectedPath: string, rootPath: string): boolean {
-  const selected = normalizeComparePath(selectedPath);
-  const root = normalizeComparePath(rootPath);
-  return selected === root || selected.startsWith(`${root}/`);
-}
-
 function WorkspaceShortcutButton({
   workspace,
   onActivate,
@@ -139,6 +134,8 @@ export function ProjectsRail() {
   const createAgent = useAgentsStore((state) => state.createAgent);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
+  const [showAddProjectDialog, setShowAddProjectDialog] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
   const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
   const [pendingWorkspacePath, setPendingWorkspacePath] = useState<string>('');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
@@ -255,18 +252,54 @@ export function ProjectsRail() {
       return;
     }
 
+    const rawName = newProjectName;
+    if (/^\s/.test(rawName)) {
+      toast.error('Project 名称不能以空格开头');
+      return;
+    }
+
+    const normalizedName = rawName.trim();
+    if (!normalizedName) {
+      toast.error('请输入 Project 名称');
+      return;
+    }
+    if (/[<>:"/\\|*?]/.test(normalizedName)) {
+      toast.error('Project 名称不能包含以下字符：< > : " / \\ | * ?');
+      return;
+    }
+
+    const joinPath = (root: string, child: string): string => {
+      if (!root) return child;
+      return /[\\/]$/.test(root) ? `${root}${child}` : `${root}/${child}`;
+    };
+    const isAlreadyExistsError = (error: unknown): boolean => {
+      const message = error instanceof Error ? error.message : String(error);
+      const normalized = message.toLowerCase();
+      return normalized.includes('exist') || normalized.includes('already');
+    };
+
     setIsAddingWorkspace(true);
     try {
-      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
-        properties: ['openDirectory'],
-        defaultPath: allowedRoot || projectPath || projectShortcuts[0],
-      });
-      if (result.canceled || !result.filePaths?.length) return;
+      let suffix = 0;
+      let selected = '';
+      while (suffix < 10_000) {
+        const candidateName = suffix === 0 ? normalizedName : `${normalizedName}-${suffix}`;
+        const candidatePath = joinPath(allowedRoot, candidateName);
+        try {
+          await invokeIpc<boolean>('fs:create-folder', candidatePath);
+          selected = candidatePath;
+          break;
+        } catch (error) {
+          if (isAlreadyExistsError(error)) {
+            suffix += 1;
+            continue;
+          }
+          throw error;
+        }
+      }
 
-      const selected = result.filePaths[0];
-      const isAllowed = isSameOrSubFolder(selected, allowedRoot);
-      if (!isAllowed) {
-        toast.error('只能选择已设置工作区及其子文件夹');
+      if (!selected) {
+        toast.error('创建 Project 失败，请更换名称后重试');
         return;
       }
 
@@ -275,6 +308,8 @@ export function ProjectsRail() {
       addProjectShortcut(selected);
       setPendingWorkspacePath(selected);
       setShowAddAgentDialog(true);
+      setShowAddProjectDialog(false);
+      setNewProjectName('');
     } finally {
       setIsAddingWorkspace(false);
     }
@@ -388,7 +423,7 @@ export function ProjectsRail() {
           size="icon"
           className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
           disabled={isAddingWorkspace}
-          onClick={() => void handleAddProject()}
+          onClick={() => setShowAddProjectDialog(true)}
           title="Add Project"
           aria-label="Add Project"
         >
@@ -486,6 +521,51 @@ export function ProjectsRail() {
           toast.success(t('common:status.agentCreated'));
         }}
       />
+
+      <Dialog
+        open={showAddProjectDialog}
+        onOpenChange={(open) => {
+          setShowAddProjectDialog(open);
+          if (!open) {
+            setNewProjectName('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogTitle>{t('common:projectDialog.title')}</DialogTitle>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {t('common:projectDialog.description')}
+            </p>
+            <Input
+              autoFocus
+              value={newProjectName}
+              onChange={(event) => setNewProjectName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void handleAddProject();
+                }
+              }}
+              maxLength={200}
+              placeholder={t('common:projectDialog.placeholder')}
+              disabled={isAddingWorkspace}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddProjectDialog(false)}
+                disabled={isAddingWorkspace}
+              >
+                {t('common:actions.cancel')}
+              </Button>
+              <Button onClick={() => void handleAddProject()} disabled={isAddingWorkspace}>
+                {isAddingWorkspace ? t('common:projectDialog.creating') : t('common:projectDialog.create')}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={preferencesOpen} onOpenChange={setPreferencesOpen}>
         <DialogContent

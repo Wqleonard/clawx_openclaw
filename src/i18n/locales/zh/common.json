@@ -59,5 +59,12 @@
         "notRunning": "网关未运行",
         "notRunningDesc": "OpenClaw 网关需要运行才能使用此功能。它将自动启动，或者您可以从设置中启动。",
         "warning": "网关未运行。"
+    },
+    "projectDialog": {
+        "title": "新增项目",
+        "description": "输入项目名称后，将自动在工作区根目录下创建文件夹。",
+        "placeholder": "项目名称",
+        "create": "创建",
+        "creating": "创建中..."
     }
 }
