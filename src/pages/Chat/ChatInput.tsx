@@ -18,7 +18,6 @@ import {
   FileArchive,
   File,
   Loader2,
-  AtSign,
   Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,11 +25,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { hostApiFetch } from '@/lib/host-api';
 import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
-import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
-import type { AgentSummary } from '@/types/agent';
+import { useProviderStore } from '@/stores/providers';
+import {
+  buildEnabledProviderModels,
+  resolveCurrentEffectiveProviderModel,
+} from '@/lib/provider-accounts';
 import { useTranslation } from 'react-i18next';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -39,8 +48,8 @@ export interface FileAttachment {
   fileName: string;
   mimeType: string;
   fileSize: number;
-  stagedPath: string;        // disk path for gateway
-  preview: string | null;    // data URL for images, null for others
+  stagedPath: string; // disk path for gateway
+  preview: string | null; // data URL for images, null for others
   status: 'staging' | 'ready' | 'error';
   error?: string;
 }
@@ -65,8 +74,21 @@ function formatFileSize(bytes: number): string {
 function FileIcon({ mimeType, className }: { mimeType: string; className?: string }) {
   if (mimeType.startsWith('video/')) return <Film className={className} />;
   if (mimeType.startsWith('audio/')) return <Music className={className} />;
-  if (mimeType.startsWith('text/') || mimeType === 'application/json' || mimeType === 'application/xml') return <FileText className={className} />;
-  if (mimeType.includes('zip') || mimeType.includes('compressed') || mimeType.includes('archive') || mimeType.includes('tar') || mimeType.includes('rar') || mimeType.includes('7z')) return <FileArchive className={className} />;
+  if (
+    mimeType.startsWith('text/') ||
+    mimeType === 'application/json' ||
+    mimeType === 'application/xml'
+  )
+    return <FileText className={className} />;
+  if (
+    mimeType.includes('zip') ||
+    mimeType.includes('compressed') ||
+    mimeType.includes('archive') ||
+    mimeType.includes('tar') ||
+    mimeType.includes('rar') ||
+    mimeType.includes('7z')
+  )
+    return <FileArchive className={className} />;
   if (mimeType === 'application/pdf') return <FileText className={className} />;
   return <File className={className} />;
 }
@@ -97,31 +119,62 @@ function readFileAsBase64(file: globalThis.File): Promise<string> {
 
 // ── Component ────────────────────────────────────────────────────
 
-export function ChatInput({ onSend, onStop, disabled = false, sending = false, isEmpty = false }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  onStop,
+  disabled = false,
+  sending = false,
+  isEmpty = false,
+}: ChatInputProps) {
   const { t } = useTranslation('chat');
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [targetAgentId, setTargetAgentId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [isSwitchingModel, setIsSwitchingModel] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
-  const gatewayStatus = useGatewayStore((s) => s.status);
+  const hasRequestedProviderSnapshotRef = useRef(false);
   const agents = useAgentsStore((s) => s.agents);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
   const currentAgentName = useMemo(
     () => agents.find((agent) => agent.id === currentAgentId)?.name ?? currentAgentId,
-    [agents, currentAgentId],
-  );
-  const mentionableAgents = useMemo(
-    () => agents.filter((agent) => agent.id !== currentAgentId),
-    [agents, currentAgentId],
+    [agents, currentAgentId]
   );
   const selectedTarget = useMemo(
     () => agents.find((agent) => agent.id === targetAgentId) ?? null,
-    [agents, targetAgentId],
+    [agents, targetAgentId]
   );
-  const showAgentPicker = mentionableAgents.length > 0;
+  const providerAccounts = useProviderStore((s) => s.accounts);
+  const providerStatuses = useProviderStore((s) => s.statuses);
+  const providerVendors = useProviderStore((s) => s.vendors);
+  const providerDefaultAccountId = useProviderStore((s) => s.defaultAccountId);
+  const refreshProviderSnapshot = useProviderStore((s) => s.refreshProviderSnapshot);
+  const providerLoading = useProviderStore((s) => s.loading);
+  const switchCurrentProviderModel = useProviderStore((s) => s.switchCurrentProviderModel);
+  const enabledProviderModels = useMemo(
+    () => buildEnabledProviderModels(providerAccounts, providerStatuses, providerVendors),
+    [providerAccounts, providerStatuses, providerVendors]
+  );
+  const currentEffectiveProviderModel = useMemo(
+    () =>
+      resolveCurrentEffectiveProviderModel(
+        providerAccounts,
+        providerStatuses,
+        providerVendors,
+        providerDefaultAccountId
+      ),
+    [providerAccounts, providerStatuses, providerVendors, providerDefaultAccountId]
+  );
+
+  useEffect(() => {
+    if (hasRequestedProviderSnapshotRef.current) return;
+    hasRequestedProviderSnapshotRef.current = true;
+    if (providerAccounts.length === 0 && providerStatuses.length === 0) {
+      void refreshProviderSnapshot();
+    }
+  }, [providerAccounts.length, providerStatuses.length, refreshProviderSnapshot]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -168,9 +221,9 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
 
   const pickFiles = useCallback(async () => {
     try {
-      const result = await invokeIpc('dialog:open', {
+      const result = (await invokeIpc('dialog:open', {
         properties: ['openFile', 'multiSelections'],
-      }) as { canceled: boolean; filePaths?: string[] };
+      })) as { canceled: boolean; filePaths?: string[] };
       if (result.canceled || !result.filePaths?.length) return;
 
       // Add placeholder entries immediately
@@ -180,50 +233,61 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
         tempIds.push(tempId);
         // Handle both Unix (/) and Windows (\) path separators
         const fileName = filePath.split(/[\\/]/).pop() || 'file';
-        setAttachments(prev => [...prev, {
-          id: tempId,
-          fileName,
-          mimeType: '',
-          fileSize: 0,
-          stagedPath: '',
-          preview: null,
-          status: 'staging' as const,
-        }]);
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: tempId,
+            fileName,
+            mimeType: '',
+            fileSize: 0,
+            stagedPath: '',
+            preview: null,
+            status: 'staging' as const,
+          },
+        ]);
       }
 
       // Stage all files via IPC
       console.log('[pickFiles] Staging files:', result.filePaths);
-      const staged = await hostApiFetch<Array<{
-        id: string;
-        fileName: string;
-        mimeType: string;
-        fileSize: number;
-        stagedPath: string;
-        preview: string | null;
-      }>>('/api/files/stage-paths', {
+      const staged = await hostApiFetch<
+        Array<{
+          id: string;
+          fileName: string;
+          mimeType: string;
+          fileSize: number;
+          stagedPath: string;
+          preview: string | null;
+        }>
+      >('/api/files/stage-paths', {
         method: 'POST',
         body: JSON.stringify({ filePaths: result.filePaths }),
       });
-      console.log('[pickFiles] Stage result:', staged?.map(s => ({ id: s?.id, fileName: s?.fileName, mimeType: s?.mimeType, fileSize: s?.fileSize, stagedPath: s?.stagedPath, hasPreview: !!s?.preview })));
+      console.log(
+        '[pickFiles] Stage result:',
+        staged?.map((s) => ({
+          id: s?.id,
+          fileName: s?.fileName,
+          mimeType: s?.mimeType,
+          fileSize: s?.fileSize,
+          stagedPath: s?.stagedPath,
+          hasPreview: !!s?.preview,
+        }))
+      );
 
       // Update each placeholder with real data
-      setAttachments(prev => {
+      setAttachments((prev) => {
         let updated = [...prev];
         for (let i = 0; i < tempIds.length; i++) {
           const tempId = tempIds[i];
           const data = staged[i];
           if (data) {
-            updated = updated.map(a =>
-              a.id === tempId
-                ? { ...data, status: 'ready' as const }
-                : a,
+            updated = updated.map((a) =>
+              a.id === tempId ? { ...data, status: 'ready' as const } : a
             );
           } else {
             console.warn(`[pickFiles] No staged data for tempId=${tempId} at index ${i}`);
-            updated = updated.map(a =>
-              a.id === tempId
-                ? { ...a, status: 'error' as const, error: 'Staging failed' }
-                : a,
+            updated = updated.map((a) =>
+              a.id === tempId ? { ...a, status: 'error' as const, error: 'Staging failed' } : a
             );
           }
         }
@@ -233,11 +297,11 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
       console.error('[pickFiles] Failed to stage files:', err);
       // Mark any stuck 'staging' attachments as 'error' so the user can remove them
       // and the send button isn't permanently blocked
-      setAttachments(prev => prev.map(a =>
-        a.status === 'staging'
-          ? { ...a, status: 'error' as const, error: String(err) }
-          : a,
-      ));
+      setAttachments((prev) =>
+        prev.map((a) =>
+          a.status === 'staging' ? { ...a, status: 'error' as const, error: String(err) } : a
+        )
+      );
     }
   }, []);
 
@@ -246,15 +310,18 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   const stageBufferFiles = useCallback(async (files: globalThis.File[]) => {
     for (const file of files) {
       const tempId = crypto.randomUUID();
-      setAttachments(prev => [...prev, {
-        id: tempId,
-        fileName: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        fileSize: file.size,
-        stagedPath: '',
-        preview: null,
-        status: 'staging' as const,
-      }]);
+      setAttachments((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          stagedPath: '',
+          preview: null,
+          status: 'staging' as const,
+        },
+      ]);
 
       try {
         console.log(`[stageBuffer] Reading file: ${file.name} (${file.type}, ${file.size} bytes)`);
@@ -275,17 +342,19 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
             mimeType: file.type || 'application/octet-stream',
           }),
         });
-        console.log(`[stageBuffer] Staged: id=${staged?.id}, path=${staged?.stagedPath}, size=${staged?.fileSize}`);
-        setAttachments(prev => prev.map(a =>
-          a.id === tempId ? { ...staged, status: 'ready' as const } : a,
-        ));
+        console.log(
+          `[stageBuffer] Staged: id=${staged?.id}, path=${staged?.stagedPath}, size=${staged?.fileSize}`
+        );
+        setAttachments((prev) =>
+          prev.map((a) => (a.id === tempId ? { ...staged, status: 'ready' as const } : a))
+        );
       } catch (err) {
         console.error(`[stageBuffer] Error staging ${file.name}:`, err);
-        setAttachments(prev => prev.map(a =>
-          a.id === tempId
-            ? { ...a, status: 'error' as const, error: String(err) }
-            : a,
-        ));
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.id === tempId ? { ...a, status: 'error' as const, error: String(err) } : a
+          )
+        );
       }
     }
   }, []);
@@ -293,27 +362,37 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   // ── Attachment management ──────────────────────────────────────
 
   const removeAttachment = useCallback((id: string) => {
-    setAttachments(prev => prev.filter(a => a.id !== id));
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
-  const allReady = attachments.length === 0 || attachments.every(a => a.status === 'ready');
+  const allReady = attachments.length === 0 || attachments.every((a) => a.status === 'ready');
   const hasFailedAttachments = attachments.some((a) => a.status === 'error');
   const canSend = (input.trim() || attachments.length > 0) && allReady && !disabled && !sending;
   const canStop = sending && !disabled && !!onStop;
 
   const handleSend = useCallback(() => {
     if (!canSend) return;
-    const readyAttachments = attachments.filter(a => a.status === 'ready');
+    const readyAttachments = attachments.filter((a) => a.status === 'ready');
     // Capture values before clearing — clear input immediately for snappy UX,
     // but keep attachments available for the async send
     const textToSend = input.trim();
     const attachmentsToSend = readyAttachments.length > 0 ? readyAttachments : undefined;
-    console.log(`[handleSend] text="${textToSend.substring(0, 50)}", attachments=${attachments.length}, ready=${readyAttachments.length}, sending=${!!attachmentsToSend}`);
+    console.log(
+      `[handleSend] text="${textToSend.substring(0, 50)}", attachments=${attachments.length}, ready=${readyAttachments.length}, sending=${!!attachmentsToSend}`
+    );
     if (attachmentsToSend) {
-      console.log('[handleSend] Attachment details:', attachmentsToSend.map(a => ({
-        id: a.id, fileName: a.fileName, mimeType: a.mimeType, fileSize: a.fileSize,
-        stagedPath: a.stagedPath, status: a.status, hasPreview: !!a.preview,
-      })));
+      console.log(
+        '[handleSend] Attachment details:',
+        attachmentsToSend.map((a) => ({
+          id: a.id,
+          fileName: a.fileName,
+          mimeType: a.mimeType,
+          fileSize: a.fileSize,
+          stagedPath: a.stagedPath,
+          status: a.status,
+          hasPreview: !!a.preview,
+        }))
+      );
     }
     setInput('');
     setAttachments([]);
@@ -345,7 +424,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
         handleSend();
       }
     },
-    [handleSend, input, targetAgentId],
+    [handleSend, input, targetAgentId]
   );
 
   // Handle paste (Ctrl/Cmd+V with files)
@@ -366,7 +445,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
         stageBufferFiles(pastedFiles);
       }
     },
-    [stageBufferFiles],
+    [stageBufferFiles]
   );
 
   // Handle drag & drop
@@ -393,14 +472,29 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
         stageBufferFiles(Array.from(e.dataTransfer.files));
       }
     },
-    [stageBufferFiles],
+    [stageBufferFiles]
+  );
+
+  const handleProviderModelChange = useCallback(
+    async (nextAccountId: string) => {
+      if (!nextAccountId || nextAccountId === currentEffectiveProviderModel?.accountId) return;
+      setIsSwitchingModel(true);
+      try {
+        await switchCurrentProviderModel(nextAccountId);
+      } catch (error) {
+        console.error('[chat] Failed to switch provider model:', error);
+      } finally {
+        setIsSwitchingModel(false);
+      }
+    },
+    [currentEffectiveProviderModel?.accountId, switchCurrentProviderModel]
   );
 
   return (
     <div
       className={cn(
-        "p-4 pb-6 w-full mx-auto transition-all duration-300",
-        isEmpty ? "max-w-3xl" : "max-w-4xl"
+        'p-4 pb-2 w-full mx-auto transition-all duration-300',
+        isEmpty ? 'max-w-3xl' : 'max-w-4xl'
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -408,9 +502,11 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
     >
       <div className="w-full">
         <div className="bg-black/5 pb-2 -mb-2 rounded-ss-lg rounded-se-lg">
-          <div className='flex items-center gap-2 px-3 h-7 leading-7 '>
+          <div className="flex items-center gap-2 px-3 h-7 leading-7 ">
             <Bot className="h-3.5 w-3.5 text-primary" />
-            <span className="text-sm">{t('toolbar.currentAgent', { agent: currentAgentName })}</span>
+            <span className="text-sm">
+              {t('toolbar.currentAgent', { agent: currentAgentName })}
+            </span>
           </div>
         </div>
         {/* Attachment Previews */}
@@ -427,7 +523,9 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
         )}
 
         {/* Input Row */}
-        <div className={`relative bg-white dark:bg-card rounded-lg shadow-sm border p-1.5 transition-all ${dragOver ? 'border-primary ring-1 ring-primary' : 'border-black/10 dark:border-white/10'}`}>
+        <div
+          className={`relative bg-white dark:bg-card rounded-lg shadow-sm border p-1.5 transition-all ${dragOver ? 'border-primary ring-1 ring-primary' : 'border-black/10 dark:border-white/10'}`}
+        >
           {selectedTarget && (
             <div className="px-2.5 pt-2 pb-1">
               <button
@@ -442,60 +540,9 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
             </div>
           )}
 
-          <div className="flex items-end gap-1.5">
-            {/* Attach Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 h-10 w-10 rounded-full text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground transition-colors"
-              onClick={pickFiles}
-              disabled={disabled || sending}
-              title={t('composer.attachFiles')}
-            >
-              <Paperclip className="h-4 w-4" />
-            </Button>
-
-            {/* {showAgentPicker && (
-              <div ref={pickerRef} className="relative shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    'h-10 w-10 rounded-full text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground transition-colors',
-                    (pickerOpen || selectedTarget) && 'bg-primary/10 text-primary hover:bg-primary/20'
-                  )}
-                  onClick={() => setPickerOpen((open) => !open)}
-                  disabled={disabled || sending}
-                  title={t('composer.pickAgent')}
-                >
-                  <AtSign className="h-4 w-4" />
-                </Button>
-                {pickerOpen && (
-                  <div className="absolute left-0 bottom-full z-20 mb-2 w-72 overflow-hidden rounded-2xl border border-black/10 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-card">
-                    <div className="px-3 py-2 text-[11px] font-medium text-muted-foreground/80">
-                      {t('composer.agentPickerTitle', { currentAgent: currentAgentName })}
-                    </div>
-                    <div className="max-h-64 overflow-y-auto">
-                      {mentionableAgents.map((agent) => (
-                        <AgentPickerItem
-                          key={agent.id}
-                          agent={agent}
-                          selected={agent.id === targetAgentId}
-                          onSelect={() => {
-                            setTargetAgentId(agent.id);
-                            setPickerOpen(false);
-                            textareaRef.current?.focus();
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )} */}
-
+          <div className="flex flex-col gap-1">
             {/* Textarea */}
-            <div className="flex-1 relative">
+            <div className="w-full relative">
               <Textarea
                 ref={textareaRef}
                 value={input}
@@ -510,46 +557,85 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
                 onPaste={handlePaste}
                 placeholder={disabled ? t('composer.gatewayDisconnectedPlaceholder') : ''}
                 disabled={disabled}
-                className="min-h-[40px] max-h-[200px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-transparent py-2.5 px-2 text-[15px] placeholder:text-muted-foreground/60 leading-relaxed"
+                className="min-h-[40px] max-h-[100px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-transparent py-2.5 px-2 text-[15px] placeholder:text-muted-foreground/60 leading-relaxed"
                 rows={1}
               />
             </div>
 
-            {/* Send Button */}
-            <Button
-              onClick={sending ? handleStop : handleSend}
-              disabled={sending ? !canStop : !canSend}
-              size="icon"
-              className={`shrink-0 h-10 w-10 rounded-full transition-colors ${
-                (sending || canSend)
-                  ? 'bg-black/5 dark:bg-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/20'
-                  : 'text-muted-foreground/50 hover:bg-transparent bg-transparent'
-              }`}
-              variant="ghost"
-              title={sending ? t('composer.stop') : t('composer.send')}
-            >
-              {sending ? (
-                <Square className="h-4 w-4" fill="currentColor" />
-              ) : (
-                <SendHorizontal className="h-[18px] w-[18px]" strokeWidth={2} />
-              )}
-            </Button>
+            <div className="flex w-full items-center justify-between">
+              {/* Attach Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0 h-10 w-10 rounded-full text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground transition-colors"
+                onClick={pickFiles}
+                disabled={disabled || sending}
+                title={t('composer.attachFiles')}
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <Select
+                  value={currentEffectiveProviderModel?.accountId ?? ''}
+                  disabled={
+                    disabled ||
+                    sending ||
+                    providerLoading ||
+                    isSwitchingModel ||
+                    enabledProviderModels.length === 0
+                  }
+                  onValueChange={(nextAccountId) => {
+                    void handleProviderModelChange(nextAccountId);
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8  w-auto border-none bg-transparent px-2 py-1 text-xs text-muted-foreground"
+                    title={t('composer.modelSelectorTitle')}
+                    aria-label={t('composer.modelSelectorTitle')}
+                  >
+                    <SelectValue placeholder={t('composer.noAvailableModels')} />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {enabledProviderModels.length === 0 ? (
+                      <SelectItem value="__no_available_models__" disabled>
+                        {t('composer.noAvailableModels')}
+                      </SelectItem>
+                    ) : (
+                      enabledProviderModels.map((model) => (
+                        <SelectItem key={model.accountId} value={model.accountId}>
+                          {model.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {/* Send Button */}
+                <Button
+                  onClick={sending ? handleStop : handleSend}
+                  disabled={sending ? !canStop : !canSend}
+                  size="icon"
+                  className={`shrink-0 h-10 w-10 rounded-full transition-colors ${
+                    sending || canSend
+                      ? 'bg-black/5 dark:bg-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/20'
+                      : 'text-muted-foreground/50 hover:bg-transparent bg-transparent'
+                  }`}
+                  variant="ghost"
+                  title={sending ? t('composer.stop') : t('composer.send')}
+                >
+                  {sending ? (
+                    <Square className="h-4 w-4" fill="currentColor" />
+                  ) : (
+                    <SendHorizontal className="h-[18px] w-[18px]" strokeWidth={2} />
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground/60 px-4">
-          <div className="flex items-center gap-1.5">
-            <div className={cn("w-1.5 h-1.5 rounded-full", gatewayStatus.state === 'running' ? "bg-green-500/80" : "bg-red-500/80")} />
-            <span>
-              {t('composer.gatewayStatus', {
-                state: gatewayStatus.state === 'running'
-                  ? t('composer.gatewayConnected')
-                  : gatewayStatus.state,
-                port: gatewayStatus.port,
-                pid: gatewayStatus.pid ? `| pid: ${gatewayStatus.pid}` : '',
-              })}
-            </span>
-          </div>
-          {hasFailedAttachments && (
+        {hasFailedAttachments && (
+          <div className="mt-2.5 flex items-center justify-end gap-2 text-[11px] text-muted-foreground/60 px-4">
             <Button
               variant="link"
               size="sm"
@@ -561,7 +647,11 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
             >
               {t('composer.retryFailedAttachments')}
             </Button>
-          )}
+          </div>
+        )}
+
+        <div className="w-full mt-2 text-center text-xs text-muted-foreground/60">
+          {t('composer.localAgentNotice')}
         </div>
       </div>
     </div>
@@ -593,7 +683,10 @@ function AttachmentPreview({
       ) : (
         // Generic file card
         <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 max-w-[200px]">
-          <FileIcon mimeType={attachment.mimeType} className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <FileIcon
+            mimeType={attachment.mimeType}
+            className="h-5 w-5 shrink-0 text-muted-foreground"
+          />
           <div className="min-w-0 overflow-hidden">
             <p className="text-xs font-medium truncate">{attachment.fileName}</p>
             <p className="text-[10px] text-muted-foreground">
@@ -625,31 +718,5 @@ function AttachmentPreview({
         <X className="h-3 w-3" />
       </button>
     </div>
-  );
-}
-
-function AgentPickerItem({
-  agent,
-  selected,
-  onSelect,
-}: {
-  agent: AgentSummary;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'flex w-full flex-col items-start rounded-xl px-3 py-2 text-left transition-colors',
-        selected ? 'bg-primary/10 text-foreground' : 'hover:bg-black/5 dark:hover:bg-white/5'
-      )}
-    >
-      <span className="text-[14px] font-medium text-foreground">{agent.name}</span>
-      <span className="text-[11px] text-muted-foreground">
-        {agent.modelDisplay}
-      </span>
-    </button>
   );
 }

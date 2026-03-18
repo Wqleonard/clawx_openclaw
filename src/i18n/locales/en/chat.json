@@ -26,6 +26,9 @@
         "gatewayDisconnectedPlaceholder": "Gateway not connected...",
         "send": "Send",
         "stop": "Stop",
+        "modelSelectorTitle": "Switch chat model",
+        "noAvailableModels": "No available model",
+        "localAgentNotice": "Agent runs locally, content is AI-generated",
         "gatewayConnected": "connected",
         "gatewayStatus": "gateway {{state}} | port: {{port}} {{pid}}",
         "retryFailedAttachments": "Retry failed attachments"

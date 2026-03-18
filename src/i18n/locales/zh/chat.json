@@ -26,6 +26,9 @@
         "gatewayDisconnectedPlaceholder": "网关未连接...",
         "send": "发送",
         "stop": "停止",
+        "modelSelectorTitle": "切换对话模型",
+        "noAvailableModels": "暂无可用模型",
+        "localAgentNotice": "Agent 在本地运行，内容由 AI 生成",
         "gatewayConnected": "已连接",
         "gatewayStatus": "gateway {{state}} | port: {{port}} {{pid}}",
         "retryFailedAttachments": "重试失败的附件"
