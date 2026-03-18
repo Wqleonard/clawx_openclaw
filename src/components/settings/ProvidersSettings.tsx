@@ -231,7 +231,7 @@ export function ProvidersSettings() {
             isEditing={editingProvider === item.account.id}
             onEdit={() => setEditingProvider(item.account.id)}
             onCancelEdit={() => setEditingProvider(null)}
-            onDelete={section === 'custom' ? () => handleDeleteProvider(item.account.id) : undefined}
+            onDelete={() => handleDeleteProvider(item.account.id)}
             onSetDefault={section === 'custom' ? () => handleSetDefault(item.account.id) : undefined}
             onSaveEdits={async (payload) => {
               const updates: Partial<ProviderAccount> = {};
@@ -514,6 +514,7 @@ function ProviderCard({
   const displayName = account.model
     ? `${account.label} (${account.model})`
     : account.label;
+  const canShowDeleteAction = Boolean(onDelete) && !isBaowenmaoPreset;
 
   return (
     <div
@@ -584,12 +585,14 @@ function ProviderCard({
           </div>
         )}
 
-        {!isEditing && isEditable && !minimalView && (
+        {!isEditing && (
           <div className={cn(
-            'absolute top-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
-            showEnableSwitch ? 'right-14' : 'right-4'
+            'absolute flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
+            minimalView
+              ? (showEnableSwitch ? 'right-20 top-1/2 -translate-y-1/2' : 'right-4 top-1/2 -translate-y-1/2')
+              : (showEnableSwitch ? 'right-14 top-4' : 'right-4 top-4')
           )}>
-            {onSetDefault && !isDefault && (
+            {!minimalView && isEditable && onSetDefault && !isDefault && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -603,7 +606,7 @@ function ProviderCard({
                 <Check className="h-4 w-4" />
               </Button>
             )}
-            {!isBaowenmaoPreset && (
+            {!minimalView && isEditable && !isBaowenmaoPreset && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -617,14 +620,14 @@ function ProviderCard({
                 <Edit className="h-4 w-4" />
               </Button>
             )}
-            {onDelete && (
+            {canShowDeleteAction && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-white dark:hover:bg-card shadow-sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete();
+                  onDelete?.();
                 }}
                 title={t('aiProviders.card.delete')}
               >
