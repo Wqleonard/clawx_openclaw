@@ -129,7 +129,9 @@ export function Chat() {
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
   const setProjectSwitching = useChatLayoutStore((s) => s.setProjectSwitching);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(
+    null
+  );
   const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
@@ -202,7 +204,11 @@ export function Chat() {
         // 2/3) Derive project sessions (source used by sessionBuckets) from current project.
         const targetSessions = [...chatState.sessions]
           .filter((session) => fsState.projectBindings[session.key] === workspacePath)
-          .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+          .sort(
+            (a, b) =>
+              (chatState.sessionLastActivity[b.key] ?? 0) -
+              (chatState.sessionLastActivity[a.key] ?? 0)
+          );
 
         // 4) If project has bound sessions, activate and load the first one.
         if (targetSessions.length > 0) {
@@ -308,38 +314,40 @@ export function Chat() {
   const hasAnyStreamContent =
     hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
   const getSessionLabel = useCallback(
-    (key: string, displayName?: string, label?: string) => sessionLabels[key] ?? label ?? displayName ?? key,
-    [sessionLabels],
+    (key: string, displayName?: string, label?: string) =>
+      sessionLabels[key] ?? label ?? displayName ?? key,
+    [sessionLabels]
   );
   const agentNameById = useMemo(
     () => Object.fromEntries(agents.map((agent) => [agent.id, agent.name])),
-    [agents],
+    [agents]
   );
   const projectSessions = useMemo(() => {
     if (!workspacePath) return [];
     return sessions.filter((session) => projectBindings[session.key] === workspacePath);
   }, [workspacePath, sessions, projectBindings]);
-  const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = useMemo(() => {
-    const buckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [
-      { key: 'today', label: t('historyBuckets.today'), sessions: [] },
-      { key: 'yesterday', label: t('historyBuckets.yesterday'), sessions: [] },
-      { key: 'withinWeek', label: t('historyBuckets.withinWeek'), sessions: [] },
-      { key: 'withinTwoWeeks', label: t('historyBuckets.withinTwoWeeks'), sessions: [] },
-      { key: 'withinMonth', label: t('historyBuckets.withinMonth'), sessions: [] },
-      { key: 'older', label: t('historyBuckets.older'), sessions: [] },
-    ];
-    const bucketMap = Object.fromEntries(buckets.map((bucket) => [bucket.key, bucket])) as Record<
-      SessionBucketKey,
-      (typeof buckets)[number]
-    >;
-    for (const session of [...projectSessions].sort(
-      (a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0),
-    )) {
-      const bucketKey = getSessionBucket(sessionLastActivity[session.key] ?? 0, nowMs);
-      bucketMap[bucketKey].sessions.push(session);
-    }
-    return buckets;
-  }, [t, projectSessions, sessionLastActivity, nowMs]);
+  const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> =
+    useMemo(() => {
+      const buckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [
+        { key: 'today', label: t('historyBuckets.today'), sessions: [] },
+        { key: 'yesterday', label: t('historyBuckets.yesterday'), sessions: [] },
+        { key: 'withinWeek', label: t('historyBuckets.withinWeek'), sessions: [] },
+        { key: 'withinTwoWeeks', label: t('historyBuckets.withinTwoWeeks'), sessions: [] },
+        { key: 'withinMonth', label: t('historyBuckets.withinMonth'), sessions: [] },
+        { key: 'older', label: t('historyBuckets.older'), sessions: [] },
+      ];
+      const bucketMap = Object.fromEntries(buckets.map((bucket) => [bucket.key, bucket])) as Record<
+        SessionBucketKey,
+        (typeof buckets)[number]
+      >;
+      for (const session of [...projectSessions].sort(
+        (a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0)
+      )) {
+        const bucketKey = getSessionBucket(sessionLastActivity[session.key] ?? 0, nowMs);
+        bucketMap[bucketKey].sessions.push(session);
+      }
+      return buckets;
+    }, [t, projectSessions, sessionLastActivity, nowMs]);
 
   const isEmpty = messages.length === 0 && !sending;
   const markdownOpenFiles = useMemo(
@@ -387,7 +395,7 @@ export function Chat() {
     },
     [activeFile, updateFileContent]
   );
-  
+
   const onListDragStart = useCallback(
     (e: React.MouseEvent) => {
       isListDragging.current = true;
@@ -401,13 +409,10 @@ export function Chat() {
         const delta = ev.clientX - listDragStartX.current;
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
         const maxByContainer = containerWidth - CHAT_MIN_WIDTH - editorWidth - 8;
-        const dynamicMaxWidth = Math.max(
-          LIST_MIN_WIDTH,
-          Math.min(LIST_MAX_WIDTH, maxByContainer),
-        );
+        const dynamicMaxWidth = Math.max(LIST_MIN_WIDTH, Math.min(LIST_MAX_WIDTH, maxByContainer));
         const next = Math.min(
           dynamicMaxWidth,
-          Math.max(LIST_MIN_WIDTH, listDragStartWidth.current + delta),
+          Math.max(LIST_MIN_WIDTH, listDragStartWidth.current + delta)
         );
         setListWidth(next);
       };
@@ -421,7 +426,7 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth, listWidth],
+    [editorWidth, listWidth]
   );
 
   // Drag-to-resize editor while preserving chat page behavior from main branch.
@@ -439,12 +444,12 @@ export function Chat() {
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
         const maxByContainer = Math.max(
           EDITOR_MIN_WIDTH,
-          containerWidth - CHAT_MIN_WIDTH - listWidth - 8,
+          containerWidth - CHAT_MIN_WIDTH - listWidth - 8
         );
         const dynamicMaxWidth = Math.min(EDITOR_MAX_WIDTH, maxByContainer);
         const next = Math.min(
           dynamicMaxWidth,
-          Math.max(EDITOR_MIN_WIDTH, editorDragStartWidth.current - delta),
+          Math.max(EDITOR_MIN_WIDTH, editorDragStartWidth.current - delta)
         );
         setEditorWidth(next);
       };
@@ -478,13 +483,13 @@ export function Chat() {
   return (
     <div
       ref={containerRef}
-      className={cn('flex h-full transition-colors duration-500 dark:bg-background')}
+      className={cn('px-3 pb-3 flex h-full transition-colors duration-500 dark:bg-background')}
     >
       {!isSessionListCollapsed && (
         <>
           {/* Chat List Panel */}
           <div
-            className="shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
+            className="rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
             style={{ width: listWidth }}
           >
             {workspacePath && (
@@ -493,7 +498,7 @@ export function Chat() {
                   onClick={() => void handleNewProjectSession()}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
-                    'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground',
+                    'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground'
                   )}
                 >
                   <div className="flex shrink-0 items-center justify-center text-foreground/80">
@@ -525,7 +530,7 @@ export function Chat() {
                                 'hover:bg-black/5 dark:hover:bg-white/5',
                                 currentSessionKey === session.key
                                   ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
-                                  : 'text-foreground/75',
+                                  : 'text-foreground/75'
                               )}
                             >
                               <div className="flex min-w-0 items-center gap-2">
@@ -543,13 +548,17 @@ export function Chat() {
                                 event.stopPropagation();
                                 setSessionToDelete({
                                   key: session.key,
-                                  label: getSessionLabel(session.key, session.displayName, session.label),
+                                  label: getSessionLabel(
+                                    session.key,
+                                    session.displayName,
+                                    session.label
+                                  ),
                                 });
                               }}
                               className={cn(
                                 'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
                                 'opacity-0 group-hover:opacity-100',
-                                'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
+                                'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
                               )}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -558,7 +567,7 @@ export function Chat() {
                         );
                       })}
                     </div>
-                  ) : null,
+                  ) : null
                 )}
               </>
             )}
@@ -566,22 +575,20 @@ export function Chat() {
 
           <div
             onMouseDown={onListDragStart}
-            className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
+            className="w-2 h-full cursor-col-resize"
             title="拖动调整宽度"
-          ></div>
+          >
+            <div className="w-0.5 mx-auto h-full"></div>
+          </div>
         </>
       )}
 
       {/* Chat Panel */}
-      <div className={cn(
-        "relative flex flex-1 flex-col overflow-hidden",
-        !isSessionListCollapsed && "rounded-ss-lg border-l"
-      )}>
+      <div className={cn('rounded-2xl border relative flex flex-1 flex-col overflow-hidden')}>
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />
         </div>
-
 
         {/* Messages Area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pr-2 py-4">
@@ -675,16 +682,18 @@ export function Chat() {
 
       <div
         onMouseDown={onEditorDragStart}
-        className="w-1 h-full cursor-col-resize -mr-0.5 z-9"
+        className="w-2 h-full cursor-col-resize"
         title="拖动调整宽度"
-      ></div>
+      >
+        <div className="w-0.5 mx-auto h-full"></div>
+      </div>
 
       {/* Markdown Viewer Panel */}
       <div
-        className="group relative border-l flex shrink-0 overflow-hidden"
+        className="group relative border rounded-2xl flex shrink-0 overflow-hidden"
         style={{ width: editorWidth }}
       >
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-border">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <FileTabs
             openFiles={markdownOpenFiles}
             activeFile={activeMarkdownFile}
@@ -743,8 +752,8 @@ export function Chat() {
       {workspacePath && (
         <div
           className={cn(
-            'shrink-0 overflow-hidden  border-border bg-background transition-[width] duration-200 ease-out',
-            isFileTreeDrawerOpen ? 'w-[260px]' : 'w-0 pointer-events-none border-l-0 border-t-0'
+            'ml-2 rounded-2xl border shrink-0 overflow-hidden bg-background transition-[width] duration-200 ease-out',
+            isFileTreeDrawerOpen ? 'w-[260px]' : 'w-0 pointer-events-none border-none'
           )}
         >
           <FileTree key={workspacePath} className="h-full" />

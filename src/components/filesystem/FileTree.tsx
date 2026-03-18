@@ -609,7 +609,7 @@ export function FileTree({ className }: FileTreeProps) {
     <section
       ref={fileTreeRef}
       className={cn(
-        'flex h-full min-h-0 flex-col border-r bg-[#eae8e1]/45 dark:bg-background',
+        'flex h-full min-h-0 flex-col bg-[#eae8e1]/45 dark:bg-background',
         className
       )}
     >
