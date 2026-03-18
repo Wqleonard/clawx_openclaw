@@ -1141,6 +1141,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
 
         // Background: fetch first user message for every non-main session to populate labels upfront.
         // Uses a small limit so it's cheap; runs in parallel and doesn't block anything.
+        // :main sessions get labeled via loadHistory when the user switches to them.
         const sessionsToLabel = sessionsWithCurrent.filter((s) => !s.key.endsWith(':main'));
         if (sessionsToLabel.length > 0) {
           void Promise.all(
@@ -1349,19 +1350,15 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
       set({ messages: finalMessages, thinkingLevel, loading: false });
 
       // Extract first user message text as a session label for display in the toolbar.
-      // Skip main sessions (key ends with ":main") — they rely on the Gateway-provided
-      // displayName (e.g. the configured agent name "BoomClaw") instead.
-      const isMainSession = currentSessionKey.endsWith(':main');
-      if (!isMainSession) {
-        const firstUserMsg = finalMessages.find((m) => m.role === 'user');
-        if (firstUserMsg) {
-          const labelText = getMessageText(firstUserMsg.content).trim();
-          if (labelText) {
-            const truncated = labelText.length > 50 ? `${labelText.slice(0, 50)}…` : labelText;
-            set((s) => ({
-              sessionLabels: { ...s.sessionLabels, [currentSessionKey]: truncated },
-            }));
-          }
+      // All sessions (including :main) use the first user message as the display name.
+      const firstUserMsg = finalMessages.find((m) => m.role === 'user');
+      if (firstUserMsg) {
+        const labelText = getMessageText(firstUserMsg.content).trim();
+        if (labelText) {
+          const truncated = labelText.length > 50 ? `${labelText.slice(0, 50)}…` : labelText;
+          set((s) => ({
+            sessionLabels: { ...s.sessionLabels, [currentSessionKey]: truncated },
+          }));
         }
       }
 
@@ -1508,7 +1505,7 @@ const createChatStore: Parameters<typeof create<ChatState>>[0] = (set, get) => (
     // Update session label with first user message text as soon as it's sent
     const { sessionLabels, messages } = get();
     const isFirstMessage = !messages.slice(0, -1).some((m) => m.role === 'user');
-    if (!currentSessionKey.endsWith(':main') && isFirstMessage && !sessionLabels[currentSessionKey] && trimmed) {
+    if (isFirstMessage && !sessionLabels[currentSessionKey] && trimmed) {
       const truncated = trimmed.length > 50 ? `${trimmed.slice(0, 50)}…` : trimmed;
       set((s) => ({ sessionLabels: { ...s.sessionLabels, [currentSessionKey]: truncated } }));
     }
