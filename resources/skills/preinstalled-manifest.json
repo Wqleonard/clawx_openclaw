@@ -2,41 +2,26 @@
   "skills": [
     {
       "slug": "story-setting-skill",
-      "repo": "boomclaw/skills",
-      "repoPath": "skills/story-setting-skill",
-      "ref": "main",
       "version": "1.0.0",
       "autoEnable": true
     },
     {
       "slug": "role-setting-skill",
-      "repo": "boomclaw/skills",
-      "repoPath": "skills/role-setting-skill",
-      "ref": "main",
       "version": "1.0.0",
       "autoEnable": true
     },
     {
       "slug": "outline-creation-skill",
-      "repo": "boomclaw/skills",
-      "repoPath": "skills/outline-creation-skill",
-      "ref": "main",
       "version": "1.0.0",
       "autoEnable": true
     },
     {
       "slug": "intro-creation-skill",
-      "repo": "boomclaw/skills",
-      "repoPath": "skills/intro-creation-skill",
-      "ref": "main",
       "version": "1.0.0",
       "autoEnable": true
     },
     {
       "slug": "content-creation-skill",
-      "repo": "boomclaw/skills",
-      "repoPath": "skills/content-creation-skill",
-      "ref": "main",
       "version": "1.0.0",
       "autoEnable": true
     }

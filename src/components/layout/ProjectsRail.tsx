@@ -136,8 +136,8 @@ export function ProjectsRail() {
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
   const [showAddProjectDialog, setShowAddProjectDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  const [pendingProjectBaseName, setPendingProjectBaseName] = useState('');
   const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
-  const [pendingWorkspacePath, setPendingWorkspacePath] = useState<string>('');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const projectItems = useMemo<ProjectItem[]>(
@@ -178,6 +178,14 @@ export function ProjectsRail() {
       window.removeEventListener('scroll', closeMenu, true);
       window.removeEventListener('resize', closeMenu);
       window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const openCreateProjectDialog = () => setShowAddProjectDialog(true);
+    window.addEventListener('project:create-request', openCreateProjectDialog);
+    return () => {
+      window.removeEventListener('project:create-request', openCreateProjectDialog);
     };
   }, []);
 
@@ -245,7 +253,7 @@ export function ProjectsRail() {
     navigate('/chat');
   };
 
-  const handleAddProject = async () => {
+  const handleConfirmProjectName = async () => {
     const allowedRoot = workspaceRoots?.trim() ?? '';
     if (!allowedRoot) {
       toast.error('请先在设置中配置可用工作区');
@@ -268,10 +276,29 @@ export function ProjectsRail() {
       return;
     }
 
-    const joinPath = (root: string, child: string): string => {
-      if (!root) return child;
-      return /[\\/]$/.test(root) ? `${root}${child}` : `${root}/${child}`;
-    };
+    setPendingProjectBaseName(normalizedName);
+    setShowAddProjectDialog(false);
+    setShowAddAgentDialog(true);
+  };
+
+  const handleCreateAgentAndProject = async (
+    name: string,
+    options: { templateId?: string; sourceAgentId?: string; workspacePath?: string }
+  ) => {
+    const allowedRoot = workspaceRoots?.trim() ?? '';
+    if (!allowedRoot) {
+      toast.error('请先在设置中配置可用工作区');
+      return;
+    }
+    const baseName = pendingProjectBaseName.trim();
+    if (!baseName) {
+      toast.error('请输入 Project 名称');
+      return;
+    }
+
+    const joinPath = (root: string, child: string): string => (
+      /[\\/]$/.test(root) ? `${root}${child}` : `${root}/${child}`
+    );
     const isAlreadyExistsError = (error: unknown): boolean => {
       const message = error instanceof Error ? error.message : String(error);
       const normalized = message.toLowerCase();
@@ -280,23 +307,22 @@ export function ProjectsRail() {
 
     setIsAddingWorkspace(true);
     try {
-      // fs:create-folder can only create paths inside current main-process workspace.
-      // Ensure workspace is set to configured root before creating a new project folder.
       await invokeIpc<string>('fs:set-workspace', allowedRoot);
 
       let suffix = 0;
       let selected = '';
       while (suffix < 10_000) {
-        const candidateName = suffix === 0 ? normalizedName : `${normalizedName}-${suffix}`;
+        const candidateName = suffix === 0 ? baseName : `${baseName}-${suffix}`;
         const candidatePath = joinPath(allowedRoot, candidateName);
         try {
-          await invokeIpc<boolean>('fs:create-folder', candidatePath);
-          selected = candidatePath;
-          break;
+          await invokeIpc<unknown>('fs:read-tree', candidatePath);
+          suffix += 1;
         } catch (error) {
-          if (isAlreadyExistsError(error)) {
-            suffix += 1;
-            continue;
+          const message = error instanceof Error ? error.message : String(error);
+          const normalized = message.toLowerCase();
+          if (normalized.includes('enoent') || normalized.includes('no such file')) {
+            selected = candidatePath;
+            break;
           }
           throw error;
         }
@@ -307,16 +333,40 @@ export function ProjectsRail() {
         return;
       }
 
+      const beforeIds = new Set(useAgentsStore.getState().agents.map((agent) => agent.id));
+      await createAgent(name, { ...options, workspacePath: selected });
+      const afterAgents = useAgentsStore.getState().agents;
+      const createdAgent =
+        afterAgents.find((agent) => !beforeIds.has(agent.id))
+        ?? afterAgents.find(
+          (agent) =>
+            normalizeComparePath(agent.workspace) === normalizeComparePath(selected)
+            && agent.name === name
+        );
+      if (!createdAgent) {
+        throw new Error('创建 Agent 后无法定位对应会话');
+      }
+
+      await useFileSystemStore.getState().bindProjectToSession(createdAgent.mainSessionKey, selected);
+
+      try {
+        await invokeIpc<boolean>('fs:create-folder', selected);
+      } catch (error) {
+        if (!isAlreadyExistsError(error)) {
+          throw error;
+        }
+      }
+
       await switchToProjectSession(selected);
       await initProject(selected);
       addProjectShortcut(selected);
-      setPendingWorkspacePath(selected);
-      setShowAddAgentDialog(true);
-      setShowAddProjectDialog(false);
+      setShowAddAgentDialog(false);
+      setPendingProjectBaseName('');
       setNewProjectName('');
+      toast.success(t('common:status.agentCreated'));
     } catch (error) {
       console.error(error);
-      toast.error(t('common:projectDialog.error'),{position:'top-center'});
+      toast.error(t('common:projectDialog.error'), { position: 'top-center' });
     } finally {
       setIsAddingWorkspace(false);
     }
@@ -516,17 +566,10 @@ export function ProjectsRail() {
         open={showAddAgentDialog}
         onClose={() => {
           setShowAddAgentDialog(false);
-          setPendingWorkspacePath('');
+          setPendingProjectBaseName('');
         }}
-        initialWorkspacePath={pendingWorkspacePath}
         hideWorkspaceSelector
-        onCreate={async (name, options) => {
-          const workspacePath = options.workspacePath || pendingWorkspacePath;
-          await createAgent(name, { ...options, workspacePath });
-          setShowAddAgentDialog(false);
-          setPendingWorkspacePath('');
-          toast.success(t('common:status.agentCreated'));
-        }}
+        onCreate={handleCreateAgentAndProject}
       />
 
       <Dialog
@@ -535,6 +578,7 @@ export function ProjectsRail() {
           setShowAddProjectDialog(open);
           if (!open) {
             setNewProjectName('');
+            setPendingProjectBaseName('');
           }
         }}
       >
@@ -551,7 +595,7 @@ export function ProjectsRail() {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  void handleAddProject();
+                  void handleConfirmProjectName();
                 }
               }}
               maxLength={200}
@@ -566,7 +610,7 @@ export function ProjectsRail() {
               >
                 {t('common:actions.cancel')}
               </Button>
-              <Button onClick={() => void handleAddProject()} disabled={isAddingWorkspace}>
+              <Button onClick={() => void handleConfirmProjectName()} disabled={isAddingWorkspace}>
                 {isAddingWorkspace ? t('common:projectDialog.creating') : t('common:projectDialog.create')}
               </Button>
             </div>
