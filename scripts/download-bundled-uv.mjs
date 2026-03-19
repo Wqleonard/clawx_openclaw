@@ -1,11 +1,13 @@
 #!/usr/bin/env zx
 
 import 'zx/globals';
+import { execFileSync } from 'child_process';
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const UV_VERSION = '0.10.0';
 const BASE_URL = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}`;
 const OUTPUT_BASE = path.join(ROOT_DIR, 'resources', 'bin');
+const DOWNLOAD_RETRIES = 3;
 
 // Mapping Node platforms/archs to uv release naming
 const TARGETS = {
@@ -42,6 +44,58 @@ const PLATFORM_GROUPS = {
   'linux': ['linux-x64', 'linux-arm64']
 };
 
+async function downloadFileWithRetry(url, destination, retries = DOWNLOAD_RETRIES) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        redirect: 'follow',
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+
+      const tempFile = `${destination}.part`;
+      const arrayBuffer = await response.arrayBuffer();
+      await fs.writeFile(tempFile, Buffer.from(arrayBuffer));
+      await fs.move(tempFile, destination, { overwrite: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      try {
+        execFileSync('curl', ['-L', '--retry', '3', '--connect-timeout', '30', '-o', destination, url], {
+          stdio: 'inherit',
+          windowsHide: true,
+        });
+        return;
+      } catch (curlError) {
+        lastError = curlError;
+        if (process.platform === 'win32') {
+          try {
+            const psCommand = `Invoke-WebRequest -Uri "${url.replace(/"/g, '""')}" -OutFile "${destination.replace(/"/g, '""')}"`;
+            execFileSync('powershell.exe', ['-NoProfile', '-Command', psCommand], {
+              stdio: 'inherit',
+              windowsHide: true,
+            });
+            return;
+          } catch (powershellError) {
+            lastError = powershellError;
+          }
+        }
+      }
+
+      if (attempt < retries) {
+        echo(chalk.yellow`⚠️ Download attempt ${attempt}/${retries} failed, retrying...`);
+        await new Promise((resolve) => setTimeout(resolve, 1200 * attempt));
+      }
+    }
+  }
+
+  throw new Error(`Failed to download ${url}: ${String(lastError)}`);
+}
+
 async function setupTarget(id) {
   const target = TARGETS[id];
   if (!target) {
@@ -63,9 +117,9 @@ async function setupTarget(id) {
   await fs.ensureDir(tempDir);
 
   try {
-    // Download (use curl to respect system proxy settings)
+    // Download using Node fetch to avoid shell quoting issues across environments.
     echo`⬇️ Downloading: ${downloadUrl}`;
-    await $`curl -L --retry 3 --connect-timeout 30 -o ${archivePath} ${downloadUrl}`;
+    await downloadFileWithRetry(downloadUrl, archivePath);
 
     // Extract
     echo`📂 Extracting...`;
