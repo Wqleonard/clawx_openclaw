@@ -13,6 +13,7 @@ import type { HostApiContext } from '../context';
 import { setCorsHeaders, sendJson } from '../route-utils';
 import { getProviderSecret } from '../../services/secrets/secret-store';
 import { getClawXProviderStore } from '../../services/providers/store-instance';
+import { logger } from '../../utils/logger';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,8 @@ const SEARCH_ACCOUNT_ID = 'ark:custom-baowenmao';
 const SEARCH_SYSTEM_PROMPT =
   '你是一个专业的网络搜索助手。请使用搜索工具收集相关信息，给出简洁准确的综合摘要，并在回答末尾用 [标题](URL) 格式标注所有参考来源。用中文回答。';
 
-const SEARCH_TOOLS = [{"type": "web_search","limit": 5}];
+// Responses API web_search tool — 火山方舟格式
+const SEARCH_TOOLS = [{ type: 'web_search', limit: 5 }];
 
 // ── Credential helper ──────────────────────────────────────────────────────
 
@@ -72,21 +74,58 @@ async function getCredentials(): Promise<Credentials | null> {
   return { token, baseUrl };
 }
 
-// ── Chat Completions response parser ──────────────────────────────────────
+// ── Responses API response parser ─────────────────────────────────────────
 
-interface ChatCompletionsResponse {
-  choices?: Array<{
-    message?: {
-      content?: string | null;
-    };
-  }>;
+interface ResponsesApiAnnotation {
+  type: string;
+  url?: string;
+  title?: string;
 }
 
-function extractTextFromChatResponse(data: ChatCompletionsResponse): string {
-  return data.choices?.[0]?.message?.content?.trim() ?? '';
+interface ResponsesApiContentBlock {
+  type: string;
+  text?: string;
+  annotations?: ResponsesApiAnnotation[];
 }
 
-// ── Web search implementation ──────────────────────────────────────────────
+interface ResponsesApiOutputItem {
+  type: string;
+  role?: string;
+  content?: ResponsesApiContentBlock[];
+}
+
+interface ResponsesApiResponse {
+  output?: ResponsesApiOutputItem[];
+}
+
+interface ParsedResponsesResult {
+  text: string;
+  citations: Array<{ title: string; url: string }>;
+}
+
+function parseResponsesOutput(data: ResponsesApiResponse): ParsedResponsesResult {
+  let text = '';
+  const citations: Array<{ title: string; url: string }> = [];
+
+  for (const item of data.output ?? []) {
+    if (item.type === 'message' && item.content) {
+      for (const block of item.content) {
+        if (block.type === 'output_text' && block.text) {
+          text += block.text;
+          for (const ann of block.annotations ?? []) {
+            if (ann.type === 'url_citation' && ann.url) {
+              citations.push({ title: ann.title ?? ann.url, url: ann.url });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return { text, citations };
+}
+
+// ── Web search implementation (Responses API) ─────────────────────────────
 
 async function performSearch(query: string, _count: number): Promise<SearchResponse> {
   const creds = await getCredentials();
@@ -105,68 +144,115 @@ async function performSearch(query: string, _count: number): Promise<SearchRespo
 
   const { token, baseUrl } = creds;
 
-  const chatUrl = `${baseUrl}/chat/completions`;
-  console.log('[boom-search] POST', chatUrl, 'model:', SEARCH_MODEL);
+  // 业务网关代理到 /api/v3/responses
+  const responsesUrl = `${baseUrl}/responses`;
+  const reqBody = {
+    model: SEARCH_MODEL,
+    stream: false,
+    tools: SEARCH_TOOLS,
+    thinking: {type: "disabled"},
+    input: [
+      {
+        role: 'system',
+        content: [{ type: 'input_text', text: SEARCH_SYSTEM_PROMPT }],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: `请帮我搜索并总结以下内容，并标注出重要信息URL地址：${query}`,
+          },
+        ],
+      },
+    ],
+  };
 
-  const response = await fetch(chatUrl, {
+  const response = await fetch(responsesUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      model: SEARCH_MODEL,
-      messages: [
-        { role: 'system', content: SEARCH_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: `请帮我搜索并总结以下内容，并标注出重要信息URL地址：${query}`,
-        },
-      ],
-      tools: SEARCH_TOOLS,
-      stream: false,
-    }),
-    signal: AbortSignal.timeout(30_000),
+    body: JSON.stringify(reqBody),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
-    console.error('[boom-search] backend error', response.status, errText);
+    logger.error('[boom-search] backend error', response.status, errText);
     throw new Error(`Search API ${response.status}: ${errText}`);
   }
 
-  const data = (await response.json()) as ChatCompletionsResponse;
-  const text = extractTextFromChatResponse(data);
-
-  // 从文本中提取 Markdown 链接 [title](url) 作为引用
-  const linkRe = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
-  const citations: SearchResult[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = linkRe.exec(text)) !== null) {
-    citations.push({ title: match[1], url: match[2], description: match[2] });
-  }
+  const data = (await response.json()) as ResponsesApiResponse;
+  const { text, citations } = parseResponsesOutput(data);
 
   return {
     query,
     results: [
       { title: `关于「${query}」的搜索摘要`, url: '', description: text },
-      ...citations,
+      ...citations.map((c) => ({ title: c.title, url: c.url, description: c.url })),
     ],
   };
 }
 
-/**
- * web_fetch is not yet implemented — returns a placeholder.
- */
 async function performFetch(
   targetUrl: string,
-  _mode: string,
-  _maxChars: number,
+  mode: string,
+  maxChars: number,
 ): Promise<FetchResponse> {
+  const creds = await getCredentials();
+  if (!creds) {
+    return {
+      url: targetUrl,
+      content: '请先登录爆文猫账号后再使用网页抓取功能',
+      extractMode: mode,
+    };
+  }
+
+  const { token, baseUrl } = creds;
+  const responsesUrl = `${baseUrl}/responses`;
+  const reqBody = {
+    model: SEARCH_MODEL,
+    stream: false,
+    tools: SEARCH_TOOLS,
+    thinking: { type: 'disabled' },
+    input: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: `请访问并提取以下网页的主要内容，以纯文本形式返回，保留关键信息和重要链接，最多 ${maxChars} 字：${targetUrl}`,
+          },
+        ],
+      },
+    ],
+  };
+
+  const response = await fetch(responsesUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(reqBody),
+    signal: AbortSignal.timeout(60_000),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    logger.error('[boom-fetch] backend error', response.status, errText);
+    throw new Error(`Fetch API ${response.status}: ${errText}`);
+  }
+
+  const data = (await response.json()) as ResponsesApiResponse;
+  const { text } = parseResponsesOutput(data);
+
   return {
     url: targetUrl,
-    content: `[web_fetch 暂未实现] 目标地址: ${targetUrl}`,
-    extractMode: _mode,
+    content: text.slice(0, maxChars) || '（未能提取到网页内容）',
+    extractMode: mode,
   };
 }
 
@@ -209,7 +295,7 @@ export async function handleBoomSearchRoutes(
       sendJson(res, 200, await performSearch(query, count));
     } catch (err) {
       const msg = String(err);
-      console.error('[boom-search] performSearch threw:', msg);
+      logger.error('[boom-search] performSearch threw:', msg);
       sendJson(res, 500, { error: 'search_failed', message: msg, query });
     }
     return true;
