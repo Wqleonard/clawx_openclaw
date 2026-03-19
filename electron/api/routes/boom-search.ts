@@ -36,7 +36,7 @@ export interface FetchResponse {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const SEARCH_MODEL = 'ep-20250911202653-fr9dl';
+const SEARCH_MODEL = 'ark:ep-20250911202653-fr9dl';
 
 const SEARCH_ACCOUNT_ID = 'ark:custom-baowenmao';
 
@@ -150,7 +150,8 @@ async function performSearch(query: string, _count: number): Promise<SearchRespo
     model: SEARCH_MODEL,
     stream: false,
     tools: SEARCH_TOOLS,
-    thinking: {type: "disabled"},
+    extra_body: {"thinking": {"type": "disabled"}},
+    // thinking: {type: "disabled"},
     input: [
       {
         role: 'system',
@@ -216,7 +217,8 @@ async function performFetch(
     model: SEARCH_MODEL,
     stream: false,
     tools: SEARCH_TOOLS,
-    thinking: { type: 'disabled' },
+    extra_body: {"thinking": {"type": "disabled"}},
+    // thinking: { type: 'disabled' },
     input: [
       {
         role: 'user',
