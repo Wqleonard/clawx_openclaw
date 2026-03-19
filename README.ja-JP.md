@@ -408,5 +408,5 @@ ClawXは[MITライセンス](LICENSE)の下でリリースされています。�
 ---
 
 <p align="center">
-  <sub>ValueCell Teamが❤️を込めて開発</sub>
+  <sub>Baowenmao Teamが❤️を込めて開発</sub>
 </p>

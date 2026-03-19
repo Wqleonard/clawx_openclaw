@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Loader2, Plus, Trash2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
@@ -26,8 +26,13 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
 import { Button } from '@/components/ui/button';
+import { useSettingsStore } from '@/stores/settings';
+import { invokeIpc } from '@/lib/api-client';
+import { toast } from 'sonner';
+import { useLoginStore } from '@/stores/loginStore';
 
 const INITIAL_NOW_MS = Date.now();
+let hasCheckedWorkspaceOnStartup = false;
 
 type SessionBucketKey =
   | 'today'
@@ -66,8 +71,9 @@ function isMarkdownFile(filePath: string): boolean {
 }
 
 export function Chat() {
-  const { t } = useTranslation('chat');
+  const { t, i18n } = useTranslation(['chat', 'settings']);
   const navigate = useNavigate();
+  const location = useLocation();
   const [mdViewMode, setMdViewMode] = useState<'source' | 'rendered'>('rendered');
   const persistedListWidth = useChatStyleStore((s) => s.listWidth);
   const persistedEditorWidth = useChatStyleStore((s) => s.editorWidth);
@@ -123,6 +129,10 @@ export function Chat() {
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
   const projectPath = useFileSystemStore((s) => s.projectPath);
+  const workspaceRoots = useSettingsStore((s) => s.workspaceRoots);
+  const setWorkspaceRoots = useSettingsStore((s) => s.setWorkspaceRoots);
+  const setupComplete = useSettingsStore((s) => s.setupComplete);
+  const isLoggedIn = useLoginStore((s) => s.isLoggedIn);
 
   const bindProjectToSession = useFileSystemStore((s) => s.bindProjectToSession);
   const projectBindings = useFileSystemStore((s) => s.projectBindings);
@@ -146,8 +156,11 @@ export function Chat() {
   const [isListResizing, setIsListResizing] = useState(false);
   const [isEditorResizing, setIsEditorResizing] = useState(false);
   const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
+  const [showWorkspaceSetupDialog, setShowWorkspaceSetupDialog] = useState(false);
   const minLoading = useMinLoading(loading && messages.length > 0);
   const { contentRef, scrollRef } = useStickToBottomInstant(currentSessionKey);
+  const isZh = i18n.language?.startsWith('zh');
+  const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
   const resetChatRuntimeState = useCallback(() => {
     useChatStore.setState({
       messages: [],
@@ -180,6 +193,63 @@ export function Chat() {
   useEffect(() => {
     void fetchAgents();
   }, [fetchAgents]);
+
+  const handlePickWorkspaceRoot = useCallback(async () => {
+    try {
+      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
+        properties: ['openDirectory'],
+        defaultPath: workspaceRoots || undefined,
+      });
+      if (result.canceled || !result.filePaths?.length) return;
+      setWorkspaceRoots(result.filePaths[0]);
+      toast.success(t('settings:workspace.saved'));
+    } catch {
+      toast.error(t('settings:workspace.saveFailed'));
+    }
+  }, [setWorkspaceRoots, t, workspaceRoots]);
+
+  const workspaceSetupDialog = (
+    <ConfirmDialog
+      open={showWorkspaceSetupDialog}
+      title={isZh ? '设置工作区' : 'Set Workspace'}
+      message={
+        isZh
+          ? '检测到你还没有配置工作区。是否现在选择一个工作区目录？'
+          : 'No workspace is configured yet. Do you want to pick a workspace directory now?'
+      }
+      confirmLabel={t('common:actions.confirm')}
+      cancelLabel={t('common:actions.cancel')}
+      onConfirm={async () => {
+        setShowWorkspaceSetupDialog(false);
+        await handlePickWorkspaceRoot();
+      }}
+      onCancel={() => setShowWorkspaceSetupDialog(false)}
+    />
+  );
+
+  useEffect(() => {
+    if (hasCheckedWorkspaceOnStartup) return;
+    if (!isLoggedIn || !setupComplete || !isOnChatRoute) return;
+    const configuredRoot = workspaceRoots.trim();
+    hasCheckedWorkspaceOnStartup = true;
+    if (!configuredRoot) {
+      setShowWorkspaceSetupDialog(true);
+      return;
+    }
+
+    // Treat missing/deleted configured path as "not configured".
+    void invokeIpc<string>('fs:set-workspace', configuredRoot)
+      .catch(() => {
+        setWorkspaceRoots('');
+        setShowWorkspaceSetupDialog(true);
+      });
+  }, [
+    isLoggedIn,
+    setupComplete,
+    isOnChatRoute,
+    workspaceRoots,
+    setWorkspaceRoots,
+  ]);
 
   useEffect(() => {
     if (projectPath) return;
@@ -762,7 +832,12 @@ export function Chat() {
   }, []);
 
   if (!projectPath) {
-    return <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />;
+    return (
+      <>
+        <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />
+        {workspaceSetupDialog}
+      </>
+    );
   }
 
   return (
@@ -1063,6 +1138,7 @@ export function Chat() {
         }}
         onCancel={() => setSessionToDelete(null)}
       />
+      {workspaceSetupDialog}
     </div>
   );
 }
