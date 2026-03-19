@@ -26,6 +26,8 @@ import { useFileSystemStore } from '@/stores/filesystem';
 import { useGatewayStore } from '@/stores/gateway';
 import { cn } from '@/lib/utils';
 
+const SESSION_LIST_DRAWER_BREAKPOINT = 1300;
+
 export function TitleBar() {
   const platform = window.electron?.platform;
 
@@ -45,18 +47,37 @@ export function TitleBar() {
 
 function MacTitleBar() {
   const { t } = useTranslation('chat');
+  const [isSessionDrawerMode, setIsSessionDrawerMode] = useState<boolean>(
+    () => window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT
+  );
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
   const toggleFileTreeDrawer = useChatLayoutStore((s) => s.toggleFileTreeDrawer);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
+  const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
   const toggleSessionListCollapsed = useChatLayoutStore((s) => s.toggleSessionListCollapsed);
+  const toggleSessionDrawer = useChatLayoutStore((s) => s.toggleSessionDrawer);
   const projectPath = useFileSystemStore((s) => s.projectPath);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsSessionDrawerMode(window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleOpenFolder = () => {
     toggleFileTreeDrawer();
   };
   const handleToggleSessionPanel = () => {
+    if (isSessionDrawerMode) {
+      toggleSessionDrawer();
+      return;
+    }
     toggleSessionListCollapsed();
   };
+  const isSessionPanelOpen = isSessionDrawerMode ? isSessionDrawerOpen : !isSessionListCollapsed;
 
   return (
     <div className="drag-region flex h-10 shrink-0 items-center justify-end border-b bg-background pl-20 pr-3">
@@ -67,15 +88,15 @@ function MacTitleBar() {
             size="icon"
             className={cn(
               'size-7 cursor-pointer',
-              !isSessionListCollapsed ? 'bg-accent' : 'text-muted-foreground'
+              isSessionPanelOpen ? 'bg-accent' : 'text-muted-foreground'
             )}
             onClick={handleToggleSessionPanel}
-            title={isSessionListCollapsed ? t('common:actions.open') : t('common:actions.close')}
+            title={isSessionPanelOpen ? t('common:actions.close') : t('common:actions.open')}
           >
-            {isSessionListCollapsed ? (
-              <PanelLeftOpen className="size-4" />
-            ) : (
+            {isSessionPanelOpen ? (
               <PanelLeftClose className="size-4" />
+            ) : (
+              <PanelLeftOpen className="size-4" />
             )}
           </Button>
           <Button
@@ -104,12 +125,17 @@ function WindowsTitleBar() {
   const { t } = useTranslation('chat');
   const [maximized, setMaximized] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isSessionDrawerMode, setIsSessionDrawerMode] = useState<boolean>(
+    () => window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT
+  );
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
   const toggleFileTreeDrawer = useChatLayoutStore((s) => s.toggleFileTreeDrawer);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
+  const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
   const toggleSessionListCollapsed = useChatLayoutStore((s) => s.toggleSessionListCollapsed);
+  const toggleSessionDrawer = useChatLayoutStore((s) => s.toggleSessionDrawer);
   const projectPath = useFileSystemStore((s) => s.projectPath);
 
   useEffect(() => {
@@ -119,12 +145,26 @@ function WindowsTitleBar() {
     });
   }, []);
 
+  useEffect(() => {
+    const handleResize = () => {
+      setIsSessionDrawerMode(window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const handleOpenFolder = () => {
     toggleFileTreeDrawer();
   };
   const handleToggleSessionPanel = () => {
+    if (isSessionDrawerMode) {
+      toggleSessionDrawer();
+      return;
+    }
     toggleSessionListCollapsed();
   };
+  const isSessionPanelOpen = isSessionDrawerMode ? isSessionDrawerOpen : !isSessionListCollapsed;
 
   const handleMinimize = () => {
     invokeIpc('window:minimize');
@@ -151,15 +191,15 @@ function WindowsTitleBar() {
             size="icon"
             className={cn(
               'size-7 cursor-pointer',
-              !isSessionListCollapsed ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
+              isSessionPanelOpen ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
             )}
             onClick={handleToggleSessionPanel}
-            title={isSessionListCollapsed ? t('common:actions.open') : t('common:actions.close')}
+            title={isSessionPanelOpen ? t('common:actions.close') : t('common:actions.open')}
           >
-            {isSessionListCollapsed ? (
-              <PanelLeftOpen className="size-4" />
-            ) : (
+            {isSessionPanelOpen ? (
               <PanelLeftClose className="size-4" />
+            ) : (
+              <PanelLeftOpen className="size-4" />
             )}
           </Button>
         )}
