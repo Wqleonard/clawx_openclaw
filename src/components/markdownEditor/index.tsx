@@ -3,6 +3,10 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
+import { Table } from '@tiptap/extension-table';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableRow } from '@tiptap/extension-table-row';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
@@ -100,7 +104,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
   }, [onChange]);
 
   const editor = useEditor({
-    extensions: [StarterKit, Markdown,Mermaid],
+    extensions: [StarterKit, Table, TableRow, TableHeader, TableCell, Markdown, Mermaid],
     content: value,
     contentType: 'markdown',
     editable: mode === 'rendered',
@@ -196,7 +200,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
   return (
     <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
       <TooltipProvider>
-        <Toolbar className="shrink-0">
+        <Toolbar className="shrink-0 border-b">
           <ToolbarGroup>
             <ToolbarButton
               tooltip={t('markdownEditor.toolbar.undo')}
@@ -372,7 +376,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
           spellCheck={false}
         />
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="min-h-0 flex-1 overflow-auto scrollbar-hover">
             <EditorContent editor={editor} className="h-full" />
           </div>
         )

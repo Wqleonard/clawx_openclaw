@@ -29,7 +29,6 @@ export function MainLayout() {
       {/* Below the title bar: sidebar + content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Workspace Rail */}
-        <ProjectsRail />
 
         {/* <Sidebar /> */}
         <main className="flex-1 overflow-auto">

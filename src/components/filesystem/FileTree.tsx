@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useChatStore } from '@/stores/chat';
 import type { FileNode } from '@/types/electron';
+import { useChatLayoutStore } from '@/stores/chat-layout';
 
 type FileTreeProps = {
   className?: string;
@@ -132,6 +133,7 @@ function FileTreeNode({
   expanded,
   toggleExpanded,
   contextPathSet,
+  activeFilePath,
   onSelectNode,
   onOpenFile,
   onContextMenu,
@@ -141,6 +143,7 @@ function FileTreeNode({
   expanded: Set<string>;
   toggleExpanded: (path: string) => void;
   contextPathSet: Set<string>;
+  activeFilePath?: string | null;
   onSelectNode: (node: FileNode) => void;
   onOpenFile: (filePath: string) => void;
   onContextMenu: (event: React.MouseEvent, node: FileNode) => void;
@@ -149,6 +152,7 @@ function FileTreeNode({
   const isOpen = expanded.has(node.path);
   const hasChildren = !!node.children?.length;
   const isInContext = !isFolder && contextPathSet.has(node.path);
+  const isActiveFile = !isFolder && !!activeFilePath && node.path === activeFilePath;
 
   return (
     <div>
@@ -165,7 +169,9 @@ function FileTreeNode({
         onContextMenu={(event) => onContextMenu(event, node)}
         className={cn(
           'flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors',
-          'hover:bg-black/5 dark:hover:bg-white/5'
+          isActiveFile
+            ? 'bg-black/5 dark:bg-white/10'
+            : 'hover:bg-black/5 dark:hover:bg-white/5'
         )}
         style={{ paddingLeft: `${8 + level * 14}px` }}
       >
@@ -208,6 +214,7 @@ function FileTreeNode({
             expanded={expanded}
             toggleExpanded={toggleExpanded}
             contextPathSet={contextPathSet}
+            activeFilePath={activeFilePath}
             onSelectNode={onSelectNode}
             onOpenFile={onOpenFile}
             onContextMenu={onContextMenu}
@@ -222,6 +229,7 @@ export function FileTree({ className }: FileTreeProps) {
   const projectPath = useFileSystemStore((s) => s.projectPath);
   const tree = useFileSystemStore((s) => s.tree);
   const contextFiles = useFileSystemStore((s) => s.contextFiles);
+  const activeFile = useFileSystemStore((s) => s.activeFile);
   const lastError = useFileSystemStore((s) => s.lastError);
   const refreshTree = useFileSystemStore((s) => s.refreshTree);
   const openFile = useFileSystemStore((s) => s.openFile);
@@ -598,10 +606,12 @@ export function FileTree({ className }: FileTreeProps) {
     openInputModal,
   ]);
 
+  const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
+
   const menuStyle = contextMenu
     ? {
-        left: contextMenu.x,
-        top: contextMenu.y,
+        left: isFileTreeDrawerMode? 8: contextMenu.x,
+        top: isFileTreeDrawerMode? contextMenu.y-34 : contextMenu.y,
       }
     : undefined;
 
@@ -669,6 +679,7 @@ export function FileTree({ className }: FileTreeProps) {
             expanded={expanded}
             toggleExpanded={toggleExpanded}
             contextPathSet={contextPathSet}
+            activeFilePath={activeFile}
             onSelectNode={(nodeValue) => setSelectedNode(nodeValue)}
             onOpenFile={(filePath) => {
               void openFile(filePath);

@@ -84,7 +84,10 @@ function getWorkspaceTheme(workspacePath: string): ProjectBadgeTheme {
 }
 
 function normalizeComparePath(inputPath: string): string {
-  return inputPath.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
+  return inputPath
+    .replace(/[\\/]+/g, '/')
+    .replace(/\/+$/, '')
+    .toLowerCase();
 }
 
 function WorkspaceShortcutButton({
@@ -201,47 +204,58 @@ export function ProjectsRail() {
 
   const agents = useAgentsStore((state) => state.agents);
 
-  const switchToProjectSession = useCallback(async (targetPath: string) => {
-    const chatState = useChatStore.getState();
-    const fsState = useFileSystemStore.getState();
+  const switchToProjectSession = useCallback(
+    async (targetPath: string) => {
+      const chatState = useChatStore.getState();
+      const fsState = useFileSystemStore.getState();
 
-    // Prefer agent-based routing: match workspace path to a known agent.
-    const matchingAgent = agents.find(
-      (a) => normalizeComparePath(a.workspace) === normalizeComparePath(targetPath),
-    );
+      // Prefer agent-based routing: match workspace path to a known agent.
+      const matchingAgent = agents.find(
+        (a) => normalizeComparePath(a.workspace) === normalizeComparePath(targetPath)
+      );
 
-    if (matchingAgent) {
-      // Find the most recent session for this agent by key prefix.
-      const agentSessions = [...chatState.sessions]
-        .filter((s) => s.key.startsWith(`agent:${matchingAgent.id}:`))
-        .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+      if (matchingAgent) {
+        // Find the most recent session for this agent by key prefix.
+        const agentSessions = [...chatState.sessions]
+          .filter((s) => s.key.startsWith(`agent:${matchingAgent.id}:`))
+          .sort(
+            (a, b) =>
+              (chatState.sessionLastActivity[b.key] ?? 0) -
+              (chatState.sessionLastActivity[a.key] ?? 0)
+          );
 
-      const targetKey = agentSessions[0]?.key ?? `agent:${matchingAgent.id}:main`;
-      if (targetKey !== chatState.currentSessionKey) {
-        chatState.switchSession(targetKey);
+        const targetKey = agentSessions[0]?.key ?? `agent:${matchingAgent.id}:main`;
+        if (targetKey !== chatState.currentSessionKey) {
+          chatState.switchSession(targetKey);
+        }
+        return;
       }
-      return;
-    }
 
-    // Non-agent workspace: fall back to projectBindings lookup.
-    const targetSessions = [...chatState.sessions]
-      .filter((session) => fsState.projectBindings[session.key] === targetPath)
-      .sort((a, b) => (chatState.sessionLastActivity[b.key] ?? 0) - (chatState.sessionLastActivity[a.key] ?? 0));
+      // Non-agent workspace: fall back to projectBindings lookup.
+      const targetSessions = [...chatState.sessions]
+        .filter((session) => fsState.projectBindings[session.key] === targetPath)
+        .sort(
+          (a, b) =>
+            (chatState.sessionLastActivity[b.key] ?? 0) -
+            (chatState.sessionLastActivity[a.key] ?? 0)
+        );
 
-    if (targetSessions.length > 0) {
-      const nextSessionKey = targetSessions[0].key;
-      if (nextSessionKey !== chatState.currentSessionKey) {
-        chatState.switchSession(nextSessionKey);
+      if (targetSessions.length > 0) {
+        const nextSessionKey = targetSessions[0].key;
+        if (nextSessionKey !== chatState.currentSessionKey) {
+          chatState.switchSession(nextSessionKey);
+        }
+        return;
       }
-      return;
-    }
 
-    chatState.newSession();
-    const newSessionKey = useChatStore.getState().currentSessionKey;
-    if (newSessionKey) {
-      await fsState.bindProjectToSession(newSessionKey, targetPath);
-    }
-  }, [agents]);
+      chatState.newSession();
+      const newSessionKey = useChatStore.getState().currentSessionKey;
+      if (newSessionKey) {
+        await fsState.bindProjectToSession(newSessionKey, targetPath);
+      }
+    },
+    [agents]
+  );
 
   const handleActivateProject = async (targetPath: string) => {
     if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
@@ -296,9 +310,8 @@ export function ProjectsRail() {
       return;
     }
 
-    const joinPath = (root: string, child: string): string => (
-      /[\\/]$/.test(root) ? `${root}${child}` : `${root}/${child}`
-    );
+    const joinPath = (root: string, child: string): string =>
+      /[\\/]$/.test(root) ? `${root}${child}` : `${root}/${child}`;
     const isAlreadyExistsError = (error: unknown): boolean => {
       const message = error instanceof Error ? error.message : String(error);
       const normalized = message.toLowerCase();
@@ -337,17 +350,19 @@ export function ProjectsRail() {
       await createAgent(name, { ...options, workspacePath: selected });
       const afterAgents = useAgentsStore.getState().agents;
       const createdAgent =
-        afterAgents.find((agent) => !beforeIds.has(agent.id))
-        ?? afterAgents.find(
+        afterAgents.find((agent) => !beforeIds.has(agent.id)) ??
+        afterAgents.find(
           (agent) =>
-            normalizeComparePath(agent.workspace) === normalizeComparePath(selected)
-            && agent.name === name
+            normalizeComparePath(agent.workspace) === normalizeComparePath(selected) &&
+            agent.name === name
         );
       if (!createdAgent) {
         throw new Error('创建 Agent 后无法定位对应会话');
       }
 
-      await useFileSystemStore.getState().bindProjectToSession(createdAgent.mainSessionKey, selected);
+      await useFileSystemStore
+        .getState()
+        .bindProjectToSession(createdAgent.mainSessionKey, selected);
 
       try {
         await invokeIpc<boolean>('fs:create-folder', selected);
@@ -394,12 +409,13 @@ export function ProjectsRail() {
     const targetAgentIds = new Set(
       agents
         .filter((agent) => normalizeComparePath(agent.workspace) === normalizeComparePath(target))
-        .map((agent) => agent.id),
+        .map((agent) => agent.id)
     );
     const sessionsToDelete = useChatStore
       .getState()
       .sessions.filter((session) => {
-        const boundByProject = useFileSystemStore.getState().projectBindings[session.key] === target;
+        const boundByProject =
+          useFileSystemStore.getState().projectBindings[session.key] === target;
         const sessionAgentId = session.key.startsWith('agent:') ? session.key.split(':')[1] : null;
         const boundByAgentWorkspace = sessionAgentId ? targetAgentIds.has(sessionAgentId) : false;
         return boundByProject || boundByAgentWorkspace;
@@ -500,7 +516,7 @@ export function ProjectsRail() {
           <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
         </Button>
 
-        <Button
+        {/* <Button
           variant="ghost"
           size="icon"
           className={cn(
@@ -512,23 +528,21 @@ export function ProjectsRail() {
           aria-label="Open settings"
         >
           <SettingsIcon className="h-4 w-4" strokeWidth={2} />
-        </Button>
+        </Button> */}
 
-        {/* {isDev && ( */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
-              'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
-            )}
-            onClick={() => void openDevConsole()}
-            title="Open debug console"
-            aria-label="Open debug console"
-          >
-            <Terminal className="h-4 w-4" strokeWidth={2} />
-          </Button>
-        {/* )} */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
+          onClick={() => void openDevConsole()}
+          title="Open debug console"
+          aria-label="Open debug console"
+        >
+          <Terminal className="h-4 w-4" strokeWidth={2} />
+        </Button>
       </div>
 
       {menuState && (
@@ -584,9 +598,7 @@ export function ProjectsRail() {
         <DialogContent className="max-w-md">
           <DialogTitle>{t('common:projectDialog.title')}</DialogTitle>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {t('common:projectDialog.description')}
-            </p>
+            <p className="text-sm text-muted-foreground">{t('common:projectDialog.description')}</p>
             <Input
               autoFocus
               value={newProjectName}
@@ -610,7 +622,9 @@ export function ProjectsRail() {
                 {t('common:actions.cancel')}
               </Button>
               <Button onClick={() => void handleConfirmProjectName()} disabled={isAddingWorkspace}>
-                {isAddingWorkspace ? t('common:projectDialog.creating') : t('common:projectDialog.create')}
+                {isAddingWorkspace
+                  ? t('common:projectDialog.creating')
+                  : t('common:projectDialog.create')}
               </Button>
             </div>
           </div>

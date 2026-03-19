@@ -30,8 +30,12 @@ import { useSettingsStore } from '@/stores/settings';
 import { invokeIpc } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { useLoginStore } from '@/stores/loginStore';
+import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { ProjectsRail } from '@/components/layout/ProjectsRail';
 
 const INITIAL_NOW_MS = Date.now();
+const SESSION_LIST_DRAWER_BREAKPOINT = 1400;
+const FILE_TREE_DRAWER_BREAKPOINT = 1020;
 let hasCheckedWorkspaceOnStartup = false;
 
 type SessionBucketKey =
@@ -144,8 +148,15 @@ export function Chat() {
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
+  const setFileTreeDrawerOpen = useChatLayoutStore((s) => s.setFileTreeDrawerOpen);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
+  const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
+  const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
+  const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
   const setProjectSwitching = useChatLayoutStore((s) => s.setProjectSwitching);
+  const setSessionDrawerOpen = useChatLayoutStore((s) => s.setSessionDrawerOpen);
+  const setSessionDrawerMode = useChatLayoutStore((s) => s.setSessionDrawerMode);
+  const setFileTreeDrawerMode = useChatLayoutStore((s) => s.setFileTreeDrawerMode);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(
     null
@@ -153,6 +164,10 @@ export function Chat() {
   const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
+  const prevSessionDrawerModeRef = useRef(isSessionDrawerMode);
+  const prevFileTreeDrawerModeRef = useRef(isFileTreeDrawerMode);
+
+
   const [isListResizing, setIsListResizing] = useState(false);
   const [isEditorResizing, setIsEditorResizing] = useState(false);
   const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
@@ -238,18 +253,11 @@ export function Chat() {
     }
 
     // Treat missing/deleted configured path as "not configured".
-    void invokeIpc<string>('fs:set-workspace', configuredRoot)
-      .catch(() => {
-        setWorkspaceRoots('');
-        setShowWorkspaceSetupDialog(true);
-      });
-  }, [
-    isLoggedIn,
-    setupComplete,
-    isOnChatRoute,
-    workspaceRoots,
-    setWorkspaceRoots,
-  ]);
+    void invokeIpc<string>('fs:set-workspace', configuredRoot).catch(() => {
+      setWorkspaceRoots('');
+      setShowWorkspaceSetupDialog(true);
+    });
+  }, [isLoggedIn, setupComplete, isOnChatRoute, workspaceRoots, setWorkspaceRoots]);
 
   useEffect(() => {
     if (projectPath) return;
@@ -375,6 +383,44 @@ export function Chat() {
   }, []);
 
   useEffect(() => {
+    const updateSessionDrawerMode = () => {
+      const nextMode = window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT;
+      setSessionDrawerMode(nextMode);
+      if (!nextMode) {
+        setSessionDrawerOpen(false);
+      }
+    };
+    const updateFileTreeDrawerMode = () => {
+      const nextMode = window.innerWidth < FILE_TREE_DRAWER_BREAKPOINT;
+      setFileTreeDrawerMode(nextMode);
+    };
+    updateSessionDrawerMode();
+    updateFileTreeDrawerMode();
+    window.addEventListener('resize', updateSessionDrawerMode);
+    window.addEventListener('resize', updateFileTreeDrawerMode);
+    return () => {
+      window.removeEventListener('resize', updateSessionDrawerMode);
+      window.removeEventListener('resize', updateFileTreeDrawerMode);
+    };
+  }, [setFileTreeDrawerMode, setSessionDrawerMode, setSessionDrawerOpen]);
+
+  useEffect(() => {
+    const wasDrawerMode = prevSessionDrawerModeRef.current;
+    if (wasDrawerMode !== isSessionDrawerMode) {
+      setSessionDrawerOpen(false);
+    }
+    prevSessionDrawerModeRef.current = isSessionDrawerMode;
+  }, [isSessionDrawerMode, setSessionDrawerOpen]);
+
+  useEffect(() => {
+    const wasDrawerMode = prevFileTreeDrawerModeRef.current;
+    if (!wasDrawerMode && isFileTreeDrawerMode) {
+      setFileTreeDrawerOpen(false);
+    }
+    prevFileTreeDrawerModeRef.current = isFileTreeDrawerMode;
+  }, [isFileTreeDrawerMode, setFileTreeDrawerOpen]);
+
+  useEffect(() => {
     // Keep the persisted selection as the source of truth on refresh.
     // Only derive project from session/agent when no project is currently selected.
     if (projectPath) {
@@ -493,8 +539,10 @@ export function Chat() {
       setFileTreeWidth(persistedFileTreeWidth);
     }
   }, [persistedFileTreeWidth]);
-  const effectiveListWidth = isSessionListCollapsed ? 0 : listWidth;
-  const effectiveFileTreeWidth = projectPath && isFileTreeDrawerOpen ? fileTreeWidth : 0;
+  const isSessionListInlineVisible = !isSessionDrawerMode && !isSessionListCollapsed;
+  const effectiveListWidth = isSessionListInlineVisible ? listWidth : 0;
+  const isFileTreeInlineVisible = !!projectPath && isFileTreeDrawerOpen && !isFileTreeDrawerMode;
+  const effectiveFileTreeWidth = isFileTreeInlineVisible ? fileTreeWidth : 0;
 
   const isEmpty = messages.length === 0 && !sending;
   const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
@@ -831,6 +879,85 @@ export function Chat() {
     window.dispatchEvent(new CustomEvent('project:create-request'));
   }, []);
 
+  const sessionListContent = (
+    <>
+      <button
+        onClick={() => void handleNewProjectSession()}
+        className={cn(
+          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
+          'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground'
+        )}
+      >
+        <div className="flex shrink-0 items-center justify-center text-foreground/80">
+          <Plus className="h-[18px] w-[18px]" strokeWidth={2} />
+        </div>
+        <span className="flex-1 text-left overflow-hidden text-ellipsis whitespace-nowrap">
+          {t('common:sidebar.newChat')}
+        </span>
+      </button>
+
+      {sessionBuckets.map((bucket) =>
+        bucket.sessions.length > 0 ? (
+          <div key={bucket.key} className="pt-2">
+            <div className="px-2.5 pb-1 text-[11px] font-medium text-muted-foreground/60 tracking-tight">
+              {bucket.label}
+            </div>
+            {bucket.sessions.map((session) => {
+              const agentId = getAgentIdFromSessionKey(session.key);
+              const agentName = agentNameById[agentId] || agentId;
+              return (
+                <div key={session.key} className="group relative flex items-center">
+                  <button
+                    onClick={() => {
+                      switchSession(session.key);
+                      navigate('/');
+                      if (isSessionDrawerMode) {
+                        setSessionDrawerOpen(false);
+                      }
+                    }}
+                    className={cn(
+                      'w-full text-left rounded-lg px-2.5 py-1.5 text-[13px] transition-colors pr-7',
+                      'hover:bg-black/5 dark:hover:bg-white/5',
+                      currentSessionKey === session.key
+                        ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
+                        : 'text-foreground/75'
+                    )}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/70 dark:bg-white/[0.08]">
+                        {agentName}
+                      </span>
+                      <span className="truncate">
+                        {getSessionLabel(session.key, session.displayName, session.label)}
+                      </span>
+                    </div>
+                  </button>
+                  <button
+                    aria-label="Delete session"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSessionToDelete({
+                        key: session.key,
+                        label: getSessionLabel(session.key, session.displayName, session.label),
+                      });
+                    }}
+                    className={cn(
+                      'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
+                      'opacity-0 group-hover:opacity-100',
+                      'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
+                    )}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : null
+      )}
+    </>
+  );
+
   if (!projectPath) {
     return (
       <>
@@ -843,113 +970,70 @@ export function Chat() {
   return (
     <div
       ref={containerRef}
-      className={cn('px-3 pl-0 pb-3 flex h-full transition-colors duration-500 dark:bg-background')}
+      className={cn(
+        'px-3 py-3 flex h-full transition-colors duration-500 dark:bg-background',
+        isSessionDrawerMode ? 'pl-3' : 'pl-0'
+      )}
     >
-      {!isSessionListCollapsed && (
+      {!isSessionDrawerMode && <ProjectsRail />}
+
+      {/* Session List Panel */}
+      {!isSessionDrawerMode && (
         <>
           {/* Chat List Panel */}
-          <div
-            className="rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
-            style={{ width: listWidth }}
-          >
-            {projectPath && (
-              <>
-                <button
-                  onClick={() => void handleNewProjectSession()}
-                  className={cn(
-                    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
-                    'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground'
-                  )}
-                >
-                  <div className="flex shrink-0 items-center justify-center text-foreground/80">
-                    <Plus className="h-[18px] w-[18px]" strokeWidth={2} />
-                  </div>
-                  <span className="flex-1 text-left overflow-hidden text-ellipsis whitespace-nowrap">
-                    {t('common:sidebar.newChat')}
-                  </span>
-                </button>
 
-                {sessionBuckets.map((bucket) =>
-                  bucket.sessions.length > 0 ? (
-                    <div key={bucket.key} className="pt-2">
-                      <div className="px-2.5 pb-1 text-[11px] font-medium text-muted-foreground/60 tracking-tight">
-                        {bucket.label}
-                      </div>
-                      {bucket.sessions.map((session) => {
-                        const agentId = getAgentIdFromSessionKey(session.key);
-                        const agentName = agentNameById[agentId] || agentId;
-                        return (
-                          <div key={session.key} className="group relative flex items-center">
-                            <button
-                              onClick={() => {
-                                switchSession(session.key);
-                                navigate('/');
-                              }}
-                              className={cn(
-                                'w-full text-left rounded-lg px-2.5 py-1.5 text-[13px] transition-colors pr-7',
-                                'hover:bg-black/5 dark:hover:bg-white/5',
-                                currentSessionKey === session.key
-                                  ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
-                                  : 'text-foreground/75'
-                              )}
-                            >
-                              <div className="flex min-w-0 items-center gap-2">
-                                <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/70 dark:bg-white/[0.08]">
-                                  {agentName}
-                                </span>
-                                <span className="truncate">
-                                  {getSessionLabel(session.key, session.displayName, session.label)}
-                                </span>
-                              </div>
-                            </button>
-                            <button
-                              aria-label="Delete session"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setSessionToDelete({
-                                  key: session.key,
-                                  label: getSessionLabel(
-                                    session.key,
-                                    session.displayName,
-                                    session.label
-                                  ),
-                                });
-                              }}
-                              className={cn(
-                                'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
-                                'opacity-0 group-hover:opacity-100',
-                                'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
-                              )}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null
-                )}
-              </>
+          <div
+            className={cn(
+              'rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden space-y-0.5',
+              isListResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
+              isSessionListInlineVisible
+                ? 'pointer-events-auto px-3 py-4'
+                : 'w-0 p-0 pointer-events-none border-none'
             )}
+            style={isSessionListInlineVisible ? { width: listWidth } : undefined}
+          >
+            {projectPath && sessionListContent}
           </div>
 
-          <div
-            onMouseDown={onListDragStart}
-            className="w-2 h-full cursor-col-resize group"
-            title={resizeHandleTitle}
-          >
+          {isSessionListInlineVisible && (
             <div
-              className={cn(
-                'w-0.5 mx-auto h-full',
-                isListResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
-              )}
-            ></div>
-          </div>
+              onMouseDown={onListDragStart}
+              className="w-2 h-full cursor-col-resize group"
+              title={resizeHandleTitle}
+            >
+              <div
+                className={cn(
+                  'w-0.5 mx-auto h-full',
+                  isListResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+                )}
+              ></div>
+            </div>
+          )}
         </>
+      )}
+      {isSessionDrawerMode && projectPath && (
+        <Drawer
+          open={isSessionDrawerOpen}
+          onOpenChange={(open) => setSessionDrawerOpen(open)}
+          direction="left"
+          modal
+        >
+          <DrawerContent
+            hideOverlay
+            className="border-none py-3 space-y-0.5 max-w-none data-[vaul-drawer-direction=left]:top-10 data-[vaul-drawer-direction=left]:h-auto"
+          >
+            <div className="flex h-full">
+              <ProjectsRail />
+              <div className="h-[calc(100%+2px)] p-3 -mt-[2px] flex-1 border rounded-ss-2xl rounded-es-2xl overflow-y-auto overflow-x-hidden">
+                {sessionListContent}
+              </div>
+            </div>
+          </DrawerContent>
+        </Drawer>
       )}
 
       {/* Chat Panel */}
-      <div className={cn('rounded-2xl border relative flex flex-1 flex-col overflow-hidden')}>
+      <div className={cn('rounded-2xl border relative flex flex-1 min-w-[400px] flex-col overflow-hidden')}>
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />
@@ -959,7 +1043,7 @@ export function Chat() {
         <div
           ref={scrollRef}
           className={cn(
-            'chat-messages-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden',
+            'scrollbar-hover flex-1 min-h-0 overflow-y-auto overflow-x-hidden',
             !projectPath && 'pointer-events-none opacity-70'
           )}
         >
@@ -1094,30 +1178,53 @@ export function Chat() {
 
       {projectPath && (
         <>
-          {isFileTreeDrawerOpen && (
-            <div
-              onMouseDown={onFileTreeDragStart}
-              className="w-2 h-full cursor-col-resize group"
-              title={resizeHandleTitle}
-            >
+          {!isFileTreeDrawerMode && (
+            <>
+              {/* resize dragger */}
+              {isFileTreeInlineVisible && (
+                <div
+                  onMouseDown={onFileTreeDragStart}
+                  className="w-2 h-full cursor-col-resize group"
+                  title={resizeHandleTitle}
+                >
+                  <div
+                    className={cn(
+                      'w-0.5 mx-auto h-full',
+                      isFileTreeResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+                    )}
+                  ></div>
+                </div>
+              )}
               <div
                 className={cn(
-                  'w-0.5 mx-auto h-full',
-                  isFileTreeResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+                  'rounded-2xl border shrink-0 overflow-hidden bg-background',
+                  isFileTreeResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
+                  isFileTreeInlineVisible ? 'pointer-events-auto' : 'w-0 pointer-events-none border-none'
                 )}
-              ></div>
-            </div>
+                style={isFileTreeInlineVisible ? { width: fileTreeWidth } : undefined}
+              >
+                <FileTree key={projectPath} className="h-full" />
+              </div>
+            </>
           )}
-          <div
-            className={cn(
-              'rounded-2xl border shrink-0 overflow-hidden bg-background',
-              isFileTreeResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
-              isFileTreeDrawerOpen ? 'pointer-events-auto' : 'w-0 pointer-events-none border-none'
-            )}
-            style={isFileTreeDrawerOpen ? { width: fileTreeWidth } : undefined}
-          >
-            <FileTree key={projectPath} className="h-full" />
-          </div>
+          {isFileTreeDrawerMode && (
+            <Drawer
+              direction="right"
+              open={isFileTreeDrawerOpen}
+              onOpenChange={(open) => setFileTreeDrawerOpen(open)}
+              modal
+            >
+              <DrawerContent
+                hideOverlay
+                className="max-w-none py-3 !border-none !rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:h-auto"
+                style={{ width: `min(86vw, ${fileTreeWidth}px)` }}
+              >
+                <div className="h-full  border overflow-hidden">
+                  <FileTree key={`${projectPath}-drawer`} className="h-full" />
+                </div>
+              </DrawerContent>
+            </Drawer>
+          )}
         </>
       )}
 
