@@ -32,6 +32,7 @@ import { GatewayStateController } from './state';
 import { prepareGatewayLaunchContext } from './config-sync';
 import { connectGatewaySocket, waitForGatewayReady } from './ws-client';
 import {
+  clearStaleGatewayLockFiles,
   findExistingGatewayProcess,
   runOpenClawDoctorRepair,
   terminateOwnedGatewayProcess,
@@ -245,6 +246,9 @@ export class GatewayManager extends EventEmitter {
         },
         waitForPortFree: async (port) => {
           await waitForPortFree(port);
+        },
+        clearStaleLockFiles: async () => {
+          await clearStaleGatewayLockFiles();
         },
         startProcess: async () => {
           await this.startProcess();

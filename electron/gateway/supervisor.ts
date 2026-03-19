@@ -1,6 +1,8 @@
 import { app, utilityProcess } from 'electron';
 import path from 'path';
+import os from 'os';
 import { existsSync } from 'fs';
+import { readdir, readFile, rm } from 'fs/promises';
 import WebSocket from 'ws';
 import { getOpenClawDir, getOpenClawEntryPath } from '../utils/paths';
 import { getUvMirrorEnv } from '../utils/uv-env';
@@ -19,6 +21,61 @@ export function warmupManagedPythonReadiness(): void {
   }).catch((err) => {
     logger.error('Failed to check Python environment:', err);
   });
+}
+
+/**
+ * On Windows, the Gateway's lock file can survive a process kill because the OS
+ * briefly keeps the PID "alive" in its process table after the signal is sent.
+ * This causes the next Gateway instance to wait the full 5-second lock timeout
+ * before giving up.  We pre-empt this by scanning the lock directory ourselves
+ * and removing any lock files whose owner PID is already dead.
+ *
+ * Lock directory: %TEMP%\openclaw\
+ * Lock file pattern: gateway.<8-char-hash>.lock
+ */
+export async function clearStaleGatewayLockFiles(): Promise<void> {
+  if (process.platform !== 'win32') return;
+
+  try {
+    const lockDir = path.join(os.tmpdir(), 'openclaw');
+
+    let files: string[];
+    try {
+      files = await readdir(lockDir);
+    } catch {
+      return; // directory doesn't exist yet — nothing to clean up
+    }
+
+    const lockFiles = files.filter((f) => f.startsWith('gateway.') && f.endsWith('.lock'));
+    if (lockFiles.length === 0) return;
+
+    for (const lockFile of lockFiles) {
+      const lockPath = path.join(lockDir, lockFile);
+      try {
+        const raw = await readFile(lockPath, 'utf-8');
+        const payload = JSON.parse(raw) as { pid?: number };
+        if (typeof payload?.pid !== 'number') continue;
+
+        const pid = payload.pid;
+        let alive = false;
+        try {
+          process.kill(pid, 0);
+          alive = true;
+        } catch {
+          alive = false;
+        }
+
+        if (!alive) {
+          await rm(lockPath, { force: true });
+          logger.info(`Cleared stale gateway lock file ${lockPath} (pid=${pid} no longer running)`);
+        }
+      } catch {
+        // file may have been removed by a concurrent process — ignore
+      }
+    }
+  } catch (err) {
+    logger.warn('Failed to clear stale gateway lock files:', err);
+  }
 }
 
 export async function terminateOwnedGatewayProcess(child: Electron.UtilityProcess): Promise<void> {
