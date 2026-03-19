@@ -196,7 +196,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
   return (
     <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
       <TooltipProvider>
-        <Toolbar className="shrink-0">
+        <Toolbar className="shrink-0 border-b">
           <ToolbarGroup>
             <ToolbarButton
               tooltip={t('markdownEditor.toolbar.undo')}
@@ -372,7 +372,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
           spellCheck={false}
         />
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="min-h-0 flex-1 overflow-auto scrollbar-hover">
             <EditorContent editor={editor} className="h-full" />
           </div>
         )
