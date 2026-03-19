@@ -186,7 +186,7 @@ export function Sidebar() {
   }, [fetchAgents]);
 
   const agentNameById = useMemo(
-    () => Object.fromEntries(agents.map((agent) => [agent.id, agent.name])),
+    () => Object.fromEntries((agents ?? []).map((agent) => [agent.id, agent.name])),
     [agents],
   );
   const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [

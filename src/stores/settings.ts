@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import i18n from '@/i18n';
 import { hostApiFetch } from '@/lib/host-api';
+import { resolveSupportedLanguage } from '../../shared/language';
 
 type Theme = 'light' | 'dark' | 'system';
 type UpdateChannel = 'stable' | 'beta' | 'dev';
@@ -72,6 +73,8 @@ interface SettingsState {
 const defaultSettings = {
   theme: 'light' as Theme,
   language: 'zh',
+  // theme: 'system' as Theme,
+  // language: resolveSupportedLanguage(typeof navigator !== 'undefined' ? navigator.language : undefined),
   startMinimized: false,
   launchAtStartup: false,
   telemetryEnabled: true,
@@ -122,11 +125,12 @@ export const useSettingsStore = create<SettingsState>()(
 
       setTheme: (theme) => set({ theme }),
       setLanguage: (language) => {
-        i18n.changeLanguage(language);
-        set({ language });
+        const resolvedLanguage = resolveSupportedLanguage(language);
+        i18n.changeLanguage(resolvedLanguage);
+        set({ language: resolvedLanguage });
         void hostApiFetch('/api/settings/language', {
           method: 'PUT',
-          body: JSON.stringify({ value: language }),
+          body: JSON.stringify({ value: resolvedLanguage }),
         }).catch(() => { });
       },
       setStartMinimized: (startMinimized) => set({ startMinimized }),

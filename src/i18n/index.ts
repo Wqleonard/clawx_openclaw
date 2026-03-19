@@ -1,6 +1,14 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+
 import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
+
+import {
+    SUPPORTED_LANGUAGE_CODES,
+    // resolveSupportedLanguage,
+    type LanguageCode,
+} from '../../shared/language';
+
 
 // EN
 import enCommon from './locales/en/common.json';
@@ -39,9 +47,7 @@ export const SUPPORTED_LANGUAGES = [
     { code: 'en', label: 'English' },
     { code: 'zh', label: '中文' },
     { code: 'ja', label: '日本語' },
-] as const;
-
-export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]['code'];
+] as const satisfies ReadonlyArray<{ code: LanguageCode; label: string }>;
 
 const resources = {
     en: {
@@ -83,8 +89,13 @@ i18n
     .use(initReactI18next)
     .init({
         resources,
+
         lng: 'zh', // will be overridden by settings store
+
+        // lng: resolveSupportedLanguage(typeof navigator !== 'undefined' ? navigator.language : undefined),
+
         fallbackLng: 'en',
+        supportedLngs: [...SUPPORTED_LANGUAGE_CODES],
         defaultNS: 'common',
         ns: ['common', 'settings', 'dashboard', 'chat', 'channels', 'agents', 'skills', 'cron', 'setup'],
         interpolation: {

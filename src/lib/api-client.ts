@@ -552,6 +552,7 @@ export function createGatewayHttpTransportInvoker(
     if (typeof method !== 'string') {
       throw new Error('gateway:rpc requires method string');
     }
+    validateGatewayRpcParams(method, params);
 
     const timeoutMs =
       typeof timeoutOverride === 'number' && timeoutOverride > 0
@@ -858,6 +859,7 @@ export function createGatewayWsTransportInvoker(options: GatewayWsTransportOptio
     if (typeof method !== 'string') {
       throw new Error('gateway:rpc requires method string');
     }
+    validateGatewayRpcParams(method, params);
 
     const requestTimeoutMs =
       typeof timeoutOverride === 'number' && timeoutOverride > 0
@@ -886,6 +888,17 @@ export function createGatewayWsTransportInvoker(options: GatewayWsTransportOptio
       });
     });
   };
+}
+
+function validateGatewayRpcParams(method: string, params: unknown): void {
+  if (method !== 'config.patch') return;
+  if (!params || typeof params !== 'object' || Array.isArray(params)) {
+    throw new Error('gateway:rpc config.patch requires object params');
+  }
+  const patch = (params as Record<string, unknown>).patch;
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    throw new Error('gateway:rpc config.patch requires object patch');
+  }
 }
 
 let defaultTransportsInitialized = false;

@@ -1,7 +1,8 @@
 /**
  * TitleBar Component
  * macOS: empty drag region (native traffic lights handled by hiddenInset).
- * Windows/Linux: drag region on left, minimize/maximize/close on right.
+ * Windows: drag region with custom minimize/maximize/close controls.
+ * Linux: use native window chrome (no custom title bar).
  */
 import { useState, useEffect } from 'react';
 import {
@@ -25,11 +26,18 @@ import { useFileSystemStore } from '@/stores/filesystem';
 import { useGatewayStore } from '@/stores/gateway';
 import { cn } from '@/lib/utils';
 
-const isMac = window.electron?.platform === 'darwin';
-
 export function TitleBar() {
-  if (isMac) {
+  const platform = window.electron?.platform;
+
+  if (platform === 'darwin') {
+    // macOS: just a drag region, traffic lights are native
     return <MacTitleBar />;
+    // return <div className="drag-region h-10 shrink-0 border-b bg-background" />;
+  }
+
+  // Linux keeps the native frame/title bar for better IME compatibility.
+  if (platform !== 'win32') {
+    return null;
   }
 
   return <WindowsTitleBar />;

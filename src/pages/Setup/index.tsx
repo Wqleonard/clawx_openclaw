@@ -97,6 +97,7 @@ import {
   type ProviderAccount,
   type ProviderType,
   type ProviderTypeInfo,
+  getProviderDocsUrl,
   getProviderIconUrl,
   resolveProviderApiKeyForSave,
   resolveProviderModelForSave,
@@ -724,7 +725,7 @@ function ProviderContent({
   onApiKeyChange,
   onConfiguredChange,
 }: ProviderContentProps) {
-  const { t } = useTranslation(['setup', 'settings']);
+  const { t, i18n } = useTranslation(['setup', 'settings']);
   const devModeUnlocked = useSettingsStore((state) => state.devModeUnlocked);
   const [showKey, setShowKey] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -1041,6 +1042,7 @@ function ProviderContent({
   }, [providerMenuOpen]);
 
   const selectedProviderData = providers.find((p) => p.id === selectedProvider);
+  const providerDocsUrl = getProviderDocsUrl(selectedProviderData, i18n.language);
   const selectedProviderIconUrl = selectedProviderData
     ? getProviderIconUrl(selectedProviderData.id)
     : undefined;
@@ -1263,7 +1265,20 @@ function ProviderContent({
 
       {/* Provider selector — dropdown */}
       <div className="space-y-2">
-        <Label>{t('provider.label')}</Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label>{t('provider.label')}</Label>
+          {selectedProvider && providerDocsUrl && (
+            <a
+              href={providerDocsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[13px] text-blue-500 hover:text-blue-600 font-medium inline-flex items-center gap-1"
+            >
+              {t('settings:aiProviders.dialog.customDoc')}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
         <div className="relative" ref={providerMenuRef}>
           <button
             type="button"

@@ -142,9 +142,15 @@ export function ChatInput({
     () => agents.find((agent) => agent.id === currentAgentId)?.name ?? currentAgentId,
     [agents, currentAgentId]
   );
+
+  // const mentionableAgents = useMemo(
+  //   () => (agents ?? []).filter((agent) => agent.id !== currentAgentId),
+  //   [agents, currentAgentId],
+  // );
   const selectedTarget = useMemo(
-    () => agents.find((agent) => agent.id === targetAgentId) ?? null,
-    [agents, targetAgentId]
+    () => (agents ?? []).find((agent) => agent.id === targetAgentId) ?? null,
+    [agents, targetAgentId],
+
   );
   const providerAccounts = useProviderStore((s) => s.accounts);
   const providerStatuses = useProviderStore((s) => s.statuses);
@@ -198,7 +204,7 @@ export function ChatInput({
       setPickerOpen(false);
       return;
     }
-    if (!agents.some((agent) => agent.id === targetAgentId)) {
+    if (!(agents ?? []).some((agent) => agent.id === targetAgentId)) {
       setTargetAgentId(null);
       setPickerOpen(false);
     }

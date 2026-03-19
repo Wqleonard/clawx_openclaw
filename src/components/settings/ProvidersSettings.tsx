@@ -33,6 +33,7 @@ import {
 } from '@/stores/providers';
 import {
   PROVIDER_TYPE_INFO,
+  getProviderDocsUrl,
   type ProviderType,
   getProviderIconUrl,
   resolveProviderApiKeyForSave,
@@ -415,6 +416,7 @@ function ProviderCard({
   const isBaowenmaoPreset = account.vendorId === 'baowenmao'
     && BAOWENMAO_PRESET_ACCOUNTS.some((p) => p.id === account.id);
   const typeInfo = PROVIDER_TYPE_INFO.find((t) => t.id === account.vendorId);
+  const providerDocsUrl = getProviderDocsUrl(typeInfo, i18n.language);
   const showModelIdField = shouldShowProviderModelId(typeInfo, devModeUnlocked);
   const canEditModelConfig = Boolean(typeInfo?.showBaseUrl || showModelIdField);
 
@@ -632,12 +634,10 @@ function ProviderCard({
 
       {isEditing && (
         <div className="space-y-6 mt-4 pt-4 border-t border-black/5 dark:border-white/5">
-          {account.vendorId === 'custom' && (
+          {providerDocsUrl && (
             <div className="flex justify-end -mt-2 mb-2">
               <a
-                href={i18n.language.startsWith('zh')
-                  ? 'https://icnnp7d0dymg.feishu.cn/wiki/BmiLwGBcEiloZDkdYnGc8RWnn6d#IWQCdfe5fobGU3xf3UGcgbLynGh'
-                  : 'https://icnnp7d0dymg.feishu.cn/wiki/BmiLwGBcEiloZDkdYnGc8RWnn6d#Ee1ldfvKJoVGvfxc32mcILwenth'}
+                href={providerDocsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[12px] text-foreground/40 hover:text-primary font-medium inline-flex items-center gap-1 transition-colors"
@@ -911,6 +911,7 @@ function AddProviderDialog({
   const [authMode, setAuthMode] = useState<'oauth' | 'apikey'>('apikey');
 
   const typeInfo = PROVIDER_TYPE_INFO.find((t) => t.id === selectedType);
+  const providerDocsUrl = getProviderDocsUrl(typeInfo, i18n.language);
   const showModelIdField = shouldShowProviderModelId(typeInfo, devModeUnlocked);
   const isOAuth = typeInfo?.isOAuth ?? false;
   const supportsApiKey = typeInfo?.supportsApiKey ?? false;
@@ -1219,13 +1220,11 @@ function AddProviderDialog({
                   >
                     {t('aiProviders.dialog.change')}
                   </button>
-                  {selectedType === 'custom' && (
+                  {providerDocsUrl && (
                     <>
                       <span className="mx-2 text-foreground/20">|</span>
                       <a
-                        href={i18n.language.startsWith('zh')
-                          ? 'https://icnnp7d0dymg.feishu.cn/wiki/BmiLwGBcEiloZDkdYnGc8RWnn6d#IWQCdfe5fobGU3xf3UGcgbLynGh'
-                          : 'https://icnnp7d0dymg.feishu.cn/wiki/BmiLwGBcEiloZDkdYnGc8RWnn6d#Ee1ldfvKJoVGvfxc32mcILwenth'}
+                        href={providerDocsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[13px] text-foreground/40 hover:text-primary font-medium inline-flex items-center gap-1 transition-colors"

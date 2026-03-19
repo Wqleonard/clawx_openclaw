@@ -1,6 +1,11 @@
 import { invokeIpc } from '@/lib/api-client';
 import { getCanonicalPrefixFromSessions, getMessageText, toMs } from './helpers';
-import { DEFAULT_CANONICAL_PREFIX, DEFAULT_SESSION_KEY, type ChatSession, type RawMessage } from './types';
+import {
+  DEFAULT_CANONICAL_PREFIX,
+  DEFAULT_SESSION_KEY,
+  type ChatSession,
+  type RawMessage,
+} from './types';
 import type { ChatGet, ChatSet, SessionHistoryActions } from './store-api';
 
 function getAgentIdFromSessionKey(sessionKey: string): string {
@@ -24,28 +29,33 @@ function parseSessionUpdatedAtMs(value: unknown): number | undefined {
 
 export function createSessionActions(
   set: ChatSet,
-  get: ChatGet,
-): Pick<SessionHistoryActions, 'loadSessions' | 'switchSession' | 'newSession' | 'deleteSession' | 'cleanupEmptySession'> {
+  get: ChatGet
+): Pick<
+  SessionHistoryActions,
+  'loadSessions' | 'switchSession' | 'newSession' | 'deleteSession' | 'cleanupEmptySession'
+> {
   return {
     loadSessions: async () => {
       try {
-        const result = await invokeIpc(
-          'gateway:rpc',
-          'sessions.list',
-          {}
-        ) as { success: boolean; result?: Record<string, unknown>; error?: string };
+        const result = (await invokeIpc('gateway:rpc', 'sessions.list', {})) as {
+          success: boolean;
+          result?: Record<string, unknown>;
+          error?: string;
+        };
 
         if (result.success && result.result) {
           const data = result.result;
           const rawSessions = Array.isArray(data.sessions) ? data.sessions : [];
-          const sessions: ChatSession[] = rawSessions.map((s: Record<string, unknown>) => ({
-            key: String(s.key || ''),
-            label: s.label ? String(s.label) : undefined,
-            displayName: s.displayName ? String(s.displayName) : undefined,
-            thinkingLevel: s.thinkingLevel ? String(s.thinkingLevel) : undefined,
-            model: s.model ? String(s.model) : undefined,
-            updatedAt: parseSessionUpdatedAtMs(s.updatedAt),
-          })).filter((s: ChatSession) => s.key);
+          const sessions: ChatSession[] = rawSessions
+            .map((s: Record<string, unknown>) => ({
+              key: String(s.key || ''),
+              label: s.label ? String(s.label) : undefined,
+              displayName: s.displayName ? String(s.displayName) : undefined,
+              thinkingLevel: s.thinkingLevel ? String(s.thinkingLevel) : undefined,
+              model: s.model ? String(s.model) : undefined,
+              updatedAt: parseSessionUpdatedAtMs(s.updatedAt),
+            }))
+            .filter((s: ChatSession) => s.key);
 
           const canonicalBySuffix = new Map<string, string>();
           for (const session of sessions) {
@@ -75,7 +85,10 @@ export function createSessionActions(
               nextSessionKey = canonicalMatch;
             }
           }
-          if (!dedupedSessions.find((s) => s.key === nextSessionKey) && dedupedSessions.length > 0) {
+          if (
+            !dedupedSessions.find((s) => s.key === nextSessionKey) &&
+            dedupedSessions.length > 0
+          ) {
             // Current session not found in the backend list
             const isNewEmptySession = get().messages.length === 0;
             if (!isNewEmptySession) {
@@ -83,17 +96,18 @@ export function createSessionActions(
             }
           }
 
-          const sessionsWithCurrent = !dedupedSessions.find((s) => s.key === nextSessionKey) && nextSessionKey
-            ? [
-              ...dedupedSessions,
-              { key: nextSessionKey, displayName: nextSessionKey },
-            ]
-            : dedupedSessions;
+          const sessionsWithCurrent =
+            !dedupedSessions.find((s) => s.key === nextSessionKey) && nextSessionKey
+              ? [...dedupedSessions, { key: nextSessionKey, displayName: nextSessionKey }]
+              : dedupedSessions;
 
           const discoveredActivity = Object.fromEntries(
             sessionsWithCurrent
-              .filter((session) => typeof session.updatedAt === 'number' && Number.isFinite(session.updatedAt))
-              .map((session) => [session.key, session.updatedAt!]),
+              .filter(
+                (session) =>
+                  typeof session.updatedAt === 'number' && Number.isFinite(session.updatedAt)
+              )
+              .map((session) => [session.key, session.updatedAt!])
           );
 
           set((state) => ({
@@ -117,13 +131,14 @@ export function createSessionActions(
             void Promise.all(
               sessionsToLabel.map(async (session) => {
                 try {
-                  const r = await invokeIpc(
-                    'gateway:rpc',
-                    'chat.history',
-                    { sessionKey: session.key, limit: 1000 },
-                  ) as { success: boolean; result?: Record<string, unknown> };
+                  const r = (await invokeIpc('gateway:rpc', 'chat.history', {
+                    sessionKey: session.key,
+                    limit: 1000,
+                  })) as { success: boolean; result?: Record<string, unknown> };
                   if (!r.success || !r.result) return;
-                  const msgs = Array.isArray(r.result.messages) ? r.result.messages as RawMessage[] : [];
+                  const msgs = Array.isArray(r.result.messages)
+                    ? (r.result.messages as RawMessage[])
+                    : [];
                   const firstUser = msgs.find((m) => m.role === 'user');
                   const lastMsg = msgs[msgs.length - 1];
                   set((s) => {
@@ -131,17 +146,23 @@ export function createSessionActions(
                     if (firstUser) {
                       const labelText = getMessageText(firstUser.content).trim();
                       if (labelText) {
-                        const truncated = labelText.length > 50 ? `${labelText.slice(0, 50)}…` : labelText;
+                        const truncated =
+                          labelText.length > 50 ? `${labelText.slice(0, 50)}…` : labelText;
                         next.sessionLabels = { ...s.sessionLabels, [session.key]: truncated };
                       }
                     }
                     if (lastMsg?.timestamp) {
-                      next.sessionLastActivity = { ...s.sessionLastActivity, [session.key]: toMs(lastMsg.timestamp) };
+                      next.sessionLastActivity = {
+                        ...s.sessionLastActivity,
+                        [session.key]: toMs(lastMsg.timestamp),
+                      };
                     }
                     return next;
                   });
-                } catch { /* ignore per-session errors */ }
-              }),
+                } catch {
+                  /* ignore per-session errors */
+                }
+              })
             );
           }
         }
@@ -153,8 +174,15 @@ export function createSessionActions(
     // ── Switch session ──
 
     switchSession: (key: string) => {
-      const { currentSessionKey, messages } = get();
-      const leavingEmpty = !currentSessionKey.endsWith(':main') && messages.length === 0;
+      const { currentSessionKey, messages, sessionLastActivity, sessionLabels } = get();
+      // 仅将没有任何历史记录且无活动时间的会话视为空会话。
+      // 单纯依赖 messages.length 是不可靠的，因为 switchSession 会在真正调用 loadHistory 前抢先清空当前 messages，
+      // 造成竞争条件，使得带有真实历史的会话被判定为空并从侧边栏移除。
+      const leavingEmpty =
+        !currentSessionKey.endsWith(':main') &&
+        messages.length === 0 &&
+        !sessionLastActivity[currentSessionKey] &&
+        !sessionLabels[currentSessionKey];
       set((s) => ({
         currentSessionKey: key,
         currentAgentId: getAgentIdFromSessionKey(key),
@@ -167,15 +195,17 @@ export function createSessionActions(
         pendingFinal: false,
         lastUserMessageAt: null,
         pendingToolImages: [],
-        ...(leavingEmpty ? {
-          sessions: s.sessions.filter((s) => s.key !== currentSessionKey),
-          sessionLabels: Object.fromEntries(
-            Object.entries(s.sessionLabels).filter(([k]) => k !== currentSessionKey),
-          ),
-          sessionLastActivity: Object.fromEntries(
-            Object.entries(s.sessionLastActivity).filter(([k]) => k !== currentSessionKey),
-          ),
-        } : {}),
+        ...(leavingEmpty
+          ? {
+              sessions: s.sessions.filter((s) => s.key !== currentSessionKey),
+              sessionLabels: Object.fromEntries(
+                Object.entries(s.sessionLabels).filter(([k]) => k !== currentSessionKey)
+              ),
+              sessionLastActivity: Object.fromEntries(
+                Object.entries(s.sessionLastActivity).filter(([k]) => k !== currentSessionKey)
+              ),
+            }
+          : {}),
       }));
       get().loadHistory();
     },
@@ -194,7 +224,7 @@ export function createSessionActions(
       // The main process renames <suffix>.jsonl → <suffix>.deleted.jsonl so that
       // sessions.list skips it automatically.
       try {
-        const result = await invokeIpc('session:delete', key) as {
+        const result = (await invokeIpc('session:delete', key)) as {
           success: boolean;
           error?: string;
         };
@@ -213,8 +243,12 @@ export function createSessionActions(
         const next = remaining[0];
         set((s) => ({
           sessions: remaining,
-          sessionLabels: Object.fromEntries(Object.entries(s.sessionLabels).filter(([k]) => k !== key)),
-          sessionLastActivity: Object.fromEntries(Object.entries(s.sessionLastActivity).filter(([k]) => k !== key)),
+          sessionLabels: Object.fromEntries(
+            Object.entries(s.sessionLabels).filter(([k]) => k !== key)
+          ),
+          sessionLastActivity: Object.fromEntries(
+            Object.entries(s.sessionLastActivity).filter(([k]) => k !== key)
+          ),
           messages: [],
           streamingText: '',
           streamingMessage: null,
@@ -233,8 +267,12 @@ export function createSessionActions(
       } else {
         set((s) => ({
           sessions: remaining,
-          sessionLabels: Object.fromEntries(Object.entries(s.sessionLabels).filter(([k]) => k !== key)),
-          sessionLastActivity: Object.fromEntries(Object.entries(s.sessionLastActivity).filter(([k]) => k !== key)),
+          sessionLabels: Object.fromEntries(
+            Object.entries(s.sessionLabels).filter(([k]) => k !== key)
+          ),
+          sessionLastActivity: Object.fromEntries(
+            Object.entries(s.sessionLastActivity).filter(([k]) => k !== key)
+          ),
         }));
       }
     },
@@ -246,27 +284,47 @@ export function createSessionActions(
       // NOTE: We intentionally do NOT call sessions.reset on the old session.
       // sessions.reset archives (renames) the session JSONL file, making old
       // conversation history inaccessible when the user switches back to it.
-      const { currentSessionKey, currentAgentId, messages } = get();
-      const leavingEmpty = !currentSessionKey.endsWith(':main') && messages.length === 0;
-      // Use the currently active agent's prefix so new sessions always go to the same agent.
-      // Fallback to scanning sessions list for backward compat if currentAgentId is not set.
+
+      // const { currentSessionKey, currentAgentId, messages } = get();
+      // const leavingEmpty = !currentSessionKey.endsWith(':main') && messages.length === 0;
+      // // Use the currently active agent's prefix so new sessions always go to the same agent.
+      // // Fallback to scanning sessions list for backward compat if currentAgentId is not set.
+      // const prefix = currentAgentId
+      //   ? `agent:${currentAgentId}`
+      //   : (getCanonicalPrefixFromSessions(get().sessions) ?? DEFAULT_CANONICAL_PREFIX);
+
+      const { currentSessionKey, currentAgentId, messages, sessionLastActivity, sessionLabels } =
+        get();
+      // 仅将没有任何历史记录且无活动时间的会话视为空会话
+      const leavingEmpty =
+        !currentSessionKey.endsWith(':main') &&
+        messages.length === 0 &&
+        !sessionLastActivity[currentSessionKey] &&
+        !sessionLabels[currentSessionKey];
       const prefix = currentAgentId
         ? `agent:${currentAgentId}`
         : (getCanonicalPrefixFromSessions(get().sessions) ?? DEFAULT_CANONICAL_PREFIX);
+
       const newKey = `${prefix}:session-${Date.now()}`;
       const newSessionEntry: ChatSession = { key: newKey, displayName: newKey };
       set((s) => ({
         currentSessionKey: newKey,
         currentAgentId: getAgentIdFromSessionKey(newKey),
         sessions: [
-          ...(leavingEmpty ? s.sessions.filter((sess) => sess.key !== currentSessionKey) : s.sessions),
+          ...(leavingEmpty
+            ? s.sessions.filter((sess) => sess.key !== currentSessionKey)
+            : s.sessions),
           newSessionEntry,
         ],
         sessionLabels: leavingEmpty
-          ? Object.fromEntries(Object.entries(s.sessionLabels).filter(([k]) => k !== currentSessionKey))
+          ? Object.fromEntries(
+              Object.entries(s.sessionLabels).filter(([k]) => k !== currentSessionKey)
+            )
           : s.sessionLabels,
         sessionLastActivity: leavingEmpty
-          ? Object.fromEntries(Object.entries(s.sessionLastActivity).filter(([k]) => k !== currentSessionKey))
+          ? Object.fromEntries(
+              Object.entries(s.sessionLastActivity).filter(([k]) => k !== currentSessionKey)
+            )
           : s.sessionLastActivity,
         messages: [],
         streamingText: '',
@@ -283,25 +341,30 @@ export function createSessionActions(
     // ── Cleanup empty session on navigate away ──
 
     cleanupEmptySession: () => {
-      const { currentSessionKey, messages } = get();
+      const { currentSessionKey, messages, sessionLastActivity, sessionLabels } = get();
       // Only remove non-main sessions that were never used (no messages sent).
       // This mirrors the "leavingEmpty" logic in switchSession so that creating
       // a new session and immediately navigating away doesn't leave a ghost entry
       // in the sidebar.
-      const isEmptyNonMain = !currentSessionKey.endsWith(':main') && messages.length === 0;
+      // 同样需要综合检查 sessionLastActivity 和 sessionLabels，
+      // 防止因为 switchSession 抢先清空 messages 而误判有历史的会话为空。
+      const isEmptyNonMain =
+        !currentSessionKey.endsWith(':main') &&
+        messages.length === 0 &&
+        !sessionLastActivity[currentSessionKey] &&
+        !sessionLabels[currentSessionKey];
       if (!isEmptyNonMain) return;
       set((s) => ({
         sessions: s.sessions.filter((sess) => sess.key !== currentSessionKey),
         sessionLabels: Object.fromEntries(
-          Object.entries(s.sessionLabels).filter(([k]) => k !== currentSessionKey),
+          Object.entries(s.sessionLabels).filter(([k]) => k !== currentSessionKey)
         ),
         sessionLastActivity: Object.fromEntries(
-          Object.entries(s.sessionLastActivity).filter(([k]) => k !== currentSessionKey),
+          Object.entries(s.sessionLastActivity).filter(([k]) => k !== currentSessionKey)
         ),
       }));
     },
 
     // ── Load chat history ──
-
   };
 }

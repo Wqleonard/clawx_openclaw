@@ -29,6 +29,30 @@
       "slug": "skillhub",
       "version": "1.0.0",
       "autoEnable": true
+    },
+    {
+      "slug": "self-improving-agent",
+      "repo": "peterskoett/self-improving-agent",
+      "repoPath": ".",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
+      "slug": "tavily-search",
+      "repo": "tavily-ai/skills",
+      "repoPath": "skills/tavily-search",
+      "ref": "main",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
+      "slug": "brave-web-search",
+      "repo": "brave/brave-search-skills",
+      "repoPath": "skills/web-search",
+      "ref": "main",
+      "version": "main",
+      "autoEnable": true
     }
   ]
 }

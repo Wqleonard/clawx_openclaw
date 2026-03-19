@@ -18,10 +18,12 @@ export function ChatToolbar() {
   // const currentAgentId = useChatStore((s) => s.currentAgentId);
   // const agents = useAgentsStore((s) => s.agents);
   const { t } = useTranslation('chat');
+
   // const currentAgentName = useMemo(
   //   () => agents.find((agent) => agent.id === currentAgentId)?.name ?? currentAgentId,
   //   [agents, currentAgentId],
   // );
+
 
   return (
     <div className="flex items-center gap-2">
