@@ -3,6 +3,7 @@ import { verifyTicket, getNewbieMission, completeNewbieMissionReq, getUserInfoRe
 import { getInsiteNotification, type NotificationItem } from '@/api/insite-notification'
 import { useProviderStore } from '@/stores/providers'
 import { useSettingsStore } from '@/stores/settings'
+import { logClientEvent } from '@/lib/client-log'
 import type {
   UserInfo,
   AvatarData,
@@ -374,13 +375,33 @@ export const useLoginStore = create<LoginStore>((set, get) => {
     },
 
     logout: () => {
+      const wasLoggedIn = get().isLoggedIn
+      const prevToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      logClientEvent('info', {
+        source: 'auth.logout',
+        message: 'Logout requested',
+        data: {
+          wasLoggedIn,
+          hadToken: Boolean(prevToken),
+          location: typeof window !== 'undefined' ? window.location.href : 'n/a',
+        },
+      })
       get().saveUserInfo(null)
       localStorage.removeItem('token')
       localStorage.removeItem('___first_in_editor___')
       get().updateLoginStatus()
       get().clearInterceptedActions()
       if (typeof window !== 'undefined') {
-        window.location.href = '/'
+        // HashRouter-friendly redirect to avoid file:// root navigation in packaged builds.
+        logClientEvent('info', {
+          source: 'auth.logout',
+          message: 'Redirecting to login route',
+          data: {
+            hashBefore: window.location.hash,
+            pathnameBefore: window.location.pathname,
+          },
+        })
+        window.location.hash = '#/login'
       }
     },
 

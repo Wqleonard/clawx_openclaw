@@ -23,6 +23,7 @@ import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
 import { useLoginStore } from './stores/loginStore';
 import { applyGatewayTransportPreference } from './lib/api-client';
+import { logClientEvent } from './lib/client-log';
 
 /**
  * Error Boundary to catch and display React rendering errors
@@ -127,18 +128,33 @@ function App() {
 
     // 1. 未登录 → 强制登录页（/login 和 /setup 除外，setup 不应在未登录时访问，但不强制跳走避免死循环）
     if (!isLoggedIn && !path.startsWith('/login')) {
+      logClientEvent('info', {
+        source: 'app.route-guard',
+        message: 'Redirect unauthenticated user to /login',
+        data: { path, isLoggedIn, setupComplete },
+      });
       navigate('/login');
       return;
     }
 
     // 2. 已登录但 setup 未完成 → 强制 setup
     if (isLoggedIn && !setupComplete && !path.startsWith('/setup')) {
+      logClientEvent('info', {
+        source: 'app.route-guard',
+        message: 'Redirect authenticated user to /setup',
+        data: { path, isLoggedIn, setupComplete },
+      });
       navigate('/setup');
       return;
     }
 
     // 3. 已登录且 setup 完成，停留在 /login 或 /setup → 跳主界面
     if (isLoggedIn && setupComplete && (path.startsWith('/login') || path.startsWith('/setup'))) {
+      logClientEvent('info', {
+        source: 'app.route-guard',
+        message: 'Redirect authenticated user to /',
+        data: { path, isLoggedIn, setupComplete },
+      });
       navigate('/');
     }
   }, [isLoggedIn, setupComplete, location.pathname, navigate]);
