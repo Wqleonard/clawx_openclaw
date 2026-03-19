@@ -42,6 +42,7 @@ import { whatsAppLoginManager } from '../utils/whatsapp-login';
 import { syncAllProviderAuthToRuntime } from '../services/providers/provider-runtime-sync';
 import { contentSafetyManager } from '../utils/content-safety-manager';
 import { APP_DISPLAY_NAME } from '../shared/app-brand';
+import { ensureBoomSearchPlugin } from '../services/boom-search/plugin-deploy';
 
 // Store app data under the branded directory.
 app.setPath('userData', join(app.getPath('appData'), 'storyclaw'));
@@ -329,6 +330,12 @@ async function initialize(): Promise<void> {
   // non-destructive way and never blocks startup.
   void ensurePreinstalledSkillsInstalled().catch((error) => {
     logger.warn('Failed to install preinstalled skills:', error);
+  });
+
+  // Deploy BoomClaw built-in web search plugin to ~/.openclaw/extensions/boom-search/
+  // and inject the required config (tools.web.search.enabled: false + plugin enabled).
+  void ensureBoomSearchPlugin().catch((error) => {
+    logger.warn('Failed to deploy boom-search plugin:', error);
   });
 
   // Pre-deploy/upgrade bundled OpenClaw plugins (dingtalk, wecom, qqbot, feishu)
