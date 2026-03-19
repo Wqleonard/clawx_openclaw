@@ -49,7 +49,13 @@ export function createRuntimeSendActions(set: ChatSet, get: ChatGet): Pick<Runti
       const trimmed = text.trim();
       if (!trimmed && (!attachments || attachments.length === 0)) return;
 
-      const targetSessionKey = resolveMainSessionKeyForAgent(targetAgentId) ?? get().currentSessionKey;
+      const currentSessionKey = get().currentSessionKey;
+      const currentAgentId = normalizeAgentId(getAgentIdFromSessionKey(currentSessionKey));
+      const normalizedTargetAgentId = targetAgentId ? normalizeAgentId(targetAgentId) : null;
+      const targetSessionKey =
+        normalizedTargetAgentId && normalizedTargetAgentId !== currentAgentId
+          ? (resolveMainSessionKeyForAgent(normalizedTargetAgentId) ?? currentSessionKey)
+          : currentSessionKey;
       if (targetSessionKey !== get().currentSessionKey) {
         const current = get();
         const leavingEmpty = !current.currentSessionKey.endsWith(':main') && current.messages.length === 0;

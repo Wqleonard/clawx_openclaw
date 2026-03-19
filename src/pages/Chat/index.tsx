@@ -36,6 +36,8 @@ import { ProjectsRail } from '@/components/layout/ProjectsRail';
 const INITIAL_NOW_MS = Date.now();
 const SESSION_LIST_DRAWER_BREAKPOINT = 1400;
 const FILE_TREE_DRAWER_BREAKPOINT = 1020;
+const PROJECTS_RAIL_WIDTH = 64;
+const RESIZE_HANDLE_WIDTH = 8;
 let hasCheckedWorkspaceOnStartup = false;
 
 type SessionBucketKey =
@@ -72,6 +74,19 @@ function getAgentIdFromSessionKey(sessionKey: string): string {
 function isMarkdownFile(filePath: string): boolean {
   const lower = filePath.toLowerCase();
   return lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdx');
+}
+
+function normalizeWorkspacePath(value: string): string {
+  return value
+    .replace(/[\\/]+/g, '/')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+}
+
+function workspacePathMatches(left: string, right: string): boolean {
+  const a = normalizeWorkspacePath(left);
+  const b = normalizeWorkspacePath(right);
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
 export function Chat() {
@@ -204,6 +219,10 @@ export function Chat() {
       cleanupEmptySession();
     };
   }, [cleanupEmptySession]);
+
+  useEffect(() => {
+    console.log(messages);
+  }, [messages]);
 
   useEffect(() => {
     void fetchAgents();
@@ -543,13 +562,23 @@ export function Chat() {
   const effectiveListWidth = isSessionListInlineVisible ? listWidth : 0;
   const isFileTreeInlineVisible = !!projectPath && isFileTreeDrawerOpen && !isFileTreeDrawerMode;
   const effectiveFileTreeWidth = isFileTreeInlineVisible ? fileTreeWidth : 0;
+  const fixedNonPanelWidth =
+    (isSessionDrawerMode ? 0 : PROJECTS_RAIL_WIDTH) +
+    (isSessionListInlineVisible ? RESIZE_HANDLE_WIDTH : 0) +
+    RESIZE_HANDLE_WIDTH +
+    (isFileTreeInlineVisible ? RESIZE_HANDLE_WIDTH : 0) +
+    8;
 
   useEffect(() => {
     const clampEditorWidthForViewport = () => {
       if (isEditorDragging.current) return;
       const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
       const maxByContainer =
-        containerWidth - CHAT_PANEL_SIZE.chatMinWidth - effectiveListWidth - effectiveFileTreeWidth - 16;
+        containerWidth -
+        CHAT_PANEL_SIZE.chatMinWidth -
+        effectiveListWidth -
+        effectiveFileTreeWidth -
+        fixedNonPanelWidth;
       const maxAllowed = Math.min(CHAT_PANEL_SIZE.editor.max, Math.max(0, maxByContainer));
       if (editorWidth > maxAllowed) {
         setEditorWidth(maxAllowed);
@@ -559,7 +588,7 @@ export function Chat() {
     clampEditorWidthForViewport();
     window.addEventListener('resize', clampEditorWidthForViewport);
     return () => window.removeEventListener('resize', clampEditorWidthForViewport);
-  }, [editorWidth, effectiveFileTreeWidth, effectiveListWidth]);
+  }, [editorWidth, effectiveFileTreeWidth, effectiveListWidth, fixedNonPanelWidth]);
 
   const isEmpty = messages.length === 0 && !sending;
   const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
@@ -623,14 +652,12 @@ export function Chat() {
         const delta = ev.clientX - listDragStartX.current;
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
         const maxByContainer =
-          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - editorWidth - effectiveFileTreeWidth - 16;
-        const dynamicMaxWidth = Math.max(
-          CHAT_PANEL_SIZE.list.min,
-          Math.min(CHAT_PANEL_SIZE.list.max, maxByContainer)
-        );
+          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - editorWidth - effectiveFileTreeWidth - fixedNonPanelWidth;
+        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.list.max, Math.max(0, maxByContainer));
+        const dynamicMinWidth = Math.min(CHAT_PANEL_SIZE.list.min, dynamicMaxWidth);
         const next = Math.min(
           dynamicMaxWidth,
-          Math.max(CHAT_PANEL_SIZE.list.min, listDragStartWidth.current + delta)
+          Math.max(dynamicMinWidth, listDragStartWidth.current + delta)
         );
         listPendingWidthRef.current = next;
         if (listRafRef.current == null) {
@@ -665,7 +692,7 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth, effectiveFileTreeWidth, listWidth, commitListWidth]
+    [editorWidth, effectiveFileTreeWidth, listWidth, commitListWidth, fixedNonPanelWidth]
   );
 
   // Drag-to-resize editor while preserving chat page behavior from main branch.
@@ -682,18 +709,17 @@ export function Chat() {
         if (!isEditorDragging.current) return;
         const delta = ev.clientX - editorDragStartX.current;
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-        const maxByContainer = Math.max(
-          CHAT_PANEL_SIZE.editor.min,
+        const maxByContainer =
           containerWidth -
-            CHAT_PANEL_SIZE.chatMinWidth -
-            effectiveListWidth -
-            effectiveFileTreeWidth -
-            16
-        );
-        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.editor.max, maxByContainer);
+          CHAT_PANEL_SIZE.chatMinWidth -
+          effectiveListWidth -
+          effectiveFileTreeWidth -
+          fixedNonPanelWidth;
+        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.editor.max, Math.max(0, maxByContainer));
+        const dynamicMinWidth = Math.min(CHAT_PANEL_SIZE.editor.min, dynamicMaxWidth);
         const next = Math.min(
           dynamicMaxWidth,
-          Math.max(CHAT_PANEL_SIZE.editor.min, editorDragStartWidth.current - delta)
+          Math.max(dynamicMinWidth, editorDragStartWidth.current - delta)
         );
         editorPendingWidthRef.current = next;
         if (editorRafRef.current == null) {
@@ -715,7 +741,9 @@ export function Chat() {
         const finalWidth = editorPendingWidthRef.current;
         if (finalWidth != null) {
           setEditorWidth(finalWidth);
-          commitEditorWidth(finalWidth);
+          if (finalWidth >= CHAT_PANEL_SIZE.editor.min) {
+            commitEditorWidth(finalWidth);
+          }
           editorPendingWidthRef.current = null;
         } else {
           commitEditorWidth(editorWidth);
@@ -728,7 +756,7 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth, effectiveFileTreeWidth, effectiveListWidth, commitEditorWidth]
+    [editorWidth, effectiveFileTreeWidth, effectiveListWidth, commitEditorWidth, fixedNonPanelWidth]
   );
 
   const onFileTreeDragStart = useCallback(
@@ -745,14 +773,13 @@ export function Chat() {
         if (!isFileTreeDragging.current) return;
         const delta = ev.clientX - fileTreeDragStartX.current;
         const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-        const maxByContainer = Math.max(
-          CHAT_PANEL_SIZE.fileTree.min,
-          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - effectiveListWidth - editorWidth - 16
-        );
-        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.fileTree.max, maxByContainer);
+        const maxByContainer =
+          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - effectiveListWidth - editorWidth - fixedNonPanelWidth;
+        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.fileTree.max, Math.max(0, maxByContainer));
+        const dynamicMinWidth = Math.min(CHAT_PANEL_SIZE.fileTree.min, dynamicMaxWidth);
         const next = Math.min(
           dynamicMaxWidth,
-          Math.max(CHAT_PANEL_SIZE.fileTree.min, fileTreeDragStartWidth.current - delta)
+          Math.max(dynamicMinWidth, fileTreeDragStartWidth.current - delta)
         );
         fileTreePendingWidthRef.current = next;
         if (fileTreeRafRef.current == null) {
@@ -796,22 +823,56 @@ export function Chat() {
       effectiveListWidth,
       editorWidth,
       commitFileTreeWidth,
+      fixedNonPanelWidth,
     ]
   );
 
   const handleNewProjectSession = useCallback(async () => {
     if (!projectPath) return;
-    const current = useChatStore.getState();
-    if (current.messages.length > 0) {
-      newSession();
-      const newSessionKey = useChatStore.getState().currentSessionKey;
-      if (newSessionKey) {
-        await bindProjectToSession(newSessionKey, projectPath);
-      }
-    } else if (current.currentSessionKey) {
-      await bindProjectToSession(current.currentSessionKey, projectPath);
+    let matchedAgent = agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
+    if (!matchedAgent) {
+      await fetchAgents();
+      matchedAgent = useAgentsStore
+        .getState()
+        .agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
     }
-  }, [projectPath, newSession, bindProjectToSession]);
+    if (matchedAgent) {
+      const chatState = useChatStore.getState();
+      const expectedPrefix = `agent:${matchedAgent.id}:`;
+      if (!chatState.currentSessionKey.startsWith(expectedPrefix)) {
+        const alignedSessionKey =
+          [...chatState.sessions]
+            .filter((session) => session.key.startsWith(expectedPrefix))
+            .sort(
+              (a, b) =>
+                (chatState.sessionLastActivity[b.key] ?? 0) -
+                (chatState.sessionLastActivity[a.key] ?? 0)
+            )[0]?.key ?? `${expectedPrefix}main`;
+        if (alignedSessionKey !== chatState.currentSessionKey) {
+          switchSession(alignedSessionKey);
+        }
+      }
+    }
+
+    const previousSessionKey = useChatStore.getState().currentSessionKey;
+    newSession();
+    const newSessionKey = useChatStore.getState().currentSessionKey;
+    if (newSessionKey && newSessionKey !== previousSessionKey) {
+      await bindProjectToSession(newSessionKey, projectPath);
+    }
+    if (isSessionDrawerMode) {
+      setSessionDrawerOpen(false);
+    }
+  }, [
+    projectPath,
+    agents,
+    fetchAgents,
+    switchSession,
+    newSession,
+    bindProjectToSession,
+    isSessionDrawerMode,
+    setSessionDrawerOpen,
+  ]);
 
   const handleSendMessage = useCallback(
     async (
@@ -826,25 +887,14 @@ export function Chat() {
       }>,
       targetAgentId?: string | null
     ) => {
-      const normalizePath = (value: string) =>
-        value
-          .replace(/[\\/]+/g, '/')
-          .replace(/\/+$/, '')
-          .toLowerCase();
-      const pathMatches = (a: string, b: string) => {
-        const left = normalizePath(a);
-        const right = normalizePath(b);
-        return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
-      };
-
       let matchedAgent = projectPath
-        ? agents.find((agent) => pathMatches(agent.workspace, projectPath))
+        ? agents.find((agent) => workspacePathMatches(agent.workspace, projectPath))
         : undefined;
       if (projectPath && !matchedAgent) {
         await fetchAgents();
         matchedAgent = useAgentsStore
           .getState()
-          .agents.find((agent) => pathMatches(agent.workspace, projectPath));
+          .agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
       }
 
       const enforcedTargetAgentId = matchedAgent?.id ?? targetAgentId ?? undefined;
@@ -988,7 +1038,7 @@ export function Chat() {
     <div
       ref={containerRef}
       className={cn(
-        'w-full min-w-0 max-w-full px-3 py-3 flex h-full transition-colors duration-500 dark:bg-background',
+        'w-full min-w-0 max-w-full overflow-hidden px-3 py-3 flex h-full transition-colors duration-500 dark:bg-background',
         isSessionDrawerMode ? 'pl-3' : 'pl-0'
       )}
     >
@@ -998,7 +1048,6 @@ export function Chat() {
       {!isSessionDrawerMode && (
         <>
           {/* Chat List Panel */}
-
           <div
             className={cn(
               'rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden space-y-0.5',
@@ -1254,11 +1303,13 @@ export function Chat() {
         variant="destructive"
         onConfirm={async () => {
           if (!sessionToDelete) return;
-          await deleteSession(sessionToDelete.key);
-          if (currentSessionKey === sessionToDelete.key) {
+          const deletingKey = sessionToDelete.key;
+          const isDeletingCurrent = useChatStore.getState().currentSessionKey === deletingKey;
+          setSessionToDelete(null);
+          void deleteSession(deletingKey);
+          if (isDeletingCurrent) {
             navigate('/');
           }
-          setSessionToDelete(null);
         }}
         onCancel={() => setSessionToDelete(null)}
       />
@@ -1304,6 +1355,7 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
   const { t } = useTranslation('chat');
   return (
     <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
+      <ProjectsRail />
       <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
         <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>

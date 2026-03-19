@@ -252,6 +252,27 @@ function getMessageText(content: unknown): string {
   return '';
 }
 
+function buildMessageDedupeKey(message: RawMessage): string {
+  if (message.id) return `id:${message.id}`;
+  const ts = message.timestamp ? toMs(message.timestamp) : 0;
+  const text = getMessageText(message.content).trim();
+  const toolCallId = message.toolCallId ?? '';
+  const toolName = message.toolName ?? '';
+  return `${message.role}|${ts}|${toolCallId}|${toolName}|${text}`;
+}
+
+function dedupeMessages(messages: RawMessage[]): RawMessage[] {
+  const seen = new Set<string>();
+  const result: RawMessage[] = [];
+  for (const message of messages) {
+    const key = buildMessageDedupeKey(message);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(message);
+  }
+  return result;
+}
+
 /** Extract media file refs from [media attached: <path> (<mime>) | ...] patterns */
 function extractMediaRefs(text: string): Array<{ filePath: string; mimeType: string }> {
   const refs: Array<{ filePath: string; mimeType: string }> = [];
@@ -1250,29 +1271,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // newSession() design that avoids sessions.reset to preserve history.
 
   deleteSession: async (key: string) => {
-    // Soft-delete the session's JSONL transcript on disk.
-    // The main process renames <suffix>.jsonl → <suffix>.deleted.jsonl so that
-    // sessions.list skips it automatically.
-    try {
-      const result = await hostApiFetch<{
-        success: boolean;
-        error?: string;
-      }>('/api/sessions/delete', {
-        method: 'POST',
-        body: JSON.stringify({ sessionKey: key }),
-      });
-      if (!result.success) {
-        console.warn(`[deleteSession] IPC reported failure for ${key}:`, result.error);
-      }
-    } catch (err) {
-      console.warn(`[deleteSession] IPC call failed for ${key}:`, err);
-    }
-
     const { currentSessionKey, sessions } = get();
     const remaining = sessions.filter((s) => s.key !== key);
 
+    // Optimistically update local UI first so delete feels instant.
     if (currentSessionKey === key) {
-      // Switched away from deleted session — pick the first remaining or create new
       const next = remaining[0];
       set((s) => ({
         sessions: remaining,
@@ -1291,7 +1294,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentAgentId: getAgentIdFromSessionKey(next?.key ?? DEFAULT_SESSION_KEY),
       }));
       if (next) {
-        get().loadHistory();
+        void get().loadHistory();
       }
     } else {
       set((s) => ({
@@ -1299,6 +1302,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
         sessionLabels: Object.fromEntries(Object.entries(s.sessionLabels).filter(([k]) => k !== key)),
         sessionLastActivity: Object.fromEntries(Object.entries(s.sessionLastActivity).filter(([k]) => k !== key)),
       }));
+    }
+
+    // Soft-delete the session's JSONL transcript on disk.
+    // The main process renames <suffix>.jsonl → <suffix>.deleted.jsonl so that
+    // sessions.list skips it automatically.
+    try {
+      const result = await hostApiFetch<{
+        success: boolean;
+        error?: string;
+      }>('/api/sessions/delete', {
+        method: 'POST',
+        body: JSON.stringify({ sessionKey: key }),
+      });
+      if (!result.success) {
+        console.warn(`[deleteSession] IPC reported failure for ${key}:`, result.error);
+      }
+    } catch (err) {
+      console.warn(`[deleteSession] IPC call failed for ${key}:`, err);
     }
   },
 
@@ -1400,7 +1421,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const applyLoadedMessages = (rawMessages: RawMessage[], thinkingLevel: string | null) => {
       // Before filtering: attach images/files from tool_result messages to the next assistant message
       const messagesWithToolImages = enrichWithToolResultFiles(rawMessages);
-      const filteredMessages = messagesWithToolImages.filter((msg) => !isToolResultRole(msg.role));
+      const dedupedMessages = dedupeMessages(messagesWithToolImages);
+      const filteredMessages = dedupedMessages.filter((msg) => !isToolResultRole(msg.role));
       // Restore file attachments for user/assistant messages (from cache + text patterns)
       const enrichedMessages = enrichWithCachedImages(filteredMessages);
 
@@ -1563,9 +1585,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const trimmed = text.trim();
     if (!trimmed && (!attachments || attachments.length === 0)) return;
 
-    const targetSessionKey = resolveMainSessionKeyForAgent(targetAgentId) ?? get().currentSessionKey;
+    const activeSessionKey = get().currentSessionKey;
+    const activeAgentId = normalizeAgentId(getAgentIdFromSessionKey(activeSessionKey));
+    const normalizedTargetAgentId = targetAgentId ? normalizeAgentId(targetAgentId) : null;
+    const targetSessionKey =
+      normalizedTargetAgentId && normalizedTargetAgentId !== activeAgentId
+        ? (resolveMainSessionKeyForAgent(normalizedTargetAgentId) ?? activeSessionKey)
+        : activeSessionKey;
+
+    console.log('[sendMessage] session routing', {
+      activeSessionKey,
+      activeAgentId,
+      targetAgentId: normalizedTargetAgentId,
+      targetSessionKey,
+    });
 
     if (targetSessionKey !== get().currentSessionKey) {
+      console.log('[sendMessage] switching session before send', {
+        from: get().currentSessionKey,
+        to: targetSessionKey,
+      });
       set((s) => buildSessionSwitchPatch(s, targetSessionKey));
       await get().loadHistory(true);
     }
@@ -1717,6 +1756,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       console.log(`[sendMessage] RPC result: success=${result.success}, runId=${result.result?.runId || 'none'}`);
+      console.log('[sendMessage] sent with session', { currentSessionKey });
 
       if (!result.success) {
         clearHistoryPoll();
