@@ -137,19 +137,23 @@ function App() {
       return;
     }
 
-    // 2. 已登录但 setup 未完成 → 强制 setup
-    if (isLoggedIn && !setupComplete && !path.startsWith('/setup')) {
-      logClientEvent('info', {
-        source: 'app.route-guard',
-        message: 'Redirect authenticated user to /setup',
-        data: { path, isLoggedIn, setupComplete },
-      });
-      navigate('/setup');
-      return;
-    }
+    // Setup flow is currently disabled:
+    // - OpenClaw preset/provider setup is performed automatically after login.
+    // - Keep this block commented for potential future re-enable.
+    //
+    // // 2. 已登录但 setup 未完成 → 强制 setup
+    // if (isLoggedIn && !setupComplete && !path.startsWith('/setup')) {
+    //   logClientEvent('info', {
+    //     source: 'app.route-guard',
+    //     message: 'Redirect authenticated user to /setup',
+    //     data: { path, isLoggedIn, setupComplete },
+    //   });
+    //   navigate('/setup');
+    //   return;
+    // }
 
-    // 3. 已登录且 setup 完成，停留在 /login 或 /setup → 跳主界面
-    if (isLoggedIn && setupComplete && (path.startsWith('/login') || path.startsWith('/setup'))) {
+    // 2. 已登录后，不再展示 setup。访问 /login 或 /setup 统一回到主界面
+    if (isLoggedIn && (path.startsWith('/login') || path.startsWith('/setup'))) {
       logClientEvent('info', {
         source: 'app.route-guard',
         message: 'Redirect authenticated user to /',
