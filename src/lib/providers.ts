@@ -332,23 +332,23 @@ export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
   {
     id: 'ark:custom-baowenmao',
     model: 'ark:ep-20260123143950-zm9zl',
-    label: '爆文猫 (ark)',
+    label: 'Ark',
   },
   {
     id: 'qwen3-max:custom-baowenmao',
     model: 'aliyun:qwen3-max',
-    label: '爆文猫 (qwen3-max)',
+    label: 'Qwen3-max',
     isDefault: true,
   },
   {
     id: 'glm:custom-baowenmao',
     model: 'aliyun:glm-5',
-    label: '爆文猫 (glm-5)',
+    label: 'Glm-5',
   },
   {
     id: 'kimi:custom-baowenmao',
     model: 'aliyun:kimi-k2.5',
-    label: '爆文猫 (kimi-k2.5)',
+    label: 'Kimi-k2.5',
   },
 ];
 
