@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { invokeIpc } from '@/lib/api-client';
 import { useAgentsStore } from '@/stores/agents';
+import { cn } from '@/lib/utils';
 
 type CreateSource = 'template' | 'agent';
 
@@ -32,8 +33,6 @@ type AddAgentDialogProps = {
   hideWorkspaceSelector?: boolean;
 };
 
-const inputClasses =
-  'h-[44px] rounded-xl font-mono text-[13px] bg-[#eeece3] dark:bg-muted border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 shadow-sm transition-all text-foreground placeholder:text-foreground/40';
 const labelClasses = 'text-[14px] text-foreground/80 font-bold';
 
 export function AddAgentDialog({
@@ -120,17 +119,17 @@ export function AddAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogChange}>
-      <DialogContent className="w-full max-w-md rounded-3xl border-0 p-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden">
-        <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="text-2xl font-serif font-normal tracking-tight">
+      <DialogContent className="flex w-full max-h-[80vh] max-w-md flex-col overflow-hidden rounded-3xl border-0 bg-[#f3f1e9] p-0 shadow-2xl dark:bg-card">
+        <DialogHeader className="shrink-0 p-6 pb-2">
+          <DialogTitle className="text-2xl font-normal tracking-tight">
             {t('createDialog.title')}
           </DialogTitle>
-          <DialogDescription className="text-[15px] mt-1 text-foreground/70">
+          <DialogDescription className="mt-1 text-foreground/70">
             {t('createDialog.description')}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 pt-4 p-6">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto scrollbar-hover p-6 pr-4 pt-4">
           <div className="space-y-2.5">
             <Label htmlFor="agent-name" className={labelClasses}>
               {t('createDialog.nameLabel')}
@@ -140,7 +139,9 @@ export function AddAgentDialog({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={t('createDialog.namePlaceholder')}
-              className={inputClasses}
+              className={cn(
+                'h-[44px] rounded-xl text-sm text-foreground placeholder:text-foreground/40'
+              )}
             />
           </div>
 
@@ -200,7 +201,7 @@ export function AddAgentDialog({
           {source === 'agent' && (
             <div className="space-y-2">
               {agents.length === 0 ? (
-                <p className="text-[13px] text-foreground/50 px-1">
+                <p className="text-sm text-foreground/50 px-1">
                   {t('createDialog.noAgents')}
                 </p>
               ) : (
@@ -223,7 +224,7 @@ export function AddAgentDialog({
                             : 'border-black/20 dark:border-white/20'
                         }`}
                       />
-                      <div className="text-[13px] font-medium text-foreground">{agent.name}</div>
+                      <div className="text-sm font-medium text-foreground">{agent.name}</div>
                     </div>
                   </button>
                 ))
@@ -263,8 +264,8 @@ export function AddAgentDialog({
               </div>
             </div>
           )}
-
-          <DialogFooter className="pt-1">
+        </div>
+        <DialogFooter className="shrink-0 px-6 pb-4 pt-1">
             <Button
               variant="outline"
               onClick={onClose}
@@ -287,7 +288,6 @@ export function AddAgentDialog({
               )}
             </Button>
           </DialogFooter>
-        </div>
       </DialogContent>
     </Dialog>
   );

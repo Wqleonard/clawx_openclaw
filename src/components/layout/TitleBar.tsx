@@ -151,7 +151,7 @@ function WindowsTitleBar() {
             size="icon"
             className={cn(
               'size-7 cursor-pointer',
-              !isSessionListCollapsed ? 'bg-accent' : 'text-muted-foreground'
+              !isSessionListCollapsed ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
             )}
             onClick={handleToggleSessionPanel}
             title={isSessionListCollapsed ? t('common:actions.open') : t('common:actions.close')}

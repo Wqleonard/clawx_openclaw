@@ -959,7 +959,7 @@ export function Chat() {
         <div
           ref={scrollRef}
           className={cn(
-            'chat-messages-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden',
+            'scrollbar-hover flex-1 min-h-0 overflow-y-auto overflow-x-hidden',
             !projectPath && 'pointer-events-none opacity-70'
           )}
         >
