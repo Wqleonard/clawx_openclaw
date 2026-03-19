@@ -3,6 +3,10 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
+import { Table } from '@tiptap/extension-table';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableRow } from '@tiptap/extension-table-row';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
@@ -100,7 +104,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
   }, [onChange]);
 
   const editor = useEditor({
-    extensions: [StarterKit, Markdown,Mermaid],
+    extensions: [StarterKit, Table, TableRow, TableHeader, TableCell, Markdown, Mermaid],
     content: value,
     contentType: 'markdown',
     editable: mode === 'rendered',
