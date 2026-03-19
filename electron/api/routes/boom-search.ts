@@ -6,13 +6,13 @@
  *
  * Both are proxied through BoomClaw's host API so the Gateway process never
  * makes outbound HTTP calls subject to OpenClaw's SSRF restrictions.
- *
- * Replace the mock implementations with your real API calls.
  */
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { HostApiContext } from '../context';
 import { setCorsHeaders, sendJson } from '../route-utils';
+import { getProviderSecret } from '../../services/secrets/secret-store';
+import { getClawXProviderStore } from '../../services/providers/store-instance';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,26 +33,130 @@ export interface FetchResponse {
   extractMode: string;
 }
 
-// ── Mock implementations (replace with real APIs) ──────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────
 
-/**
- * TODO: Replace with real search API call.
- */
+const SEARCH_MODEL = 'ep-20250911202653-fr9dl';
+
+const SEARCH_ACCOUNT_ID = 'ark:custom-baowenmao';
+
+const SEARCH_SYSTEM_PROMPT =
+  '你是一个专业的网络搜索助手。请使用搜索工具收集相关信息，给出简洁准确的综合摘要，并在回答末尾用 [标题](URL) 格式标注所有参考来源。用中文回答。';
+
+const SEARCH_TOOLS = [{"type": "web_search","limit": 5}];
+
+// ── Credential helper ──────────────────────────────────────────────────────
+
+interface Credentials {
+  token: string;
+  baseUrl: string;
+}
+
+async function getCredentials(): Promise<Credentials | null> {
+  const secret = await getProviderSecret(SEARCH_ACCOUNT_ID);
+  const token =
+    secret?.type === 'api_key'
+      ? secret.apiKey
+      : secret?.type === 'local'
+        ? (secret.apiKey ?? null)
+        : null;
+
+  if (!token) return null;
+
+  const store = await getClawXProviderStore();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accounts = (store.get('providerAccounts') ?? {}) as Record<string, any>;
+  const baseUrl = accounts[SEARCH_ACCOUNT_ID]?.baseUrl as string | undefined;
+
+  if (!baseUrl) return null;
+
+  return { token, baseUrl };
+}
+
+// ── Chat Completions response parser ──────────────────────────────────────
+
+interface ChatCompletionsResponse {
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+    };
+  }>;
+}
+
+function extractTextFromChatResponse(data: ChatCompletionsResponse): string {
+  return data.choices?.[0]?.message?.content?.trim() ?? '';
+}
+
+// ── Web search implementation ──────────────────────────────────────────────
+
 async function performSearch(query: string, _count: number): Promise<SearchResponse> {
+  const creds = await getCredentials();
+  if (!creds) {
+    return {
+      query,
+      results: [
+        {
+          title: '未登录',
+          url: '',
+          description: '请先登录爆文猫账号后再使用联网搜索功能',
+        },
+      ],
+    };
+  }
+
+  const { token, baseUrl } = creds;
+
+  const chatUrl = `${baseUrl}/chat/completions`;
+  console.log('[boom-search] POST', chatUrl, 'model:', SEARCH_MODEL);
+
+  const response = await fetch(chatUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      model: SEARCH_MODEL,
+      messages: [
+        { role: 'system', content: SEARCH_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `请帮我搜索并总结以下内容，并标注出重要信息URL地址：${query}`,
+        },
+      ],
+      tools: SEARCH_TOOLS,
+      stream: false,
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    console.error('[boom-search] backend error', response.status, errText);
+    throw new Error(`Search API ${response.status}: ${errText}`);
+  }
+
+  const data = (await response.json()) as ChatCompletionsResponse;
+  const text = extractTextFromChatResponse(data);
+
+  // 从文本中提取 Markdown 链接 [title](url) 作为引用
+  const linkRe = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+  const citations: SearchResult[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = linkRe.exec(text)) !== null) {
+    citations.push({ title: match[1], url: match[2], description: match[2] });
+  }
+
   return {
     query,
     results: [
-      {
-        title: '仙人掌 - 维基百科',
-        url: 'https://zh.wikipedia.org/wiki/%E4%BB%99%E4%BA%BA%E6%8E%8C',
-        description: '仙人掌是沙漠中常见的植物',
-      },
+      { title: `关于「${query}」的搜索摘要`, url: '', description: text },
+      ...citations,
     ],
   };
 }
 
 /**
- * TODO: Replace with real fetch/scrape API call.
+ * web_fetch is not yet implemented — returns a placeholder.
  */
 async function performFetch(
   targetUrl: string,
@@ -61,7 +165,7 @@ async function performFetch(
 ): Promise<FetchResponse> {
   return {
     url: targetUrl,
-    content: '仙人掌是沙漠中常见的植物，耐旱性极强，能在极端干旱的环境下存活。',
+    content: `[web_fetch 暂未实现] 目标地址: ${targetUrl}`,
     extractMode: _mode,
   };
 }
@@ -104,7 +208,9 @@ export async function handleBoomSearchRoutes(
     try {
       sendJson(res, 200, await performSearch(query, count));
     } catch (err) {
-      sendJson(res, 500, { error: 'Search failed', message: String(err) });
+      const msg = String(err);
+      console.error('[boom-search] performSearch threw:', msg);
+      sendJson(res, 500, { error: 'search_failed', message: msg, query });
     }
     return true;
   }
