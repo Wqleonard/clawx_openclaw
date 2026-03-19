@@ -74,6 +74,19 @@ function isMarkdownFile(filePath: string): boolean {
   return lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdx');
 }
 
+function normalizeWorkspacePath(value: string): string {
+  return value
+    .replace(/[\\/]+/g, '/')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+}
+
+function workspacePathMatches(left: string, right: string): boolean {
+  const a = normalizeWorkspacePath(left);
+  const b = normalizeWorkspacePath(right);
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
 export function Chat() {
   const { t, i18n } = useTranslation(['chat', 'settings']);
   const navigate = useNavigate();
@@ -204,6 +217,10 @@ export function Chat() {
       cleanupEmptySession();
     };
   }, [cleanupEmptySession]);
+
+  useEffect(() => {
+    console.log(messages);
+  }, [messages]);
 
   useEffect(() => {
     void fetchAgents();
@@ -801,17 +818,50 @@ export function Chat() {
 
   const handleNewProjectSession = useCallback(async () => {
     if (!projectPath) return;
-    const current = useChatStore.getState();
-    if (current.messages.length > 0) {
-      newSession();
-      const newSessionKey = useChatStore.getState().currentSessionKey;
-      if (newSessionKey) {
-        await bindProjectToSession(newSessionKey, projectPath);
-      }
-    } else if (current.currentSessionKey) {
-      await bindProjectToSession(current.currentSessionKey, projectPath);
+    let matchedAgent = agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
+    if (!matchedAgent) {
+      await fetchAgents();
+      matchedAgent = useAgentsStore
+        .getState()
+        .agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
     }
-  }, [projectPath, newSession, bindProjectToSession]);
+    if (matchedAgent) {
+      const chatState = useChatStore.getState();
+      const expectedPrefix = `agent:${matchedAgent.id}:`;
+      if (!chatState.currentSessionKey.startsWith(expectedPrefix)) {
+        const alignedSessionKey =
+          [...chatState.sessions]
+            .filter((session) => session.key.startsWith(expectedPrefix))
+            .sort(
+              (a, b) =>
+                (chatState.sessionLastActivity[b.key] ?? 0) -
+                (chatState.sessionLastActivity[a.key] ?? 0)
+            )[0]?.key ?? `${expectedPrefix}main`;
+        if (alignedSessionKey !== chatState.currentSessionKey) {
+          switchSession(alignedSessionKey);
+        }
+      }
+    }
+
+    const previousSessionKey = useChatStore.getState().currentSessionKey;
+    newSession();
+    const newSessionKey = useChatStore.getState().currentSessionKey;
+    if (newSessionKey && newSessionKey !== previousSessionKey) {
+      await bindProjectToSession(newSessionKey, projectPath);
+    }
+    if (isSessionDrawerMode) {
+      setSessionDrawerOpen(false);
+    }
+  }, [
+    projectPath,
+    agents,
+    fetchAgents,
+    switchSession,
+    newSession,
+    bindProjectToSession,
+    isSessionDrawerMode,
+    setSessionDrawerOpen,
+  ]);
 
   const handleSendMessage = useCallback(
     async (
@@ -826,25 +876,14 @@ export function Chat() {
       }>,
       targetAgentId?: string | null
     ) => {
-      const normalizePath = (value: string) =>
-        value
-          .replace(/[\\/]+/g, '/')
-          .replace(/\/+$/, '')
-          .toLowerCase();
-      const pathMatches = (a: string, b: string) => {
-        const left = normalizePath(a);
-        const right = normalizePath(b);
-        return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
-      };
-
       let matchedAgent = projectPath
-        ? agents.find((agent) => pathMatches(agent.workspace, projectPath))
+        ? agents.find((agent) => workspacePathMatches(agent.workspace, projectPath))
         : undefined;
       if (projectPath && !matchedAgent) {
         await fetchAgents();
         matchedAgent = useAgentsStore
           .getState()
-          .agents.find((agent) => pathMatches(agent.workspace, projectPath));
+          .agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
       }
 
       const enforcedTargetAgentId = matchedAgent?.id ?? targetAgentId ?? undefined;
@@ -998,7 +1037,6 @@ export function Chat() {
       {!isSessionDrawerMode && (
         <>
           {/* Chat List Panel */}
-
           <div
             className={cn(
               'rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden space-y-0.5',
@@ -1254,11 +1292,13 @@ export function Chat() {
         variant="destructive"
         onConfirm={async () => {
           if (!sessionToDelete) return;
-          await deleteSession(sessionToDelete.key);
-          if (currentSessionKey === sessionToDelete.key) {
+          const deletingKey = sessionToDelete.key;
+          const isDeletingCurrent = useChatStore.getState().currentSessionKey === deletingKey;
+          setSessionToDelete(null);
+          void deleteSession(deletingKey);
+          if (isDeletingCurrent) {
             navigate('/');
           }
-          setSessionToDelete(null);
         }}
         onCancel={() => setSessionToDelete(null)}
       />
@@ -1304,6 +1344,7 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
   const { t } = useTranslation('chat');
   return (
     <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
+      <ProjectsRail />
       <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
         <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>
