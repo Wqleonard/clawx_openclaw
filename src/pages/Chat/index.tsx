@@ -971,29 +971,37 @@ export function Chat() {
       {!isSessionDrawerMode && <ProjectsRail />}
 
       {/* Session List Panel */}
-      {isSessionListInlineVisible && (
+      {!isSessionDrawerMode && (
         <>
           {/* Chat List Panel */}
 
           <div
-            className="rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
-            style={{ width: listWidth }}
+            className={cn(
+              'rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden space-y-0.5',
+              isListResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
+              isSessionListInlineVisible
+                ? 'pointer-events-auto px-3 py-4'
+                : 'w-0 p-0 pointer-events-none border-none'
+            )}
+            style={isSessionListInlineVisible ? { width: listWidth } : undefined}
           >
             {projectPath && sessionListContent}
           </div>
 
-          <div
-            onMouseDown={onListDragStart}
-            className="w-2 h-full cursor-col-resize group"
-            title={resizeHandleTitle}
-          >
+          {isSessionListInlineVisible && (
             <div
-              className={cn(
-                'w-0.5 mx-auto h-full',
-                isListResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
-              )}
-            ></div>
-          </div>
+              onMouseDown={onListDragStart}
+              className="w-2 h-full cursor-col-resize group"
+              title={resizeHandleTitle}
+            >
+              <div
+                className={cn(
+                  'w-0.5 mx-auto h-full',
+                  isListResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+                )}
+              ></div>
+            </div>
+          )}
         </>
       )}
       {isSessionDrawerMode && projectPath && (
