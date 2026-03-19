@@ -99,7 +99,6 @@ export function Chat() {
   const editorRafRef = useRef<number | null>(null);
   const editorPendingWidthRef = useRef<number | null>(null);
   const isFileTreeDragging = useRef(false);
-  const prevFileTreeDrawerModeRef = useRef(window.innerWidth < FILE_TREE_DRAWER_BREAKPOINT);
   const fileTreeDragStartX = useRef(0);
   const fileTreeDragStartWidth = useRef(0);
   const fileTreeRafRef = useRef<number | null>(null);
@@ -152,8 +151,12 @@ export function Chat() {
   const setFileTreeDrawerOpen = useChatLayoutStore((s) => s.setFileTreeDrawerOpen);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
   const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
+  const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
+  const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
   const setProjectSwitching = useChatLayoutStore((s) => s.setProjectSwitching);
   const setSessionDrawerOpen = useChatLayoutStore((s) => s.setSessionDrawerOpen);
+  const setSessionDrawerMode = useChatLayoutStore((s) => s.setSessionDrawerMode);
+  const setFileTreeDrawerMode = useChatLayoutStore((s) => s.setFileTreeDrawerMode);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(
     null
@@ -161,12 +164,8 @@ export function Chat() {
   const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
-  const [isSessionDrawerMode, setIsSessionDrawerMode] = useState<boolean>(
-    () => window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT
-  );
-  const [isFileTreeDrawerMode, setIsFileTreeDrawerMode] = useState<boolean>(
-    () => window.innerWidth < FILE_TREE_DRAWER_BREAKPOINT
-  );
+  const prevSessionDrawerModeRef = useRef(isSessionDrawerMode);
+  const prevFileTreeDrawerModeRef = useRef(isFileTreeDrawerMode);
 
 
   const [isListResizing, setIsListResizing] = useState(false);
@@ -386,14 +385,14 @@ export function Chat() {
   useEffect(() => {
     const updateSessionDrawerMode = () => {
       const nextMode = window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT;
-      setIsSessionDrawerMode(nextMode);
+      setSessionDrawerMode(nextMode);
       if (!nextMode) {
         setSessionDrawerOpen(false);
       }
     };
     const updateFileTreeDrawerMode = () => {
       const nextMode = window.innerWidth < FILE_TREE_DRAWER_BREAKPOINT;
-      setIsFileTreeDrawerMode(nextMode);
+      setFileTreeDrawerMode(nextMode);
     };
     updateSessionDrawerMode();
     updateFileTreeDrawerMode();
@@ -403,7 +402,15 @@ export function Chat() {
       window.removeEventListener('resize', updateSessionDrawerMode);
       window.removeEventListener('resize', updateFileTreeDrawerMode);
     };
-  }, [setSessionDrawerOpen]);
+  }, [setFileTreeDrawerMode, setSessionDrawerMode, setSessionDrawerOpen]);
+
+  useEffect(() => {
+    const wasDrawerMode = prevSessionDrawerModeRef.current;
+    if (wasDrawerMode !== isSessionDrawerMode) {
+      setSessionDrawerOpen(false);
+    }
+    prevSessionDrawerModeRef.current = isSessionDrawerMode;
+  }, [isSessionDrawerMode, setSessionDrawerOpen]);
 
   useEffect(() => {
     const wasDrawerMode = prevFileTreeDrawerModeRef.current;
