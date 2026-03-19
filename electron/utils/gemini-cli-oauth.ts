@@ -389,7 +389,7 @@ async function waitForLocalCallback(params: {
           res.statusCode = 200;
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
           res.end(
-            "<!doctype html><html><head><meta charset='utf-8'/></head><body><h2>Session expired</h2><p>This authorization link is from a previous attempt. Please go back to ClawX and try again.</p></body></html>",
+            "<!doctype html><html><head><meta charset='utf-8'/></head><body><h2>Session expired</h2><p>This authorization link is from a previous attempt. Please go back to StoryClaw and try again.</p></body></html>",
           );
           return;
         }
@@ -397,7 +397,7 @@ async function waitForLocalCallback(params: {
         res.statusCode = 200;
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.end(
-          "<!doctype html><html><head><meta charset='utf-8'/></head><body><h2>Gemini CLI OAuth complete</h2><p>You can close this window and return to ClawX.</p></body></html>",
+          "<!doctype html><html><head><meta charset='utf-8'/></head><body><h2>Gemini CLI OAuth complete</h2><p>You can close this window and return to StoryClaw.</p></body></html>",
         );
 
         finish(undefined, { code, state });
