@@ -69,61 +69,61 @@ export function createTray(mainWindow: BrowserWindow): Tray {
   // Create context menu
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: `Show ${APP_DISPLAY_NAME}`,
+      label: '打开应用',
       click: showWindow,
     },
+    // {
+    //   type: 'separator',
+    // },
+    // {
+    //   label: 'Gateway Status',
+    //   enabled: false,
+    // },
+    // {
+    //   label: '  Running',
+    //   type: 'checkbox',
+    //   checked: true,
+    //   enabled: false,
+    // },
+    // {
+    //   type: 'separator',
+    // },
+    // {
+    //   label: 'Quick Actions',
+    //   submenu: [
+    //     {
+    //       label: 'Open Chat',
+    //       click: () => {
+    //         if (mainWindow.isDestroyed()) return;
+    //         mainWindow.show();
+    //         mainWindow.webContents.send('navigate', '/');
+    //       },
+    //     },
+    //     {
+    //       label: 'Open Settings',
+    //       click: () => {
+    //         if (mainWindow.isDestroyed()) return;
+    //         mainWindow.show();
+    //         mainWindow.webContents.send('navigate', '/settings');
+    //       },
+    //     },
+    //   ],
+    // },
+    // {
+    //   type: 'separator',
+    // },
+    // {
+    //   label: 'Check for Updates...',
+    //   click: () => {
+    //     if (mainWindow.isDestroyed()) return;
+    //     mainWindow.webContents.send('update:check');
+    //   },
+    // },
     {
       type: 'separator',
     },
     {
-      label: 'Gateway Status',
-      enabled: false,
-    },
-    {
-      label: '  Running',
-      type: 'checkbox',
-      checked: true,
-      enabled: false,
-    },
-    {
-      type: 'separator',
-    },
-    {
-      label: 'Quick Actions',
-      submenu: [
-        {
-          label: 'Open Chat',
-          click: () => {
-            if (mainWindow.isDestroyed()) return;
-            mainWindow.show();
-            mainWindow.webContents.send('navigate', '/');
-          },
-        },
-        {
-          label: 'Open Settings',
-          click: () => {
-            if (mainWindow.isDestroyed()) return;
-            mainWindow.show();
-            mainWindow.webContents.send('navigate', '/settings');
-          },
-        },
-      ],
-    },
-    {
-      type: 'separator',
-    },
-    {
-      label: 'Check for Updates...',
-      click: () => {
-        if (mainWindow.isDestroyed()) return;
-        mainWindow.webContents.send('update:check');
-      },
-    },
-    {
-      type: 'separator',
-    },
-    {
-      label: `Quit ${APP_DISPLAY_NAME}`,
+      label: '退出应用',
       click: () => {
         app.quit();
       },
