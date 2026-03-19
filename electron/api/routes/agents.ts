@@ -5,11 +5,9 @@ import {
   createAgent,
   deleteAgentConfig,
   listAgentsSnapshot,
-<<<<<<< HEAD
+
   listAgentTemplates,
-=======
   removeAgentWorkspaceDirectory,
->>>>>>> github-origin/main
   resolveAccountIdForAgent,
   updateAgentName,
 } from '../../utils/agent-config';
@@ -127,22 +125,21 @@ export async function handleAgentRoutes(
 
   if (url.pathname === '/api/agents' && req.method === 'POST') {
     try {
-<<<<<<< HEAD
+
       const body = await parseJsonBody<{ name: string; templateId?: string; sourceAgentId?: string; workspacePath?: string }>(req);
       const snapshot = await createAgent(body.name, {
         templateId: body.templateId,
         sourceAgentId: body.sourceAgentId,
         workspacePath: body.workspacePath,
-=======
-      const body = await parseJsonBody<{ name: string }>(req);
-      const snapshot = await createAgent(body.name);
-      // Sync provider API keys to the new agent's auth-profiles.json so the
-      // embedded runner can authenticate with LLM providers when messages
-      // arrive via channel bots (e.g. Feishu). Without this, the copied
-      // auth-profiles.json may contain a stale key → 401 from the LLM.
+      });
+      // const body = await parseJsonBody<{ name: string }>(req);
+      // const snapshot = await createAgent(body.name);
+      // // Sync provider API keys to the new agent's auth-profiles.json so the
+      // // embedded runner can authenticate with LLM providers when messages
+      // // arrive via channel bots (e.g. Feishu). Without this, the copied
+      // // auth-profiles.json may contain a stale key → 401 from the LLM.
       syncAllProviderAuthToRuntime().catch((err) => {
         console.warn('[agents] Failed to sync provider auth after agent creation:', err);
->>>>>>> github-origin/main
       });
       scheduleGatewayReload(ctx, 'create-agent');
       sendJson(res, 200, { success: true, ...snapshot });
