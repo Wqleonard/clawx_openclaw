@@ -1,0 +1,12 @@
+{
+  "name": "boom-search",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BoomClaw built-in web search and fetch plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

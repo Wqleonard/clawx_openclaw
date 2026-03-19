@@ -1,0 +1,10 @@
+{
+  "id": "boom-search",
+  "name": "BoomClaw Web Search",
+  "description": "BoomClaw built-in web search, no API key required",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
