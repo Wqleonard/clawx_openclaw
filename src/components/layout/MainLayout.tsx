@@ -31,7 +31,7 @@ export function MainLayout() {
         {/* Workspace Rail */}
 
         {/* <Sidebar /> */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1">
           <Outlet />
         </main>
       </div>

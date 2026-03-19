@@ -544,6 +544,23 @@ export function Chat() {
   const isFileTreeInlineVisible = !!projectPath && isFileTreeDrawerOpen && !isFileTreeDrawerMode;
   const effectiveFileTreeWidth = isFileTreeInlineVisible ? fileTreeWidth : 0;
 
+  useEffect(() => {
+    const clampEditorWidthForViewport = () => {
+      if (isEditorDragging.current) return;
+      const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
+      const maxByContainer =
+        containerWidth - CHAT_PANEL_SIZE.chatMinWidth - effectiveListWidth - effectiveFileTreeWidth - 16;
+      const maxAllowed = Math.min(CHAT_PANEL_SIZE.editor.max, Math.max(0, maxByContainer));
+      if (editorWidth > maxAllowed) {
+        setEditorWidth(maxAllowed);
+      }
+    };
+
+    clampEditorWidthForViewport();
+    window.addEventListener('resize', clampEditorWidthForViewport);
+    return () => window.removeEventListener('resize', clampEditorWidthForViewport);
+  }, [editorWidth, effectiveFileTreeWidth, effectiveListWidth]);
+
   const isEmpty = messages.length === 0 && !sending;
   const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
   const activeMarkdownContent = activeMarkdownFile ? (fileContents[activeMarkdownFile] ?? '') : '';
@@ -971,7 +988,7 @@ export function Chat() {
     <div
       ref={containerRef}
       className={cn(
-        'px-3 py-3 flex h-full transition-colors duration-500 dark:bg-background',
+        'w-full min-w-0 max-w-full px-3 py-3 flex h-full transition-colors duration-500 dark:bg-background',
         isSessionDrawerMode ? 'pl-3' : 'pl-0'
       )}
     >
