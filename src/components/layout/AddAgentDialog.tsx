@@ -119,20 +119,20 @@ export function AddAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogChange}>
-      <DialogContent className="flex w-full max-h-[80vh] max-w-md flex-col overflow-hidden rounded-3xl border-0 bg-[#f3f1e9] p-0 shadow-2xl dark:bg-card">
+      <DialogContent className="flex w-full max-h-[80vh] max-w-md px-4 flex-col overflow-hidden rounded-3xl border-0 bg-[#f3f1e9] p-0 shadow-2xl dark:bg-card">
         <DialogHeader className="shrink-0 p-6 pb-2">
           <DialogTitle className="text-2xl font-normal tracking-tight">
-            {t('createDialog.title')}
+            {t('createDialog.lobsterTitle')}
           </DialogTitle>
           <DialogDescription className="mt-1 text-foreground/70">
-            {t('createDialog.description')}
+            {t('createDialog.lobsterDescription')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto scrollbar-hover p-6 pr-4 pt-4">
           <div className="space-y-2.5">
             <Label htmlFor="agent-name" className={labelClasses}>
-              {t('createDialog.nameLabel')}
+              {t('createDialog.lobsterNameLabel')}
             </Label>
             <Input
               id="agent-name"
@@ -146,7 +146,9 @@ export function AddAgentDialog({
           </div>
 
           <div className="space-y-2.5">
-            <Label className={labelClasses}>{t('createDialog.sourceLabel')}</Label>
+            <Label className={labelClasses}>
+              {t('createDialog.lobsterSourceLabel')}
+            </Label>
             <div className="flex gap-1 p-1 rounded-full bg-black/5 dark:bg-white/5">
               <button
                 type="button"
@@ -160,7 +162,7 @@ export function AddAgentDialog({
                 className={sourceTabClass('agent')}
                 onClick={() => setSource('agent')}
               >
-                {t('createDialog.sourceAgent')}
+                {t('createDialog.lobsterSourceAgent')}
               </button>
             </div>
           </div>
