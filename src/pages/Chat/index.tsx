@@ -998,7 +998,7 @@ export function Chat() {
           {isSessionListInlineVisible && (
             <div
               onMouseDown={onListDragStart}
-              className="w-2 h-full cursor-col-resize group"
+              className="w-2 h-full cursor-col-resize group shrink-0"
               title={resizeHandleTitle}
             >
               <div
@@ -1139,7 +1139,7 @@ export function Chat() {
 
       <div
         onMouseDown={onEditorDragStart}
-        className="w-2 h-full cursor-col-resize group"
+        className="w-2 h-full cursor-col-resize group shrink-0"
         title={resizeHandleTitle}
       >
         <div
@@ -1184,7 +1184,7 @@ export function Chat() {
               {isFileTreeInlineVisible && (
                 <div
                   onMouseDown={onFileTreeDragStart}
-                  className="w-2 h-full cursor-col-resize group"
+                  className="w-2 h-full cursor-col-resize group shrink-0"
                   title={resizeHandleTitle}
                 >
                   <div

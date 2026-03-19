@@ -481,7 +481,7 @@ export function ProjectsRail() {
 
   return (
     <>
-      <div className="flex w-16 h-full flex-col items-center gap-3 py-3">
+      <div className="flex w-16 h-full flex-col items-center gap-3 py-3 px-3 shrink-0">
         {projectItems.map((project) => (
           <WorkspaceShortcutButton
             key={project.path}

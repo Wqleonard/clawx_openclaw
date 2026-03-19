@@ -610,9 +610,9 @@ export function FileTree({ className }: FileTreeProps) {
 
   const menuStyle = contextMenu
     ? {
-        left: isFileTreeDrawerMode? 8: contextMenu.x,
-        top: isFileTreeDrawerMode? contextMenu.y-34 : contextMenu.y,
-      }
+      left: isFileTreeDrawerMode ? 8 : contextMenu.x,
+      top: isFileTreeDrawerMode ? contextMenu.y - 34 : contextMenu.y,
+    }
     : undefined;
 
   return (
