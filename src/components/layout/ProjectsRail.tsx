@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SlidersHorizontal, Terminal } from 'lucide-react';
+import { SettingsIcon, SlidersHorizontal, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
@@ -15,6 +15,7 @@ import { useFileSystemStore } from '@/stores/filesystem';
 import { useSettingsStore } from '@/stores/settings';
 import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components/ui/dialog';
 import { Preferences } from '@/pages/Preferences';
+import { useSettingDialogStore } from '@/stores/setting-dialog';
 
 type ProjectItem = {
   path: string;
@@ -119,10 +120,9 @@ function WorkspaceShortcutButton({
 }
 
 export function ProjectsRail() {
-  const isDev = import.meta.env.DEV;
   const { t } = useTranslation();
   const navigate = useNavigate();
-  // const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
+  const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
   const projectPath = useFileSystemStore((state) => state.projectPath);
   const initProject = useFileSystemStore((state) => state.initProject);
   const clearProject = useFileSystemStore((state) => state.clearProject);
@@ -446,7 +446,6 @@ export function ProjectsRail() {
   }, [menuState]);
 
   const openDevConsole = useCallback(async () => {
-    if (!isDev) return;
     try {
       const result = await hostApiFetch<{
         success: boolean;
@@ -462,7 +461,7 @@ export function ProjectsRail() {
       const message = error instanceof Error ? error.message : String(error);
       toast.error(message || 'Failed to open debug console');
     }
-  }, [isDev]);
+  }, []);
 
   return (
     <>
@@ -501,7 +500,7 @@ export function ProjectsRail() {
           <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
         </Button>
 
-        {/* <Button
+        <Button
           variant="ghost"
           size="icon"
           className={cn(
@@ -513,7 +512,7 @@ export function ProjectsRail() {
           aria-label="Open settings"
         >
           <SettingsIcon className="h-4 w-4" strokeWidth={2} />
-        </Button> */}
+        </Button>
 
         {/* {isDev && ( */}
           <Button

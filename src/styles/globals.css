@@ -1,12 +1,13 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import './_variables.scss';
+@import './_keyframe-animations.scss';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import './_variables.scss';
-@import './_keyframe-animations.scss';
 
 @layer base {
     :root {

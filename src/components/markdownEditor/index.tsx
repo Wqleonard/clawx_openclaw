@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils';
 import {
   ArrowRightLeft,
   Bold,
-  Code,
   CodeXml,
   Heading,
   Heading1,
@@ -76,7 +75,7 @@ function ToolbarButton({
           {children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
+      <TooltipContent side='bottom'>{tooltip}</TooltipContent>
     </Tooltip>
   );
 }
@@ -108,7 +107,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
     editorProps: {
       attributes: {
         class:
-          'prose prose-sm dark:prose-invert max-w-none min-h-full px-4 py-3 focus:outline-none selection:bg-primary/30 dark:selection:bg-primary/40',
+          'prose prose-sm dark:prose-invert max-w-none min-h-full px-4 py-3 focus:outline-none ',
       },
     },
     onUpdate({ editor: currentEditor, transaction }) {
@@ -301,14 +300,14 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
             >
               <Strikethrough className="h-4 w-4" />
             </ToolbarButton>
-            <ToolbarButton
-              tooltip={t('markdownEditor.toolbar.inlineCode')}
-              active={editor.isActive('code')}
-              onClick={() => editor.chain().focus().toggleCode().run()}
-              disabled={isSourceMode}
-            >
-              <Code className="h-4 w-4" />
-            </ToolbarButton>
+            {/*<ToolbarButton*/}
+            {/*  tooltip={t('markdownEditor.toolbar.inlineCode')}*/}
+            {/*  active={editor.isActive('code')}*/}
+            {/*  onClick={() => editor.chain().focus().toggleCode().run()}*/}
+            {/*  disabled={isSourceMode}*/}
+            {/*>*/}
+            {/*  <Code className="h-4 w-4" />*/}
+            {/*</ToolbarButton>*/}
           </ToolbarGroup>
 
           <ToolbarSeparator />
