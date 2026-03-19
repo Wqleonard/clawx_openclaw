@@ -26,32 +26,38 @@
       "autoEnable": true
     },
     {
-      "slug": "skillhub",
+      "slug": "script-story-setting-skill",
       "version": "1.0.0",
       "autoEnable": true
     },
     {
-      "slug": "self-improving-agent",
-      "repo": "peterskoett/self-improving-agent",
-      "repoPath": ".",
-      "ref": "master",
-      "version": "main",
+      "slug": "script-role-setting-skill",
+      "version": "1.0.0",
       "autoEnable": true
     },
     {
-      "slug": "tavily-search",
-      "repo": "tavily-ai/skills",
-      "repoPath": "skills/tavily-search",
-      "ref": "main",
-      "version": "main",
+      "slug": "script-outline-skill",
+      "version": "1.0.0",
       "autoEnable": true
     },
     {
-      "slug": "brave-web-search",
-      "repo": "brave/brave-search-skills",
-      "repoPath": "skills/web-search",
-      "ref": "main",
-      "version": "main",
+      "slug": "script-plot-skill",
+      "version": "1.0.0",
+      "autoEnable": true
+    },
+    {
+      "slug": "script-content-skill",
+      "version": "1.0.0",
+      "autoEnable": true
+    },
+    {
+      "slug": "script-tag-skill",
+      "version": "1.0.0",
+      "autoEnable": true
+    },
+    {
+      "slug": "find-skills-in-tencent-skillhub",
+      "version": "1.0.0",
       "autoEnable": true
     }
   ]
