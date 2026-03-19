@@ -29,9 +29,16 @@ function DialogPortal({
 }
 
 function DialogClose({
+  className,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+  return (
+    <DialogPrimitive.Close
+      data-slot="dialog-close"
+      className={cn("hover:bg-black/5 dark:hover:bg-white/10", className)}
+      {...props}
+    />
+  )
 }
 
 const DialogOverlay = React.forwardRef<
@@ -84,7 +91,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="cursor-pointer ring-offset-background w-7 h-7 flex items-center justify-center hover:bg-accent data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 z-30 rounded-sm disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+            className="cursor-pointer ring-offset-background w-7 h-7 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 z-30 rounded-sm disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />
             <span className="sr-only">Close</span>
