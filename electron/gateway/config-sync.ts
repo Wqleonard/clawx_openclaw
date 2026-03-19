@@ -13,6 +13,7 @@ import { syncGatewayTokenToConfig, syncBrowserConfigToOpenClaw, syncSessionIdleM
 import { buildProxyEnv, resolveProxySettings } from '../utils/proxy';
 import { syncProxyConfigToOpenClaw } from '../utils/openclaw-proxy';
 import { logger } from '../utils/logger';
+import { syncAllProviderAuthToRuntime } from '../services/providers/provider-runtime-sync';
 import { prependPathEntry } from '../utils/env-path';
 import { copyPluginFromNodeModules, fixupPluginManifest } from '../utils/plugin-install';
 
@@ -157,6 +158,17 @@ export async function syncGatewayConfigBeforeLaunch(
     await syncSessionIdleMinutesToOpenClaw();
   } catch (err) {
     logger.warn('Failed to sync session idle minutes to openclaw.json:', err);
+  }
+
+  // Re-sync all provider secrets (API keys / OAuth tokens) from Keychain to
+  // auth-profiles.json before every Gateway launch.  This handles two cases:
+  //   1. auth-profiles.json was cleared by `openclaw doctor --fix` or manual deletion.
+  //   2. The baowenmao JWT was refreshed since the last session; without this sync
+  //      the Gateway would start with a stale / missing token and models appear offline.
+  try {
+    await syncAllProviderAuthToRuntime();
+  } catch (err) {
+    logger.warn('Failed to sync provider auth to runtime on startup:', err);
   }
 }
 
