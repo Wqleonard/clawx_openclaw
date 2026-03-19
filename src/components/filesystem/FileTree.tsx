@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useChatStore } from '@/stores/chat';
 import type { FileNode } from '@/types/electron';
+import { useChatLayoutStore } from '@/stores/chat-layout';
 
 type FileTreeProps = {
   className?: string;
@@ -605,10 +606,12 @@ export function FileTree({ className }: FileTreeProps) {
     openInputModal,
   ]);
 
+  const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
+
   const menuStyle = contextMenu
     ? {
-        left: contextMenu.x,
-        top: contextMenu.y,
+        left: isFileTreeDrawerMode? 8: contextMenu.x,
+        top: isFileTreeDrawerMode? contextMenu.y-34 : contextMenu.y,
       }
     : undefined;
 

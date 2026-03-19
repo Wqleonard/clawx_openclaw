@@ -34,7 +34,8 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { ProjectsRail } from '@/components/layout/ProjectsRail';
 
 const INITIAL_NOW_MS = Date.now();
-const SESSION_LIST_DRAWER_BREAKPOINT = 1300;
+const SESSION_LIST_DRAWER_BREAKPOINT = 1400;
+const FILE_TREE_DRAWER_BREAKPOINT = 1020;
 let hasCheckedWorkspaceOnStartup = false;
 
 type SessionBucketKey =
@@ -147,10 +148,15 @@ export function Chat() {
   const updateFileContent = useFileSystemStore((s) => s.updateFileContent);
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
+  const setFileTreeDrawerOpen = useChatLayoutStore((s) => s.setFileTreeDrawerOpen);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
   const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
+  const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
+  const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
   const setProjectSwitching = useChatLayoutStore((s) => s.setProjectSwitching);
   const setSessionDrawerOpen = useChatLayoutStore((s) => s.setSessionDrawerOpen);
+  const setSessionDrawerMode = useChatLayoutStore((s) => s.setSessionDrawerMode);
+  const setFileTreeDrawerMode = useChatLayoutStore((s) => s.setFileTreeDrawerMode);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(
     null
@@ -158,9 +164,10 @@ export function Chat() {
   const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
-  const [isSessionDrawerMode, setIsSessionDrawerMode] = useState<boolean>(
-    () => window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT
-  );
+  const prevSessionDrawerModeRef = useRef(isSessionDrawerMode);
+  const prevFileTreeDrawerModeRef = useRef(isFileTreeDrawerMode);
+
+
   const [isListResizing, setIsListResizing] = useState(false);
   const [isEditorResizing, setIsEditorResizing] = useState(false);
   const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
@@ -378,15 +385,40 @@ export function Chat() {
   useEffect(() => {
     const updateSessionDrawerMode = () => {
       const nextMode = window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT;
-      setIsSessionDrawerMode(nextMode);
+      setSessionDrawerMode(nextMode);
       if (!nextMode) {
         setSessionDrawerOpen(false);
       }
     };
+    const updateFileTreeDrawerMode = () => {
+      const nextMode = window.innerWidth < FILE_TREE_DRAWER_BREAKPOINT;
+      setFileTreeDrawerMode(nextMode);
+    };
     updateSessionDrawerMode();
+    updateFileTreeDrawerMode();
     window.addEventListener('resize', updateSessionDrawerMode);
-    return () => window.removeEventListener('resize', updateSessionDrawerMode);
-  }, [setSessionDrawerOpen]);
+    window.addEventListener('resize', updateFileTreeDrawerMode);
+    return () => {
+      window.removeEventListener('resize', updateSessionDrawerMode);
+      window.removeEventListener('resize', updateFileTreeDrawerMode);
+    };
+  }, [setFileTreeDrawerMode, setSessionDrawerMode, setSessionDrawerOpen]);
+
+  useEffect(() => {
+    const wasDrawerMode = prevSessionDrawerModeRef.current;
+    if (wasDrawerMode !== isSessionDrawerMode) {
+      setSessionDrawerOpen(false);
+    }
+    prevSessionDrawerModeRef.current = isSessionDrawerMode;
+  }, [isSessionDrawerMode, setSessionDrawerOpen]);
+
+  useEffect(() => {
+    const wasDrawerMode = prevFileTreeDrawerModeRef.current;
+    if (!wasDrawerMode && isFileTreeDrawerMode) {
+      setFileTreeDrawerOpen(false);
+    }
+    prevFileTreeDrawerModeRef.current = isFileTreeDrawerMode;
+  }, [isFileTreeDrawerMode, setFileTreeDrawerOpen]);
 
   useEffect(() => {
     // Keep the persisted selection as the source of truth on refresh.
@@ -509,7 +541,8 @@ export function Chat() {
   }, [persistedFileTreeWidth]);
   const isSessionListInlineVisible = !isSessionDrawerMode && !isSessionListCollapsed;
   const effectiveListWidth = isSessionListInlineVisible ? listWidth : 0;
-  const effectiveFileTreeWidth = projectPath && isFileTreeDrawerOpen ? fileTreeWidth : 0;
+  const isFileTreeInlineVisible = !!projectPath && isFileTreeDrawerOpen && !isFileTreeDrawerMode;
+  const effectiveFileTreeWidth = isFileTreeInlineVisible ? fileTreeWidth : 0;
 
   const isEmpty = messages.length === 0 && !sending;
   const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
@@ -945,29 +978,37 @@ export function Chat() {
       {!isSessionDrawerMode && <ProjectsRail />}
 
       {/* Session List Panel */}
-      {isSessionListInlineVisible && (
+      {!isSessionDrawerMode && (
         <>
           {/* Chat List Panel */}
 
           <div
-            className="rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-0.5"
-            style={{ width: listWidth }}
+            className={cn(
+              'rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden space-y-0.5',
+              isListResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
+              isSessionListInlineVisible
+                ? 'pointer-events-auto px-3 py-4'
+                : 'w-0 p-0 pointer-events-none border-none'
+            )}
+            style={isSessionListInlineVisible ? { width: listWidth } : undefined}
           >
             {projectPath && sessionListContent}
           </div>
 
-          <div
-            onMouseDown={onListDragStart}
-            className="w-2 h-full cursor-col-resize group"
-            title={resizeHandleTitle}
-          >
+          {isSessionListInlineVisible && (
             <div
-              className={cn(
-                'w-0.5 mx-auto h-full',
-                isListResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
-              )}
-            ></div>
-          </div>
+              onMouseDown={onListDragStart}
+              className="w-2 h-full cursor-col-resize group"
+              title={resizeHandleTitle}
+            >
+              <div
+                className={cn(
+                  'w-0.5 mx-auto h-full',
+                  isListResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+                )}
+              ></div>
+            </div>
+          )}
         </>
       )}
       {isSessionDrawerMode && projectPath && (
@@ -992,7 +1033,7 @@ export function Chat() {
       )}
 
       {/* Chat Panel */}
-      <div className={cn('rounded-2xl border relative flex flex-1 flex-col overflow-hidden')}>
+      <div className={cn('rounded-2xl border relative flex flex-1 min-w-[400px] flex-col overflow-hidden')}>
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />
@@ -1137,30 +1178,53 @@ export function Chat() {
 
       {projectPath && (
         <>
-          {isFileTreeDrawerOpen && (
-            <div
-              onMouseDown={onFileTreeDragStart}
-              className="w-2 h-full cursor-col-resize group"
-              title={resizeHandleTitle}
-            >
+          {!isFileTreeDrawerMode && (
+            <>
+              {/* resize dragger */}
+              {isFileTreeInlineVisible && (
+                <div
+                  onMouseDown={onFileTreeDragStart}
+                  className="w-2 h-full cursor-col-resize group"
+                  title={resizeHandleTitle}
+                >
+                  <div
+                    className={cn(
+                      'w-0.5 mx-auto h-full',
+                      isFileTreeResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+                    )}
+                  ></div>
+                </div>
+              )}
               <div
                 className={cn(
-                  'w-0.5 mx-auto h-full',
-                  isFileTreeResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+                  'rounded-2xl border shrink-0 overflow-hidden bg-background',
+                  isFileTreeResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
+                  isFileTreeInlineVisible ? 'pointer-events-auto' : 'w-0 pointer-events-none border-none'
                 )}
-              ></div>
-            </div>
+                style={isFileTreeInlineVisible ? { width: fileTreeWidth } : undefined}
+              >
+                <FileTree key={projectPath} className="h-full" />
+              </div>
+            </>
           )}
-          <div
-            className={cn(
-              'rounded-2xl border shrink-0 overflow-hidden bg-background',
-              isFileTreeResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
-              isFileTreeDrawerOpen ? 'pointer-events-auto' : 'w-0 pointer-events-none border-none'
-            )}
-            style={isFileTreeDrawerOpen ? { width: fileTreeWidth } : undefined}
-          >
-            <FileTree key={projectPath} className="h-full" />
-          </div>
+          {isFileTreeDrawerMode && (
+            <Drawer
+              direction="right"
+              open={isFileTreeDrawerOpen}
+              onOpenChange={(open) => setFileTreeDrawerOpen(open)}
+              modal
+            >
+              <DrawerContent
+                hideOverlay
+                className="max-w-none py-3 !border-none !rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:h-auto"
+                style={{ width: `min(86vw, ${fileTreeWidth}px)` }}
+              >
+                <div className="h-full  border overflow-hidden">
+                  <FileTree key={`${projectPath}-drawer`} className="h-full" />
+                </div>
+              </DrawerContent>
+            </Drawer>
+          )}
         </>
       )}
 

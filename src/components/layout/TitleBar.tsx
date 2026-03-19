@@ -27,6 +27,7 @@ import { useGatewayStore } from '@/stores/gateway';
 import { cn } from '@/lib/utils';
 
 const SESSION_LIST_DRAWER_BREAKPOINT = 1300;
+const FILE_TREE_DRAWER_BREAKPOINT = 1020;
 
 export function TitleBar() {
   const platform = window.electron?.platform;
@@ -47,10 +48,11 @@ export function TitleBar() {
 
 function MacTitleBar() {
   const { t } = useTranslation('chat');
-  const [isSessionDrawerMode, setIsSessionDrawerMode] = useState<boolean>(
-    () => window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT
-  );
+  const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
+  const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
+  const setSessionDrawerMode = useChatLayoutStore((s) => s.setSessionDrawerMode);
+  const setFileTreeDrawerMode = useChatLayoutStore((s) => s.setFileTreeDrawerMode);
   const toggleFileTreeDrawer = useChatLayoutStore((s) => s.toggleFileTreeDrawer);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
   const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
@@ -60,12 +62,13 @@ function MacTitleBar() {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsSessionDrawerMode(window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT);
+      setSessionDrawerMode(window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT);
+      setFileTreeDrawerMode(window.innerWidth < FILE_TREE_DRAWER_BREAKPOINT);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [setFileTreeDrawerMode, setSessionDrawerMode]);
 
   const handleOpenFolder = () => {
     toggleFileTreeDrawer();
@@ -78,6 +81,7 @@ function MacTitleBar() {
     toggleSessionListCollapsed();
   };
   const isSessionPanelOpen = isSessionDrawerMode ? isSessionDrawerOpen : !isSessionListCollapsed;
+  const isFileTreePanelOpen = isFileTreeDrawerMode ? isFileTreeDrawerOpen : isFileTreeDrawerOpen;
 
   return (
     <div className="drag-region flex h-10 shrink-0 items-center justify-end border-b bg-background pl-20 pr-3">
@@ -104,12 +108,12 @@ function MacTitleBar() {
             size="icon"
             className={cn(
               'size-7 cursor-pointer',
-              isFileTreeDrawerOpen ? 'bg-accent' : 'text-muted-foreground'
+              isFileTreePanelOpen ? 'bg-accent' : 'text-muted-foreground'
             )}
             onClick={handleOpenFolder}
-            title={isFileTreeDrawerOpen ? t('common:actions.close') : t('fileTree.openFolder')}
+            title={isFileTreePanelOpen ? t('common:actions.close') : t('fileTree.openFolder')}
           >
-            {isFileTreeDrawerOpen ? (
+            {isFileTreePanelOpen ? (
               <PanelRightClose className="size-4" />
             ) : (
               <PanelRightOpen className="size-4" />
@@ -125,12 +129,13 @@ function WindowsTitleBar() {
   const { t } = useTranslation('chat');
   const [maximized, setMaximized] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const [isSessionDrawerMode, setIsSessionDrawerMode] = useState<boolean>(
-    () => window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT
-  );
+  const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
+  const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
+  const setSessionDrawerMode = useChatLayoutStore((s) => s.setSessionDrawerMode);
+  const setFileTreeDrawerMode = useChatLayoutStore((s) => s.setFileTreeDrawerMode);
   const toggleFileTreeDrawer = useChatLayoutStore((s) => s.toggleFileTreeDrawer);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
   const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
@@ -147,12 +152,13 @@ function WindowsTitleBar() {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsSessionDrawerMode(window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT);
+      setSessionDrawerMode(window.innerWidth < SESSION_LIST_DRAWER_BREAKPOINT);
+      setFileTreeDrawerMode(window.innerWidth < FILE_TREE_DRAWER_BREAKPOINT);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [setFileTreeDrawerMode, setSessionDrawerMode]);
 
   const handleOpenFolder = () => {
     toggleFileTreeDrawer();
@@ -165,6 +171,7 @@ function WindowsTitleBar() {
     toggleSessionListCollapsed();
   };
   const isSessionPanelOpen = isSessionDrawerMode ? isSessionDrawerOpen : !isSessionListCollapsed;
+  const isFileTreePanelOpen = isFileTreeDrawerMode ? isFileTreeDrawerOpen : isFileTreeDrawerOpen;
 
   const handleMinimize = () => {
     invokeIpc('window:minimize');
@@ -247,12 +254,12 @@ function WindowsTitleBar() {
               size="icon"
               className={cn(
                 'size-7 cursor-pointer',
-                isFileTreeDrawerOpen ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
+                isFileTreePanelOpen ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
               )}
               onClick={handleOpenFolder}
-              title={isFileTreeDrawerOpen ? t('common:actions.close') : t('fileTree.openFolder')}
+              title={isFileTreePanelOpen ? t('common:actions.close') : t('fileTree.openFolder')}
             >
-              {isFileTreeDrawerOpen ? (
+              {isFileTreePanelOpen ? (
                 <PanelRightClose className="size-4" />
               ) : (
                 <PanelRightOpen className="size-4" />
