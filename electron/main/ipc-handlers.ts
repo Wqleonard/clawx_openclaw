@@ -1047,6 +1047,28 @@ function registerUvHandlers(): void {
  * Allows the renderer to read application logs for diagnostics
  */
 function registerLogHandlers(): void {
+  ipcMain.handle('log:clientEvent', async (_, payload?: {
+    level?: 'info' | 'warn' | 'error';
+    source?: string;
+    message?: string;
+    data?: unknown;
+    ts?: string;
+  }) => {
+    const level = payload?.level ?? 'info';
+    const source = payload?.source ?? 'renderer';
+    const message = payload?.message ?? '(empty message)';
+    const ts = payload?.ts ?? new Date().toISOString();
+    const prefix = `[ClientEvent][${source}] ${message} (ts=${ts})`;
+    if (level === 'error') {
+      logger.error(prefix, payload?.data);
+    } else if (level === 'warn') {
+      logger.warn(prefix, payload?.data);
+    } else {
+      logger.info(prefix, payload?.data);
+    }
+    return { success: true };
+  });
+
   // Get recent logs from memory ring buffer
   ipcMain.handle('log:getRecent', async (_, count?: number) => {
     return logger.getRecentLogs(count);

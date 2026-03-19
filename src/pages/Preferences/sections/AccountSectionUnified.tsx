@@ -7,6 +7,7 @@ import { useLoginStore } from '@/stores/loginStore';
 import { useSettingsStore } from '@/stores/settings';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { logClientEvent } from '@/lib/client-log';
 import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 function SectionCard({ children }: { children: React.ReactNode }) {
@@ -144,7 +145,15 @@ export function AccountSectionUnified() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => { void logout(); setShowLogoutConfirm(false); }}
+              onClick={() => {
+                logClientEvent('info', {
+                  source: 'preferences.account.logout.confirm',
+                  message: 'User clicked logout confirm',
+                  data: { language: i18n.language },
+                });
+                void logout();
+                setShowLogoutConfirm(false);
+              }}
               className="h-7 px-3 text-[13px] text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
             >
               {isZh ? '确认' : 'Confirm'}

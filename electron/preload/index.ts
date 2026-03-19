@@ -123,6 +123,7 @@ const electronAPI = {
         'log:getFilePath',
         'log:getDir',
         'log:listFiles',
+        'log:clientEvent',
         // File staging & media
         'file:stage',
         'file:stageBuffer',
