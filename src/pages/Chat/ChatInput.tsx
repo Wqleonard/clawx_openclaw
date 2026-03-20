@@ -18,7 +18,6 @@ import {
   FileArchive,
   File,
   Loader2,
-  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import CLAW_PNG from '@/assets/claw.png'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -509,7 +509,10 @@ export function ChatInput({
       <div className="w-full">
         <div className="bg-black/5 pb-2 -mb-2 rounded-ss-lg rounded-se-lg">
           <div className="flex items-center gap-2 px-3 h-7 leading-7 ">
-            <Bot className="h-3.5 w-3.5 text-primary" />
+            {/* <Bot className="h-3.5 w-3.5 text-primary" /> */}
+            <div className='size-4'>
+              <img src={CLAW_PNG} alt="" className='w-full h-full object-cover'/>
+            </div>
             <span className="text-sm">
               {t('toolbar.currentAgent', { agent: currentAgentName })}
             </span>
