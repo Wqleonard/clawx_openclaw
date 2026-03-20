@@ -530,8 +530,13 @@ export function Chat() {
   );
   const projectSessions = useMemo(() => {
     if (!projectPath) return [];
+    const matchedAgent = agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
+    if (matchedAgent) {
+      const prefix = `agent:${matchedAgent.id}:`;
+      return sessions.filter((session) => session.key.startsWith(prefix));
+    }
     return sessions.filter((session) => projectBindings[session.key] === projectPath);
-  }, [projectPath, sessions, projectBindings]);
+  }, [projectPath, sessions, projectBindings, agents]);
   const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> =
     useMemo(() => {
       const buckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [
