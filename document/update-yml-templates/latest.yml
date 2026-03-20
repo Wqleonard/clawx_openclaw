@@ -1,0 +1,14 @@
+version: 0.2.6
+files:
+  - url: StoryClaw-0.2.6-win-x64.exe
+    sha512: EpmLbNydH/Z3XCQabDVVKAFhkrLJYjictXleqWvDaeAh3S21qVMZeydaWQNpmPAsG76S8wSsKdZaMxPqfGIokw==
+    size: 207861433
+  - url: StoryClaw-0.2.6-win-arm64.exe
+    sha512: agLlF6cB3ZC9dUzkBeg03c+Kp4faS9RykQSZ413J2SUsMI2EA6s4gVNarB24oYO0VdhlufRNZAjg5E3WUId8wQ==
+    size: 209722961
+  - url: StoryClaw-0.2.6-win.exe
+    sha512: Dw7d93PKqTMqbbINghgRuWRNJf97EaGTtg8VNB/+oJXw3+aS7bkxAVQXQwn1DC6S/KFvn1yrm6TNKjoO8ULafg==
+    size: 416531045
+path: StoryClaw-0.2.6-win-x64.exe
+sha512: EpmLbNydH/Z3XCQabDVVKAFhkrLJYjictXleqWvDaeAh3S21qVMZeydaWQNpmPAsG76S8wSsKdZaMxPqfGIokw==
+releaseDate: '2026-03-20T06:02:51.491Z'

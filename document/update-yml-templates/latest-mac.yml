@@ -1,0 +1,17 @@
+version: 0.2.6
+files:
+  - url: StoryClaw-0.2.6-mac-x64.zip
+    sha512: OeBmSUe9oBmY24giOqSp1P4btw+Rm/2sYUhiT0zzIHvNLAQRwMo5Yh9iPK7nTs5pBjB+IYzLfgPWM3lXkMbJtg==
+    size: 234808727
+  - url: StoryClaw-0.2.6-mac-arm64.zip
+    sha512: F3nAvOWGgjAAKOoJQwzTXZaTdWK7aRFpkVWvjM4utde1YLHUkTPVDZPeWV5dARjJNE7FSbHErdWGCPnB+HipgA==
+    size: 269406198
+  - url: StoryClaw-0.2.6-mac-x64.dmg
+    sha512: FGXPzMeF0A1Og99mUn0oWsUH+0SvFY7WcJ1Yt+Vcsx3lQKhqJczjJKrSALjGd70o12VDLSOG2YEJrTLE8WffRw==
+    size: 232285003
+  - url: StoryClaw-0.2.6-mac-arm64.dmg
+    sha512: IDxwiZPvVnBXKEV+YFPIvIV9OJXNAOgK95RuFPdNHkD5NX6EA1UlTbKB23xwy6knqAIo6PeYwO8afEkv2DT9AA==
+    size: 268085634
+path: StoryClaw-0.2.6-mac-x64.zip
+sha512: OeBmSUe9oBmY24giOqSp1P4btw+Rm/2sYUhiT0zzIHvNLAQRwMo5Yh9iPK7nTs5pBjB+IYzLfgPWM3lXkMbJtg==
+releaseDate: '2026-03-20T06:02:51.491Z'
