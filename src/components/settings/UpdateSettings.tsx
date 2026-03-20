@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useUpdateStore } from '@/stores/update';
 import { useTranslation } from 'react-i18next';
+import { logClientEvent } from '@/lib/client-log';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -40,10 +41,40 @@ export function UpdateSettings() {
     init();
   }, [init]);
 
+  useEffect(() => {
+    if (!isInitialized) return;
+    logClientEvent('info', {
+      source: 'update-settings',
+      message: 'state:render',
+      data: {
+        status,
+        currentVersion,
+        updateVersion: updateInfo?.version || null,
+        hasError: Boolean(error),
+      },
+    });
+  }, [isInitialized, status, currentVersion, updateInfo?.version, error]);
+
   const handleCheckForUpdates = useCallback(async () => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:check-for-updates' });
     clearError();
     await checkForUpdates();
   }, [checkForUpdates, clearError]);
+
+  const handleDownloadUpdate = useCallback(async () => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:download-update' });
+    await downloadUpdate();
+  }, [downloadUpdate]);
+
+  const handleInstallUpdate = useCallback(() => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:install-update' });
+    installUpdate();
+  }, [installUpdate]);
+
+  const handleCancelAutoInstall = useCallback(async () => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:cancel-auto-install' });
+    await cancelAutoInstall();
+  }, [cancelAutoInstall]);
 
   const renderStatusIcon = () => {
     switch (status) {
@@ -101,7 +132,7 @@ export function UpdateSettings() {
         );
       case 'available':
         return (
-          <Button onClick={downloadUpdate} size="sm">
+          <Button onClick={handleDownloadUpdate} size="sm">
             <Download className="h-4 w-4 mr-2" />
             {t('updates.action.download')}
           </Button>
@@ -109,14 +140,14 @@ export function UpdateSettings() {
       case 'downloaded':
         if (autoInstallCountdown != null && autoInstallCountdown >= 0) {
           return (
-            <Button onClick={cancelAutoInstall} size="sm" variant="outline">
+            <Button onClick={handleCancelAutoInstall} size="sm" variant="outline">
               <XCircle className="h-4 w-4 mr-2" />
               {t('updates.action.cancelAutoInstall')}
             </Button>
           );
         }
         return (
-          <Button onClick={installUpdate} size="sm" variant="default">
+          <Button onClick={handleInstallUpdate} size="sm" variant="default">
             <Rocket className="h-4 w-4 mr-2" />
             {t('updates.action.install')}
           </Button>

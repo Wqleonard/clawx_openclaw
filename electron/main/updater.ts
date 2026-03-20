@@ -13,7 +13,8 @@ import { EventEmitter } from 'events';
 import { setQuitting } from './app-state';
 
 /** Base CDN URL (without trailing channel path) */
-const OSS_BASE_URL = 'https://oss.intelli-spectrum.com';
+// const OSS_BASE_URL = 'https://oss.intelli-spectrum.com';
+const UPDATE_BASE_URL = 'https://story-claw.tos-cn-beijing.volces.com';
 
 export interface UpdateStatus {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
@@ -73,7 +74,7 @@ export class AppUpdater extends EventEmitter {
     // alpha -> /alpha/alpha-mac.yml, beta -> /beta/beta-mac.yml, etc.
     const version = app.getVersion();
     const channel = detectChannel(version);
-    const feedUrl = `${OSS_BASE_URL}/${channel}`;
+    const feedUrl = `${UPDATE_BASE_URL}/${channel}`;
 
     logger.info(`[Updater] Version: ${version}, channel: ${channel}, feedUrl: ${feedUrl}`);
 
@@ -109,26 +110,45 @@ export class AppUpdater extends EventEmitter {
    */
   private setupListeners(): void {
     autoUpdater.on('checking-for-update', () => {
+      logger.info('[Updater] checking-for-update');
       this.updateStatus({ status: 'checking' });
       this.emit('checking-for-update');
     });
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
+      logger.info('[Updater] update-available', {
+        version: info.version,
+        releaseDate: info.releaseDate,
+      });
       this.updateStatus({ status: 'available', info });
       this.emit('update-available', info);
     });
 
     autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+      logger.info('[Updater] update-not-available', {
+        version: info.version,
+        releaseDate: info.releaseDate,
+      });
       this.updateStatus({ status: 'not-available', info });
       this.emit('update-not-available', info);
     });
 
     autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+      logger.debug('[Updater] download-progress', {
+        percent: progress.percent,
+        transferred: progress.transferred,
+        total: progress.total,
+        bytesPerSecond: progress.bytesPerSecond,
+      });
       this.updateStatus({ status: 'downloading', progress });
       this.emit('download-progress', progress);
     });
 
     autoUpdater.on('update-downloaded', (event: UpdateDownloadedEvent) => {
+      logger.info('[Updater] update-downloaded', {
+        version: event.version,
+        releaseDate: event.releaseDate,
+      });
       this.updateStatus({ status: 'downloaded', info: event });
       this.emit('update-downloaded', event);
 
@@ -175,6 +195,7 @@ export class AppUpdater extends EventEmitter {
    */
   async checkForUpdates(): Promise<UpdateInfo | null> {
     try {
+      logger.info('[Updater] checkForUpdates called');
       const result = await autoUpdater.checkForUpdates();
 
       // In dev mode (app not packaged), autoUpdater silently returns null
@@ -206,6 +227,7 @@ export class AppUpdater extends EventEmitter {
    */
   async downloadUpdate(): Promise<void> {
     try {
+      logger.info('[Updater] downloadUpdate called');
       await autoUpdater.downloadUpdate();
     } catch (error) {
       logger.error('[Updater] Download update failed:', error);

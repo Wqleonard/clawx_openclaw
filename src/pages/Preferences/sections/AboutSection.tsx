@@ -1,12 +1,14 @@
-// import { UpdateSettings } from '@/components/settings/UpdateSettings';
-// import { Switch } from '@/components/ui/switch';
+import { useEffect } from 'react';
+import { UpdateSettings } from '@/components/settings/UpdateSettings';
+import { Switch } from '@/components/ui/switch';
 // import { Button } from '@/components/ui/button';
-// import { useSettingsStore } from '@/stores/settings';
+import { useSettingsStore } from '@/stores/settings';
 import { useUpdateStore } from '@/stores/update';
 import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
 import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
-// import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { logClientEvent } from '@/lib/client-log';
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
@@ -16,27 +18,34 @@ function SectionCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-// function SettingRow({ label, desc, control, last = false }: {
-//   label: string; desc?: string; control: React.ReactNode; last?: boolean;
-// }) {
-//   return (
-//     <div className={cn('flex items-center justify-between gap-4 px-5 py-4', !last && 'border-b border-black/5 dark:border-white/5')}>
-//       <div className="min-w-0">
-//         <p className="text-[14px] font-medium text-foreground">{label}</p>
-//         {desc && <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>}
-//       </div>
-//       <div className="shrink-0">{control}</div>
-//     </div>
-//   );
-// }
+function SettingRow({ label, desc, control, last = false }: {
+  label: string; desc?: string; control: React.ReactNode; last?: boolean;
+}) {
+  return (
+    <div className={cn('flex items-center justify-between gap-4 px-5 py-4', !last && 'border-b border-black/5 dark:border-white/5')}>
+      <div className="min-w-0">
+        <p className="text-[14px] font-medium text-foreground">{label}</p>
+        {desc && <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>}
+      </div>
+      <div className="shrink-0">{control}</div>
+    </div>
+  );
+}
 
 export function AboutSection() {
   const { i18n } = useTranslation();
   const isZh = i18n.language?.startsWith('zh');
-  // const { autoCheckUpdate, setAutoCheckUpdate, autoDownloadUpdate, setAutoDownloadUpdate } = useSettingsStore();
+  const { autoCheckUpdate, setAutoCheckUpdate, autoDownloadUpdate, setAutoDownloadUpdate } = useSettingsStore();
+  const initUpdateStore = useUpdateStore((state) => state.init);
   const currentVersion = useUpdateStore((state) => state.currentVersion);
-  // const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
+  const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
   const openUrl = (url: string) => invokeIpc('shell:openExternal', url);
+  const displayVersion = currentVersion === '0.0.0' ? '—' : currentVersion;
+
+  useEffect(() => {
+    logClientEvent('info', { source: 'preferences-about', message: 'about-section-mounted' });
+    void initUpdateStore();
+  }, [initUpdateStore]);
 
   return (
     <div className="p-8 space-y-6 max-w-2xl mx-auto">
@@ -49,7 +58,7 @@ export function AboutSection() {
         <SectionCard>
           <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5">
             <p className="text-[14px] font-medium text-foreground">{APP_DISPLAY_NAME}</p>
-            <p className="text-[13px] text-muted-foreground">{currentVersion || '—'}</p>
+            <p className="text-[13px] text-muted-foreground">{displayVersion}</p>
           </div>
           {/* <div className="flex items-center gap-3 px-5 py-4">
             <Button
@@ -74,12 +83,11 @@ export function AboutSection() {
       </div>
 
       {/* Updates */}
-      {/* <div>
+      <div>
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
           {isZh ? '更新' : 'Updates'}
         </h2>
         <SectionCard>
-          手动检查更新暂时隐藏
           <div className="px-5 py-4 border-b border-black/5 dark:border-white/5">
             <UpdateSettings />
           </div>
@@ -87,7 +95,19 @@ export function AboutSection() {
           <SettingRow
             label={isZh ? '自动检查更新' : 'Auto-check for Updates'}
             desc={isZh ? '启动时自动检查是否有新版本。' : 'Automatically check for updates on launch.'}
-            control={<Switch checked={autoCheckUpdate} onCheckedChange={setAutoCheckUpdate} />}
+            control={
+              <Switch
+                checked={autoCheckUpdate}
+                onCheckedChange={(v) => {
+                  logClientEvent('info', {
+                    source: 'preferences-about',
+                    message: 'toggle:auto-check-update',
+                    data: { enabled: v },
+                  });
+                  setAutoCheckUpdate(v);
+                }}
+              />
+            }
           />
           <SettingRow
             label={isZh ? '自动下载更新' : 'Auto-download Updates'}
@@ -95,13 +115,21 @@ export function AboutSection() {
             control={
               <Switch
                 checked={autoDownloadUpdate}
-                onCheckedChange={(v) => { setAutoDownloadUpdate(v); updateSetAutoDownload(v); }}
+                onCheckedChange={(v) => {
+                  logClientEvent('info', {
+                    source: 'preferences-about',
+                    message: 'toggle:auto-download-update',
+                    data: { enabled: v },
+                  });
+                  setAutoDownloadUpdate(v);
+                  updateSetAutoDownload(v);
+                }}
               />
             }
             last
           />
         </SectionCard>
-      </div> */}
+      </div>
 
       <div>
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
@@ -144,7 +172,7 @@ export function AboutSection() {
           © {new Date().getFullYear()} {APP_DISPLAY_NAME}. All rights reserved.
         </p>
         <p className="text-[11px] text-muted-foreground/40">
-          v{currentVersion || '—'} · Built with ❤️
+          v{displayVersion} · Built with ❤️
         </p>
       </div>
 
