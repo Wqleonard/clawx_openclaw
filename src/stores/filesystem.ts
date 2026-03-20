@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invokeIpc } from '@/lib/api-client';
-import { hostApiFetch } from '@/lib/host-api';
 import type { FileNode } from '@/types/electron';
 
 type FileSystemState = {
@@ -48,7 +47,6 @@ type FileSystemState = {
 };
 
 let removeFsChangedListener: (() => void) | null = null;
-const DEFAULT_AGENT_ID = 'main';
 const HIDDEN_RUNTIME_FILES = new Set([
   'AGENTS.md',
   'SOUL.md',
@@ -78,25 +76,6 @@ function readLegacyProjectShortcuts(): string[] {
   } catch {
     return [];
   }
-}
-
-function resolveAgentIdFromSessionKey(sessionKey: string): string {
-  if (!sessionKey.startsWith('agent:')) {
-    return DEFAULT_AGENT_ID;
-  }
-  const [, agentId] = sessionKey.split(':');
-  return (agentId || DEFAULT_AGENT_ID).trim() || DEFAULT_AGENT_ID;
-}
-
-async function syncAgentProjectBinding(sessionKey: string, projectPath: string): Promise<void> {
-  const agentId = resolveAgentIdFromSessionKey(sessionKey);
-  await hostApiFetch<{ success: boolean; changed?: boolean }>(
-    `/api/agents/${encodeURIComponent(agentId)}`,
-    {
-      method: 'PUT',
-      body: JSON.stringify({ workspace: projectPath }),
-    },
-  );
 }
 
 function sanitizeTreeForUi(
@@ -238,11 +217,6 @@ export const useFileSystemStore = create<FileSystemState>()(
           },
           defaultProjectPath: projectPath,
         }));
-        try {
-          await syncAgentProjectBinding(sessionKey, projectPath);
-        } catch (error) {
-          setStoreError(set, error);
-        }
       },
 
       applyProjectForSession: async (sessionKey) => {
@@ -252,7 +226,6 @@ export const useFileSystemStore = create<FileSystemState>()(
         if (boundPath) {
           try {
             await get().initProject(boundPath);
-            await syncAgentProjectBinding(sessionKey, boundPath);
           } catch {
             // ignore error
           }
