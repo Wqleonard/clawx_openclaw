@@ -338,6 +338,11 @@ export class AppUpdater extends EventEmitter {
       logger.warn(`[Updater] zip not found at ${zipPath ?? 'unknown'}, falling back to Squirrel`);
     }
 
+    // Hide all windows immediately before quit so user sees app disappear right away
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.hide();
+    }
+
     setQuitting();
     autoUpdater.quitAndInstall();
   }
