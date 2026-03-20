@@ -1,6 +1,6 @@
-; ClawX Custom NSIS Installer/Uninstaller Script
+; StoryClaw Custom NSIS Installer/Uninstaller Script
 ;
-; Install: enables long paths, adds resources\cli to user PATH for openclaw CLI.
+; Install: enables long paths, adds resources\cli to user PATH for StoryClaw CLI.
 ; Uninstall: removes the PATH entry and optionally deletes user data.
 
 !ifndef nsProcess::FindProcess
@@ -109,13 +109,32 @@
 
   _cu_pathDone:
 
-  ; Always remove StoryClaw user data on uninstall so reinstall starts from
-  ; a clean auth/setup state (login + preset model bootstrap).
-  DetailPrint "Removing StoryClaw user data..."
+  ; Always clear auth/session cache so reinstall requires login again,
+  ; even if the user chooses to keep other app data.
+  DetailPrint "Clearing login session data..."
+  RMDir /r "$APPDATA\storyclaw\Local Storage"
+  RMDir /r "$APPDATA\storyclaw\Session Storage"
+  RMDir /r "$APPDATA\storyclaw\IndexedDB"
+  RMDir /r "$LOCALAPPDATA\storyclaw\Local Storage"
+  RMDir /r "$LOCALAPPDATA\storyclaw\Session Storage"
+  RMDir /r "$LOCALAPPDATA\storyclaw\IndexedDB"
+  Delete "$APPDATA\storyclaw\Cookies"
+  Delete "$APPDATA\storyclaw\Cookies-journal"
+  Delete "$APPDATA\storyclaw\Network\Cookies"
+  Delete "$APPDATA\storyclaw\Network\Cookies-journal"
+  Delete "$LOCALAPPDATA\storyclaw\Cookies"
+  Delete "$LOCALAPPDATA\storyclaw\Cookies-journal"
+  Delete "$LOCALAPPDATA\storyclaw\Network\Cookies"
+  Delete "$LOCALAPPDATA\storyclaw\Network\Cookies-journal"
+
+  ; Ask whether to remove all remaining user data.
+  MessageBox MB_YESNO|MB_ICONQUESTION \
+    "Do you want to completely remove all StoryClaw user data?$\r$\n$\r$\nLogin session data is always cleared (you will need to login again after reinstall).$\r$\n$\r$\nIf you choose YES, this will also delete:$\r$\n  • .openclaw folder (configuration & skills)$\r$\n  • AppData\Local\storyclaw$\r$\n  • AppData\Roaming\storyclaw" \
+    /SD IDNO IDYES _cu_removeData IDNO _cu_skipRemove
 
   _cu_removeData:
-    ; Kill any lingering ClawX processes to release file locks on electron-store
-    ; JSON files (settings.json, clawx-providers.json, window-state.json, etc.)
+    ; Kill any lingering StoryClaw processes to release file locks on electron-store
+    ; JSON files (settings.json, storyclaw-providers.json, window-state.json, etc.)
     ${nsProcess::FindProcess} "${APP_EXECUTABLE_FILENAME}" $R0
     ${if} $R0 == 0
       ${nsProcess::KillProcess} "${APP_EXECUTABLE_FILENAME}" $R0
@@ -129,10 +148,6 @@
     RMDir /r "$PROFILE\.openclaw"
     RMDir /r "$LOCALAPPDATA\storyclaw"
     RMDir /r "$APPDATA\storyclaw"
-    ; Backward compatibility cleanup for legacy app data directory name.
-    RMDir /r "$LOCALAPPDATA\clawx"
-    RMDir /r "$APPDATA\clawx"
-
     ; --- Retry: if directories still exist (locked files), wait and try again ---
     ; Check .openclaw
     IfFileExists "$PROFILE\.openclaw\*.*" 0 _cu_openclawDone
@@ -152,14 +167,6 @@
         nsExec::ExecToStack 'cmd.exe /c rd /s /q "$LOCALAPPDATA\storyclaw"'
         Pop $0
         Pop $1
-    ; Legacy cleanup fallback
-    IfFileExists "$LOCALAPPDATA\clawx\*.*" 0 _cu_localDone
-      Sleep 1000
-      RMDir /r "$LOCALAPPDATA\clawx"
-      IfFileExists "$LOCALAPPDATA\clawx\*.*" 0 _cu_localDone
-        nsExec::ExecToStack 'cmd.exe /c rd /s /q "$LOCALAPPDATA\clawx"'
-        Pop $0
-        Pop $1
     _cu_localDone:
 
     ; Check AppData\Roaming\storyclaw
@@ -168,14 +175,6 @@
       RMDir /r "$APPDATA\storyclaw"
       IfFileExists "$APPDATA\storyclaw\*.*" 0 _cu_roamingDone
         nsExec::ExecToStack 'cmd.exe /c rd /s /q "$APPDATA\storyclaw"'
-        Pop $0
-        Pop $1
-    ; Legacy cleanup fallback
-    IfFileExists "$APPDATA\clawx\*.*" 0 _cu_roamingDone
-      Sleep 1000
-      RMDir /r "$APPDATA\clawx"
-      IfFileExists "$APPDATA\clawx\*.*" 0 _cu_roamingDone
-        nsExec::ExecToStack 'cmd.exe /c rd /s /q "$APPDATA\clawx"'
         Pop $0
         Pop $1
     _cu_roamingDone:
@@ -188,10 +187,6 @@
       StrCpy $R3 "$R3$\r$\n  • $LOCALAPPDATA\storyclaw"
     IfFileExists "$APPDATA\storyclaw\*.*" 0 +2
       StrCpy $R3 "$R3$\r$\n  • $APPDATA\storyclaw"
-    IfFileExists "$LOCALAPPDATA\clawx\*.*" 0 +2
-      StrCpy $R3 "$R3$\r$\n  • $LOCALAPPDATA\clawx (legacy)"
-    IfFileExists "$APPDATA\clawx\*.*" 0 +2
-      StrCpy $R3 "$R3$\r$\n  • $APPDATA\clawx (legacy)"
     StrCmp $R3 "" _cu_cleanupOk
       MessageBox MB_OK|MB_ICONEXCLAMATION \
         "Some data directories could not be removed (files may be in use):$\r$\n$R3$\r$\n$\r$\nPlease delete them manually after restarting your computer."
@@ -213,8 +208,6 @@
     RMDir /r "$R2\.openclaw"
     RMDir /r "$R2\AppData\Local\storyclaw"
     RMDir /r "$R2\AppData\Roaming\storyclaw"
-    RMDir /r "$R2\AppData\Local\clawx"
-    RMDir /r "$R2\AppData\Roaming\clawx"
 
   _cu_enumNext:
     IntOp $R0 $R0 + 1
