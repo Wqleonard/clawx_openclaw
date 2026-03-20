@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SettingsIcon, SlidersHorizontal, Terminal } from 'lucide-react';
+import { SlidersHorizontal, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../ui/button';
-import { Input } from '@/components/ui/input';
-import { AddAgentDialog } from './AddAgentDialog';
-import { invokeIpc } from '@/lib/api-client';
-import { hostApiFetch } from '@/lib/host-api';
-import { cn } from '@/lib/utils';
-import { useAgentsStore } from '@/stores/agents';
-import { useChatStore } from '@/stores/chat';
-import { useFileSystemStore } from '@/stores/filesystem';
-import { useSettingsStore } from '@/stores/settings';
-import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components/ui/dialog';
+import { Button } from '../../components/ui/button.tsx';
+import { Input } from '@/components/ui/input.tsx';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog.tsx';
+import { AddAgentDialog } from '../../components/layout/AddAgentDialog.tsx';
+import { invokeIpc } from '@/lib/api-client.ts';
+import { hostApiFetch } from '@/lib/host-api.ts';
+import { cn } from '@/lib/utils.ts';
+import { useAgentsStore } from '@/stores/agents.ts';
+import { useChatStore } from '@/stores/chat.ts';
+import { useFileSystemStore } from '@/stores/filesystem.ts';
+import { useSettingsStore } from '@/stores/settings.ts';
+import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components/ui/dialog.tsx';
 import { Preferences } from '@/pages/Preferences';
-import { useSettingDialogStore } from '@/stores/setting-dialog';
 
 type ProjectItem = {
   path: string;
@@ -125,7 +125,6 @@ function WorkspaceShortcutButton({
 export function ProjectsRail() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
   const projectPath = useFileSystemStore((state) => state.projectPath);
   const initProject = useFileSystemStore((state) => state.initProject);
   const clearProject = useFileSystemStore((state) => state.clearProject);
@@ -135,7 +134,9 @@ export function ProjectsRail() {
   const removeProjectShortcut = useFileSystemStore((state) => state.removeProjectShortcut);
   const workspaceRoots = useSettingsStore((state) => state.workspaceRoots);
   const createAgent = useAgentsStore((state) => state.createAgent);
+  const deleteAgent = useAgentsStore((state) => state.deleteAgent);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
+  const [projectToClose, setProjectToClose] = useState<string | null>(null);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
   const [showAddProjectDialog, setShowAddProjectDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -387,10 +388,16 @@ export function ProjectsRail() {
     }
   };
 
-  const handleClose = async () => {
+  const handleClose = () => {
     if (!menuState) return;
-    const target = menuState.workspacePath;
+    setProjectToClose(menuState.workspacePath);
     setMenuState(null);
+  };
+
+  const handleConfirmClose = async () => {
+    if (!projectToClose) return;
+    const target = projectToClose;
+    setProjectToClose(null);
     const resetChatViewState = () => {
       useChatStore.setState({
         messages: [],
@@ -406,11 +413,20 @@ export function ProjectsRail() {
         pendingToolImages: [],
       });
     };
-    const targetAgentIds = new Set(
-      agents
-        .filter((agent) => normalizeComparePath(agent.workspace) === normalizeComparePath(target))
-        .map((agent) => agent.id)
-    );
+    const linkedAgents = useAgentsStore
+      .getState()
+      .agents.filter((agent) => normalizeComparePath(agent.workspace) === normalizeComparePath(target));
+    const targetAgentIds = new Set(linkedAgents.map((agent) => agent.id));
+    try {
+      for (const agent of linkedAgents) {
+        await deleteAgent(agent.id);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || '删除关联 Agent 失败，已取消关闭 Project');
+      return;
+    }
+
     const sessionsToDelete = useChatStore
       .getState()
       .sessions.filter((session) => {
@@ -574,6 +590,23 @@ export function ProjectsRail() {
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!projectToClose}
+        title={t('common:actions.close')}
+        message={
+          projectToClose
+            ? `确定关闭 Project「${getWorkspaceName(projectToClose)}」吗？这将同时删除与该工作区绑定的 Agent。`
+            : ''
+        }
+        confirmLabel={t('common:actions.close')}
+        cancelLabel={t('common:actions.cancel')}
+        variant="destructive"
+        onConfirm={() => {
+          void handleConfirmClose();
+        }}
+        onCancel={() => setProjectToClose(null)}
+      />
 
       <AddAgentDialog
         open={showAddAgentDialog}
