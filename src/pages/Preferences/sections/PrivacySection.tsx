@@ -45,7 +45,7 @@ export function PrivacySection() {
       </div>
 
       {/* Block 2: Privacy Options */}
-      <div className="space-y-2">
+      {/* <div className="space-y-2">
         <h3 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
           {isZh ? '优化计划' : 'Improvement Program'}
         </h3>
@@ -64,7 +64,7 @@ export function PrivacySection() {
             <Switch checked={joinProgram} onCheckedChange={setJoinProgram} />
           </div>
         </div>
-      </div>
+      </div> */}
 
     </div>
   );

@@ -30,12 +30,16 @@ import { useFileSystemStore } from '@/stores/filesystem';
 import { useGatewayStore } from '@/stores/gateway';
 import { cn } from '@/lib/utils';
 
-export function TitleBar() {
+interface TitleBarProps {
+  showPanelToggles?: boolean;
+}
+
+export function TitleBar({ showPanelToggles = true }: TitleBarProps) {
   const platform = window.electron?.platform;
 
   if (platform === 'darwin') {
     // macOS: just a drag region, traffic lights are native
-    return <MacTitleBar />;
+    return <MacTitleBar showPanelToggles={showPanelToggles} />;
     // return <div className="drag-region h-10 shrink-0 border-b bg-background" />;
   }
 
@@ -44,10 +48,10 @@ export function TitleBar() {
     return null;
   }
 
-  return <WindowsTitleBar />;
+  return <WindowsTitleBar showPanelToggles={showPanelToggles} />;
 }
 
-function MacTitleBar() {
+function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const { t } = useTranslation('chat');
   const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
   const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
@@ -86,7 +90,7 @@ function MacTitleBar() {
 
   return (
     <div className="drag-region flex h-10 shrink-0 items-center justify-end border-b bg-background pl-20 pr-3">
-      {projectPath && (
+      {showPanelToggles && projectPath && (
         <div className="no-drag flex items-center gap-1">
           <Button
             variant="ghost"
@@ -126,7 +130,7 @@ function MacTitleBar() {
   );
 }
 
-function WindowsTitleBar() {
+function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const { t } = useTranslation('chat');
   const [maximized, setMaximized] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -193,7 +197,7 @@ function WindowsTitleBar() {
   return (
     <div className="drag-region flex h-10 shrink-0 items-center justify-between bg-background">
       <div className="no-drag flex h-full items-center justify-center px-4">
-        {projectPath && (
+        {showPanelToggles && projectPath && (
           <Button
             variant="ghost"
             size="icon"
@@ -248,7 +252,7 @@ function WindowsTitleBar() {
             </p>
           </PopoverContent>
         </Popover>
-        {projectPath && (
+        {showPanelToggles && projectPath && (
           <div className="flex h-full items-center justify-center">
             <Button
               variant="ghost"

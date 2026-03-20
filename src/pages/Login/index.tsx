@@ -5,6 +5,7 @@ import { useLoginStore } from '@/stores/loginStore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import loginBg from '@/assets/login_back.png';
+import { TitleBar } from '@/components/layout/TitleBar';
 
 const IFRAME_URL = 'https://www.baowenmao.com/login/login';
 const ALLOWED_ORIGIN = 'https://www.baowenmao.com';
@@ -93,37 +94,40 @@ export function Login() {
   }, []);
 
   return (
-    <div
-      className="flex h-screen w-screen items-center justify-end overflow-hidden pr-24"
-      style={{ backgroundImage: `url(${loginBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-    >
-      <div className="w-full max-w-[400px]">
-        <div
-          className={cn(
-            'relative overflow-hidden rounded-xl bg-card shadow-lg',
-            'h-[520px] w-full'
-          )}
-        >
-          {!iframeLoadFailed ? (
-            <iframe
-              ref={iframeRef}
-              src={IFRAME_URL}
-              title="登录"
-              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-              allow="camera; microphone"
-              className="h-full w-full border-0"
-              onLoad={handleIframeLoad}
-              onError={handleIframeError}
-            />
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6">
-              <div className="text-center text-base text-muted-foreground">无法加载登录页面</div>
-              <div className="text-center text-sm text-muted-foreground">请检查网络连接或稍后重试</div>
-              <Button onClick={handleRetry} className="mt-2">
-                重新加载
-              </Button>
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
+      <TitleBar showPanelToggles={false} />
+      <div
+        className="flex h-[calc(100vh-2.5rem)] w-full items-center justify-end overflow-hidden pr-24"
+        style={{ backgroundImage: `url(${loginBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        <div className="w-full max-w-[400px]">
+          <div
+            className={cn(
+              'relative overflow-hidden rounded-xl bg-card shadow-lg',
+              'h-[520px] w-full'
+            )}
+          >
+            {!iframeLoadFailed ? (
+              <iframe
+                ref={iframeRef}
+                src={IFRAME_URL}
+                title="登录"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                allow="camera; microphone"
+                className="h-full w-full border-0"
+                onLoad={handleIframeLoad}
+                onError={handleIframeError}
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6">
+                <div className="text-center text-base text-muted-foreground">无法加载登录页面</div>
+                <div className="text-center text-sm text-muted-foreground">请检查网络连接或稍后重试</div>
+                <Button onClick={handleRetry} className="mt-2">
+                  重新加载
+                </Button>
+              </div>
+            )}
             </div>
-          )}
         </div>
       </div>
     </div>
