@@ -247,10 +247,6 @@ export function FileTree({ className }: FileTreeProps) {
   const loadContextFiles = useFileSystemStore((s) => s.loadContextFiles);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
 
-  useEffect(() => {
-    console.log(projectPath)
-  }, [projectPath]);
-
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     if (!projectPath) return new Set();
     const cached = expandedByWorkspaceCache.get(projectPath);
