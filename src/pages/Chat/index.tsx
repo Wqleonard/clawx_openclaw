@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Ellipsis, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -30,6 +30,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useSettingsStore } from '@/stores/settings';
 import { invokeIpc } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -89,6 +90,12 @@ function workspacePathMatches(left: string, right: string): boolean {
   const a = normalizeWorkspacePath(left);
   const b = normalizeWorkspacePath(right);
   return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
+function getWorkspaceName(workspacePath: string): string {
+  const normalized = workspacePath.replace(/[\\/]+$/, '');
+  const segments = normalized.split(/[\\/]/).filter(Boolean);
+  return segments[segments.length - 1] || workspacePath;
 }
 
 export function Chat() {
@@ -161,6 +168,8 @@ export function Chat() {
   const bindProjectToSession = useFileSystemStore((s) => s.bindProjectToSession);
   const projectBindings = useFileSystemStore((s) => s.projectBindings);
   const projectShortcuts = useFileSystemStore((s) => s.projectShortcuts);
+  const removeProjectShortcut = useFileSystemStore((s) => s.removeProjectShortcut);
+  const clearProject = useFileSystemStore((s) => s.clearProject);
   const activeFile = useFileSystemStore((s) => s.activeFile);
   const fileContents = useFileSystemStore((s) => s.fileContents);
   const applyProjectForSession = useFileSystemStore((s) => s.applyProjectForSession);
@@ -187,10 +196,10 @@ export function Chat() {
   const prevSessionDrawerModeRef = useRef(isSessionDrawerMode);
   const prevFileTreeDrawerModeRef = useRef(isFileTreeDrawerMode);
 
-
   const [isListResizing, setIsListResizing] = useState(false);
   const [isEditorResizing, setIsEditorResizing] = useState(false);
   const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
+  const [isProjectActionsOpen, setIsProjectActionsOpen] = useState(false);
   const [showWorkspaceSetupDialog, setShowWorkspaceSetupDialog] = useState(false);
   const minLoading = useMinLoading(loading && messages.length > 0);
   const { contentRef, scrollRef } = useStickToBottomInstant(currentSessionKey);
@@ -634,6 +643,7 @@ export function Chat() {
   ]);
 
   const isEmpty = messages.length === 0 && !sending;
+  const projectName = projectPath ? getWorkspaceName(projectPath) : '';
   const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
   const activeMarkdownContent = activeMarkdownFile ? (fileContents[activeMarkdownFile] ?? '') : '';
   const handleMarkdownChange = useCallback(
@@ -689,11 +699,7 @@ export function Chat() {
       listDragStartWidth.current = listWidth;
       const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
       listDragStartChatWidth.current =
-        containerWidth -
-        fixedNonPanelWidth -
-        listWidth -
-        editorWidth -
-        effectiveFileTreeWidth;
+        containerWidth - fixedNonPanelWidth - listWidth - editorWidth - effectiveFileTreeWidth;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
@@ -896,6 +902,115 @@ export function Chat() {
     ]
   );
 
+  const switchToProjectSession = useCallback(
+    async (targetPath: string) => {
+      const chatState = useChatStore.getState();
+      const fsState = useFileSystemStore.getState();
+      const matchingAgent = agents.find((agent) =>
+        workspacePathMatches(agent.workspace, targetPath)
+      );
+      if (matchingAgent) {
+        const targetPrefix = `agent:${matchingAgent.id}:`;
+        const matchedSessionKey =
+          [...chatState.sessions]
+            .filter((session) => session.key.startsWith(targetPrefix))
+            .sort(
+              (a, b) =>
+                (chatState.sessionLastActivity[b.key] ?? 0) -
+                (chatState.sessionLastActivity[a.key] ?? 0)
+            )[0]?.key ?? `${targetPrefix}main`;
+        if (matchedSessionKey !== chatState.currentSessionKey) {
+          chatState.switchSession(matchedSessionKey);
+        }
+        return;
+      }
+
+      const targetSessionKey =
+        [...chatState.sessions]
+          .filter((session) => fsState.projectBindings[session.key] === targetPath)
+          .sort(
+            (a, b) =>
+              (chatState.sessionLastActivity[b.key] ?? 0) -
+              (chatState.sessionLastActivity[a.key] ?? 0)
+          )[0]?.key ?? null;
+
+      if (targetSessionKey) {
+        if (targetSessionKey !== chatState.currentSessionKey) {
+          chatState.switchSession(targetSessionKey);
+        }
+        return;
+      }
+
+      chatState.newSession();
+      const newSessionKey = useChatStore.getState().currentSessionKey;
+      if (newSessionKey) {
+        await fsState.bindProjectToSession(newSessionKey, targetPath);
+      }
+    },
+    [agents]
+  );
+
+  const handleOpenProjectInFileExplorer = useCallback(async () => {
+    if (!projectPath) return;
+    setIsProjectActionsOpen(false);
+    try {
+      await invokeIpc('shell:openPath', projectPath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || 'Failed to open project folder');
+    }
+  }, [projectPath]);
+
+  const handleCloseCurrentProject = useCallback(async () => {
+    if (!projectPath) return;
+    setIsProjectActionsOpen(false);
+    const target = projectPath;
+    const targetAgentIds = new Set(
+      agents
+        .filter((agent) => workspacePathMatches(agent.workspace, target))
+        .map((agent) => agent.id)
+    );
+    const sessionsToDelete = useChatStore
+      .getState()
+      .sessions.filter((session) => {
+        const boundByProject =
+          useFileSystemStore.getState().projectBindings[session.key] === target;
+        const sessionAgentId = session.key.startsWith('agent:') ? session.key.split(':')[1] : null;
+        const boundByAgentWorkspace = sessionAgentId ? targetAgentIds.has(sessionAgentId) : false;
+        return boundByProject || boundByAgentWorkspace;
+      })
+      .map((session) => session.key);
+    for (const sessionKey of sessionsToDelete) {
+      await deleteSession(sessionKey);
+    }
+
+    const nextShortcuts = projectShortcuts.filter((item) => item !== target);
+    removeProjectShortcut(target);
+    if (nextShortcuts.length > 0) {
+      const nextProject = nextShortcuts[0];
+      await switchToProjectSession(nextProject);
+      await initProject(nextProject);
+      return;
+    }
+
+    const remainingSessionKeys = useChatStore.getState().sessions.map((session) => session.key);
+    for (const sessionKey of remainingSessionKeys) {
+      await deleteSession(sessionKey);
+    }
+    resetChatRuntimeState();
+    await clearProject();
+  }, [
+    projectPath,
+    agents,
+    deleteSession,
+    projectShortcuts,
+    removeProjectShortcut,
+    switchToProjectSession,
+    initProject,
+    resetChatRuntimeState,
+    clearProject,
+  ]);
+
   const handleNewProjectSession = useCallback(async () => {
     if (!projectPath) return;
     let matchedAgent = agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
@@ -1017,6 +1132,40 @@ export function Chat() {
 
   const sessionListContent = (
     <>
+      <div className="mb-3 rounded-lg pl-2 py-2">
+        <div className="flex flex-col">
+          <div className="flex gap-1 items-center justify-between">
+            <div className="truncate text-sm font-semibold text-foreground">{projectName}</div>
+            <Popover open={isProjectActionsOpen} onOpenChange={setIsProjectActionsOpen}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                  <Ellipsis className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-52 p-1">
+                <button
+                  type="button"
+                  onClick={() => void handleOpenProjectInFileExplorer()}
+                  className="w-full rounded px-2 py-1.5 text-left text-sm font-bold hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  {t('common:actions.openInFileExplorer')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCloseCurrentProject()}
+                  className="w-full rounded px-2 py-1.5 text-left text-sm font-bold hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  {t('common:actions.close')}
+                </button>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="truncate text-xs text-muted-foreground" title={projectPath || undefined}>
+            {projectPath}
+          </div>
+        </div>
+      </div>
       <button
         onClick={() => void handleNewProjectSession()}
         className={cn(
@@ -1334,8 +1483,12 @@ export function Chat() {
               <div
                 className={cn(
                   'rounded-2xl border shrink-0 overflow-hidden bg-background',
-                  isFileTreeResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
-                  isFileTreeInlineVisible ? 'pointer-events-auto' : 'w-0 pointer-events-none border-none'
+                  isFileTreeResizing
+                    ? 'transition-none'
+                    : 'transition-[width] duration-200 ease-out',
+                  isFileTreeInlineVisible
+                    ? 'pointer-events-auto'
+                    : 'w-0 pointer-events-none border-none'
                 )}
                 style={isFileTreeInlineVisible ? { width: fileTreeWidth } : undefined}
               >

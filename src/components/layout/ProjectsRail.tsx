@@ -563,7 +563,7 @@ export function ProjectsRail() {
             onClick={() => void handleOpenInFileExplorer()}
             className="w-full rounded px-2 py-1.5 text-left font-bold text-sm hover:bg-black/5 dark:hover:bg-white/10"
           >
-            在文件资源管理器中打开
+            {t('common:actions.openInFileExplorer')}
           </button>
           <button
             type="button"

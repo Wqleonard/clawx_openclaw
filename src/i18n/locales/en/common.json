@@ -37,6 +37,7 @@
         "show": "Show",
         "hide": "Hide",
         "clear": "Clear",
+        "openInFileExplorer": "Open in File Explorer",
         "openDevTools": "Open DevTools",
         "resizePanel": "Drag to resize panel"
     },
