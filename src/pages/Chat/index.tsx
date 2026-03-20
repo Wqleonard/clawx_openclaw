@@ -37,7 +37,7 @@ import { toast } from 'sonner';
 import { useLoginStore } from '@/stores/loginStore';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { VisuallyHidden } from '@/components/ui/dialog';
-import { ProjectsRail } from '@/components/layout/ProjectsRail';
+import { ProjectsRail } from '@/pages/Chat/ProjectsRail.tsx';
 
 const INITIAL_NOW_MS = Date.now();
 const PROJECTS_RAIL_WIDTH = 64;

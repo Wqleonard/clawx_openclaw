@@ -4,7 +4,7 @@
  */
 import { Outlet } from 'react-router-dom';
 import { TitleBar } from './TitleBar';
-import { ProjectsRail } from './ProjectsRail';
+import { ProjectsRail } from '../../pages/Chat/ProjectsRail.tsx';
 import { SettingDialog } from '@/components/settingDialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner.tsx';
 import { useChatLayoutStore } from '@/stores/chat-layout.ts';
