@@ -343,7 +343,7 @@ export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
   {
     id: 'glm:custom-baowenmao',
     model: 'aliyun:glm-5',
-    label: 'Glm-5',
+    label: 'GLM-5',
   },
   {
     id: 'kimi:custom-baowenmao',

@@ -2,6 +2,7 @@ export type UsageHistoryEntry = {
   timestamp: string;
   sessionId: string;
   agentId: string;
+  label?: string;
   model?: string;
   provider?: string;
   content?: string;
@@ -49,7 +50,7 @@ export function groupUsageHistory(
 
   for (const entry of entries) {
     const label = groupBy === 'model'
-      ? (entry.model || 'Unknown')
+      ? (entry.label || entry.model || 'Unknown')
       : formatUsageDay(entry.timestamp);
     const current = grouped.get(label) ?? {
       label,
