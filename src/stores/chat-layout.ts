@@ -22,29 +22,29 @@ type ChatLayoutState = {
 export const useChatLayoutStore = create<ChatLayoutState>()(
   persist(
     (set) => ({
-      isFileTreeDrawerOpen: false,
+      isFileTreeDrawerOpen: true,
       isProjectSwitching: false,
       isSessionListCollapsed: false,
       isSessionDrawerOpen: false,
       isSessionDrawerMode: window.innerWidth < 1300,
       isFileTreeDrawerMode: window.innerWidth < 1020,
       setFileTreeDrawerOpen: (open) => {
-        set({ isFileTreeDrawerOpen: open });
+        set((state) => (state.isFileTreeDrawerOpen === open ? state : { isFileTreeDrawerOpen: open }));
       },
       setProjectSwitching: (switching) => {
-        set({ isProjectSwitching: switching });
+        set((state) => (state.isProjectSwitching === switching ? state : { isProjectSwitching: switching }));
       },
       setSessionListCollapsed: (collapsed) => {
-        set({ isSessionListCollapsed: collapsed });
+        set((state) => (state.isSessionListCollapsed === collapsed ? state : { isSessionListCollapsed: collapsed }));
       },
       setSessionDrawerOpen: (open) => {
-        set({ isSessionDrawerOpen: open });
+        set((state) => (state.isSessionDrawerOpen === open ? state : { isSessionDrawerOpen: open }));
       },
       setSessionDrawerMode: (enabled) => {
-        set({ isSessionDrawerMode: enabled });
+        set((state) => (state.isSessionDrawerMode === enabled ? state : { isSessionDrawerMode: enabled }));
       },
       setFileTreeDrawerMode: (enabled) => {
-        set({ isFileTreeDrawerMode: enabled });
+        set((state) => (state.isFileTreeDrawerMode === enabled ? state : { isFileTreeDrawerMode: enabled }));
       },
       toggleFileTreeDrawer: () => {
         set((state) => ({ isFileTreeDrawerOpen: !state.isFileTreeDrawerOpen }));

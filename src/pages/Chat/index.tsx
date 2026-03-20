@@ -221,10 +221,6 @@ export function Chat() {
   }, [cleanupEmptySession]);
 
   useEffect(() => {
-    console.log(messages);
-  }, [messages]);
-
-  useEffect(() => {
     void fetchAgents();
   }, [fetchAgents]);
 
@@ -580,15 +576,17 @@ export function Chat() {
         effectiveFileTreeWidth -
         fixedNonPanelWidth;
       const maxAllowed = Math.min(CHAT_PANEL_SIZE.editor.max, Math.max(0, maxByContainer));
-      if (editorWidth > maxAllowed) {
-        setEditorWidth(maxAllowed);
-      }
+      setEditorWidth((prev) => (prev > maxAllowed ? maxAllowed : prev));
     };
 
     clampEditorWidthForViewport();
     window.addEventListener('resize', clampEditorWidthForViewport);
     return () => window.removeEventListener('resize', clampEditorWidthForViewport);
-  }, [editorWidth, effectiveFileTreeWidth, effectiveListWidth, fixedNonPanelWidth]);
+  }, [
+    effectiveFileTreeWidth,
+    effectiveListWidth,
+    fixedNonPanelWidth,
+  ]);
 
   const isEmpty = messages.length === 0 && !sending;
   const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
@@ -1099,7 +1097,7 @@ export function Chat() {
       )}
 
       {/* Chat Panel */}
-      <div className={cn('rounded-2xl border relative flex flex-1 min-w-[400px] flex-col overflow-hidden')}>
+      <div className={cn('rounded-2xl border relative flex flex-1 min-w-[300px] flex-col overflow-hidden')}>
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />
@@ -1355,7 +1353,6 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
   const { t } = useTranslation('chat');
   return (
     <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
-      <ProjectsRail />
       <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
         <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>
