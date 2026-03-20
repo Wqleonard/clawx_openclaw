@@ -109,10 +109,9 @@
 
   _cu_pathDone:
 
-  ; Ask user if they want to completely remove all user data
-  MessageBox MB_YESNO|MB_ICONQUESTION \
-    "Do you want to completely remove all StoryClaw user data?$\r$\n$\r$\nThis will delete:$\r$\n  • .openclaw folder (configuration & skills)$\r$\n  • AppData\Local\clawx (local app data)$\r$\n  • AppData\Roaming\clawx (roaming app data)$\r$\n$\r$\nSelect 'No' to keep your data for future reinstallation." \
-    /SD IDNO IDYES _cu_removeData IDNO _cu_skipRemove
+  ; Always remove StoryClaw user data on uninstall so reinstall starts from
+  ; a clean auth/setup state (login + preset model bootstrap).
+  DetailPrint "Removing StoryClaw user data..."
 
   _cu_removeData:
     ; Kill any lingering ClawX processes to release file locks on electron-store
@@ -128,6 +127,9 @@
 
     ; --- Always remove current user's data first ---
     RMDir /r "$PROFILE\.openclaw"
+    RMDir /r "$LOCALAPPDATA\storyclaw"
+    RMDir /r "$APPDATA\storyclaw"
+    ; Backward compatibility cleanup for legacy app data directory name.
     RMDir /r "$LOCALAPPDATA\clawx"
     RMDir /r "$APPDATA\clawx"
 
@@ -142,9 +144,17 @@
         Pop $1
     _cu_openclawDone:
 
-    ; Check AppData\Local\clawx
-    IfFileExists "$LOCALAPPDATA\clawx\*.*" 0 _cu_localDone
+    ; Check AppData\Local\storyclaw
+    IfFileExists "$LOCALAPPDATA\storyclaw\*.*" 0 _cu_localDone
       Sleep 3000
+      RMDir /r "$LOCALAPPDATA\storyclaw"
+      IfFileExists "$LOCALAPPDATA\storyclaw\*.*" 0 _cu_localDone
+        nsExec::ExecToStack 'cmd.exe /c rd /s /q "$LOCALAPPDATA\storyclaw"'
+        Pop $0
+        Pop $1
+    ; Legacy cleanup fallback
+    IfFileExists "$LOCALAPPDATA\clawx\*.*" 0 _cu_localDone
+      Sleep 1000
       RMDir /r "$LOCALAPPDATA\clawx"
       IfFileExists "$LOCALAPPDATA\clawx\*.*" 0 _cu_localDone
         nsExec::ExecToStack 'cmd.exe /c rd /s /q "$LOCALAPPDATA\clawx"'
@@ -152,9 +162,17 @@
         Pop $1
     _cu_localDone:
 
-    ; Check AppData\Roaming\clawx
-    IfFileExists "$APPDATA\clawx\*.*" 0 _cu_roamingDone
+    ; Check AppData\Roaming\storyclaw
+    IfFileExists "$APPDATA\storyclaw\*.*" 0 _cu_roamingDone
       Sleep 3000
+      RMDir /r "$APPDATA\storyclaw"
+      IfFileExists "$APPDATA\storyclaw\*.*" 0 _cu_roamingDone
+        nsExec::ExecToStack 'cmd.exe /c rd /s /q "$APPDATA\storyclaw"'
+        Pop $0
+        Pop $1
+    ; Legacy cleanup fallback
+    IfFileExists "$APPDATA\clawx\*.*" 0 _cu_roamingDone
+      Sleep 1000
       RMDir /r "$APPDATA\clawx"
       IfFileExists "$APPDATA\clawx\*.*" 0 _cu_roamingDone
         nsExec::ExecToStack 'cmd.exe /c rd /s /q "$APPDATA\clawx"'
@@ -166,10 +184,14 @@
     StrCpy $R3 ""
     IfFileExists "$PROFILE\.openclaw\*.*" 0 +2
       StrCpy $R3 "$R3$\r$\n  • $PROFILE\.openclaw"
+    IfFileExists "$LOCALAPPDATA\storyclaw\*.*" 0 +2
+      StrCpy $R3 "$R3$\r$\n  • $LOCALAPPDATA\storyclaw"
+    IfFileExists "$APPDATA\storyclaw\*.*" 0 +2
+      StrCpy $R3 "$R3$\r$\n  • $APPDATA\storyclaw"
     IfFileExists "$LOCALAPPDATA\clawx\*.*" 0 +2
-      StrCpy $R3 "$R3$\r$\n  • $LOCALAPPDATA\clawx"
+      StrCpy $R3 "$R3$\r$\n  • $LOCALAPPDATA\clawx (legacy)"
     IfFileExists "$APPDATA\clawx\*.*" 0 +2
-      StrCpy $R3 "$R3$\r$\n  • $APPDATA\clawx"
+      StrCpy $R3 "$R3$\r$\n  • $APPDATA\clawx (legacy)"
     StrCmp $R3 "" _cu_cleanupOk
       MessageBox MB_OK|MB_ICONEXCLAMATION \
         "Some data directories could not be removed (files may be in use):$\r$\n$R3$\r$\n$\r$\nPlease delete them manually after restarting your computer."
@@ -189,6 +211,8 @@
     StrCmp $R2 $PROFILE _cu_enumNext
 
     RMDir /r "$R2\.openclaw"
+    RMDir /r "$R2\AppData\Local\storyclaw"
+    RMDir /r "$R2\AppData\Roaming\storyclaw"
     RMDir /r "$R2\AppData\Local\clawx"
     RMDir /r "$R2\AppData\Roaming\clawx"
 

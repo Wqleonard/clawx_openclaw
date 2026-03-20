@@ -227,7 +227,7 @@ export function UsageSection() {
               <div key={`${entry.sessionId}-${entry.timestamp}`} className="rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] p-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-semibold text-[14px] text-foreground truncate">{entry.model || (isZh ? '未知模型' : 'Unknown model')}</p>
+                    <p className="font-semibold text-[14px] text-foreground truncate">{entry.label || entry.model || (isZh ? '未知模型' : 'Unknown model')}</p>
                     <p className="text-[12px] text-muted-foreground truncate mt-0.5">{[entry.provider, entry.agentId].filter(Boolean).join(' · ')}</p>
                   </div>
                   <div className="text-right shrink-0">
