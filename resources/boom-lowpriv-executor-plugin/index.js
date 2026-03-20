@@ -1,0 +1,120 @@
+const BOOM_LOWPRIV_EXECUTOR_LOG_TAG = "boom-lowpriv-executor";
+const BOOM_LOWPRIV_EXECUTOR_CONFIG_PATH = "/plugins/boom-lowpriv-executor/config";
+const BOOM_LOWPRIV_EXECUTOR_TOOLS = new Set(["exec", "bash", "bash_tool", "execute_command", "run_command", "shell", "powershell"]);
+
+const runtimeState = {
+  config: {
+    enabled: true,
+    auditLog: true,
+  },
+};
+
+function normalizeConfig(input) {
+  return {
+    enabled: input?.enabled !== false,
+    auditLog: input?.auditLog !== false,
+  };
+}
+
+function isExecTool(name) {
+  return BOOM_LOWPRIV_EXECUTOR_TOOLS.has(String(name || "").trim().toLowerCase());
+}
+
+function getLauncherArgs() {
+  return "--low-il --restricted-token --job-object";
+}
+
+function resolvePowerShellPath() {
+  if (process.platform !== "win32") return "powershell.exe";
+  const fs = require("fs");
+  const path = require("path");
+  const systemRoot = process.env.SystemRoot || process.env.windir || "C:\\Windows";
+  const candidates = [
+    path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+    path.join(systemRoot, "SysWOW64", "WindowsPowerShell", "v1.0", "powershell.exe"),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {}
+  }
+  return "powershell.exe";
+}
+
+function wrapCommand(command, wrapperPath) {
+  const escaped = String(command || "").replace(/'/g, "''");
+  const launcherArgs = getLauncherArgs();
+  const psPath = resolvePowerShellPath();
+  return `& '${wrapperPath}' ${launcherArgs} -- "${psPath}" -NoProfile -NonInteractive -Command '${escaped}'`;
+}
+
+const plugin = {
+  id: "boom-lowpriv-executor",
+  name: "Boom Lowpriv Executor",
+  description: "Uniformly wrap exec commands with lowpriv launcher.",
+
+  register(api) {
+    runtimeState.config = normalizeConfig(api.pluginConfig || {});
+
+    const wrapperPath = String(process.env.QCLAW_TOOL_WRAPPER_PATH || "").trim();
+    api.registerHttpRoute({
+      path: BOOM_LOWPRIV_EXECUTOR_CONFIG_PATH,
+      auth: "plugin",
+      match: "exact",
+      handler: async (req, res) => {
+        if (req.method === "GET") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify(runtimeState.config));
+          return true;
+        }
+        if (req.method === "POST" || req.method === "PUT") {
+          const chunks = [];
+          for await (const c of req) chunks.push(c);
+          const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          runtimeState.config = normalizeConfig({ ...runtimeState.config, ...body });
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ success: true, config: runtimeState.config }));
+          return true;
+        }
+        res.writeHead(405);
+        res.end("Method Not Allowed");
+        return true;
+      },
+    });
+
+    api.on("before_tool_call", async (event) => {
+      const config = runtimeState.config;
+      if (!config.enabled) return;
+      if (process.platform !== "win32") return;
+      if (!isExecTool(event.toolName)) return;
+
+      const command = typeof event.params?.command === "string" ? event.params.command : "";
+      if (!command) return;
+      if (!wrapperPath) {
+        if (config.auditLog) {
+          const noWrapperMessage = `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] wrapper missing, pass-through tool=${event.toolName} callId=${event.toolCallId || ""}`;
+          console.warn(noWrapperMessage);
+          api.logger.warn(noWrapperMessage);
+        }
+        return;
+      }
+
+      const wrappedCommand = wrapCommand(command, wrapperPath);
+      if (config.auditLog) {
+        const rewriteMessage = `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] rewrite tool=${event.toolName} callId=${event.toolCallId || ""} mode=strict`;
+        console.log(rewriteMessage);
+        api.logger.warn(rewriteMessage);
+      }
+
+      return {
+        params: { ...event.params, command: wrappedCommand },
+      };
+    });
+
+    api.logger.info(
+      `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] ready platform=${process.platform} wrapper=${wrapperPath || "none"} mode=strict`,
+    );
+  },
+};
+
+export default plugin;

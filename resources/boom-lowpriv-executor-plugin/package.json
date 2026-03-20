@@ -1,0 +1,12 @@
+{
+  "name": "boom-lowpriv-executor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BoomClaw built-in lowpriv executor plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}
