@@ -8,7 +8,7 @@
  */
 import { autoUpdater, UpdateInfo, ProgressInfo, UpdateDownloadedEvent } from 'electron-updater';
 import { BrowserWindow, app, ipcMain } from 'electron';
-import { execSync, spawnSync as _spawnSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { existsSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { logger } from '../utils/logger';
@@ -319,11 +319,19 @@ export class AppUpdater extends EventEmitter {
 
         const scriptPath = join(app.getPath('temp'), 'storyclaw-update.sh');
         writeFileSync(scriptPath, script, { mode: 0o755 });
-        execSync(`sh "${scriptPath}" &`);
+
+        // Hide all windows immediately so user sees app disappear right away
+        for (const win of BrowserWindow.getAllWindows()) {
+          win.hide();
+        }
+
+        // Launch update script detached — does not block
+        spawn('sh', [scriptPath], { detached: true, stdio: 'ignore' }).unref();
 
         logger.info('[Updater] Update script launched, quitting app');
         setQuitting();
-        app.quit();
+        // Small delay so the hide animation completes before quit
+        setTimeout(() => app.quit(), 300);
         return;
       }
 
