@@ -21,13 +21,14 @@ import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { useChatLayoutStore } from '@/stores/chat-layout';
+import {
+  FILE_TREE_DRAWER_BREAKPOINT,
+  SESSION_LIST_DRAWER_BREAKPOINT,
+  useChatLayoutStore,
+} from '@/stores/chat-layout';
 import { useFileSystemStore } from '@/stores/filesystem';
 import { useGatewayStore } from '@/stores/gateway';
 import { cn } from '@/lib/utils';
-
-const SESSION_LIST_DRAWER_BREAKPOINT = 1300;
-const FILE_TREE_DRAWER_BREAKPOINT = 1020;
 
 export function TitleBar() {
   const platform = window.electron?.platform;

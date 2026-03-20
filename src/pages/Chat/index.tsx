@@ -20,8 +20,12 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
-import { useChatLayoutStore } from '@/stores/chat-layout';
-import { CHAT_PANEL_SIZE, useChatStyleStore } from '@/stores/chatStyle';
+import {
+  CHAT_PANEL_SIZE,
+  FILE_TREE_DRAWER_BREAKPOINT,
+  SESSION_LIST_DRAWER_BREAKPOINT,
+  useChatLayoutStore,
+} from '@/stores/chat-layout';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
@@ -34,8 +38,6 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { ProjectsRail } from '@/components/layout/ProjectsRail';
 
 const INITIAL_NOW_MS = Date.now();
-const SESSION_LIST_DRAWER_BREAKPOINT = 1400;
-const FILE_TREE_DRAWER_BREAKPOINT = 1020;
 const PROJECTS_RAIL_WIDTH = 64;
 const RESIZE_HANDLE_WIDTH = 8;
 let hasCheckedWorkspaceOnStartup = false;
@@ -94,23 +96,25 @@ export function Chat() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mdViewMode, setMdViewMode] = useState<'source' | 'rendered'>('rendered');
-  const persistedListWidth = useChatStyleStore((s) => s.listWidth);
-  const persistedEditorWidth = useChatStyleStore((s) => s.editorWidth);
-  const persistedFileTreeWidth = useChatStyleStore((s) => s.fileTreeWidth);
-  const commitListWidth = useChatStyleStore((s) => s.setListWidth);
-  const commitEditorWidth = useChatStyleStore((s) => s.setEditorWidth);
-  const commitFileTreeWidth = useChatStyleStore((s) => s.setFileTreeWidth);
+  const persistedListWidth = useChatLayoutStore((s) => s.listWidth);
+  const persistedEditorWidth = useChatLayoutStore((s) => s.editorWidth);
+  const persistedFileTreeWidth = useChatLayoutStore((s) => s.fileTreeWidth);
+  const commitListWidth = useChatLayoutStore((s) => s.setListWidth);
+  const commitEditorWidth = useChatLayoutStore((s) => s.setEditorWidth);
+  const commitFileTreeWidth = useChatLayoutStore((s) => s.setFileTreeWidth);
   const [listWidth, setListWidth] = useState(persistedListWidth);
   const [editorWidth, setEditorWidth] = useState(persistedEditorWidth);
   const [fileTreeWidth, setFileTreeWidth] = useState(persistedFileTreeWidth);
   const isListDragging = useRef(false);
   const listDragStartX = useRef(0);
   const listDragStartWidth = useRef(0);
+  const listDragStartChatWidth = useRef(0);
   const listRafRef = useRef<number | null>(null);
   const listPendingWidthRef = useRef<number | null>(null);
   const isEditorDragging = useRef(false);
   const editorDragStartX = useRef(0);
   const editorDragStartWidth = useRef(0);
+  const editorDragStartChatWidth = useRef(0);
   const editorRafRef = useRef<number | null>(null);
   const editorPendingWidthRef = useRef<number | null>(null);
   const isFileTreeDragging = useRef(false);
@@ -118,6 +122,7 @@ export function Chat() {
   const fileTreeDragStartWidth = useRef(0);
   const fileTreeRafRef = useRef<number | null>(null);
   const fileTreePendingWidthRef = useRef<number | null>(null);
+  const fileTreePendingEditorWidthRef = useRef<number | null>(null);
   const initTaskVersionRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const gatewayStatus = useGatewayStore((s) => s.status);
@@ -566,25 +571,65 @@ export function Chat() {
     8;
 
   useEffect(() => {
-    const clampEditorWidthForViewport = () => {
-      if (isEditorDragging.current) return;
+    const clampPanelsForViewport = () => {
+      if (isListDragging.current || isEditorDragging.current || isFileTreeDragging.current) return;
       const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-      const maxByContainer =
-        containerWidth -
-        CHAT_PANEL_SIZE.chatMinWidth -
-        effectiveListWidth -
-        effectiveFileTreeWidth -
-        fixedNonPanelWidth;
-      const maxAllowed = Math.min(CHAT_PANEL_SIZE.editor.max, Math.max(0, maxByContainer));
-      setEditorWidth((prev) => (prev > maxAllowed ? maxAllowed : prev));
+      const maxSidePanelsTotal = Math.max(
+        0,
+        containerWidth - CHAT_PANEL_SIZE.chatMinWidth - fixedNonPanelWidth
+      );
+
+      const listMin = isSessionListInlineVisible ? CHAT_PANEL_SIZE.list.min : 0;
+      const listMax = isSessionListInlineVisible ? CHAT_PANEL_SIZE.list.max : 0;
+      const fileTreeMin = isFileTreeInlineVisible ? CHAT_PANEL_SIZE.fileTree.min : 0;
+      const fileTreeMax = isFileTreeInlineVisible ? CHAT_PANEL_SIZE.fileTree.max : 0;
+      const editorMin = CHAT_PANEL_SIZE.editor.min;
+      const editorMax = CHAT_PANEL_SIZE.editor.max;
+
+      let nextListWidth = isSessionListInlineVisible
+        ? Math.min(listMax, Math.max(listMin, listWidth))
+        : 0;
+      let nextEditorWidth = Math.min(editorMax, Math.max(editorMin, editorWidth));
+      let nextFileTreeWidth = isFileTreeInlineVisible
+        ? Math.min(fileTreeMax, Math.max(fileTreeMin, fileTreeWidth))
+        : 0;
+
+      let overflow = nextListWidth + nextEditorWidth + nextFileTreeWidth - maxSidePanelsTotal;
+      if (overflow > 0) {
+        const editorReduction = Math.min(overflow, Math.max(0, nextEditorWidth - editorMin));
+        nextEditorWidth -= editorReduction;
+        overflow -= editorReduction;
+      }
+      if (overflow > 0) {
+        const fileTreeReduction = Math.min(overflow, Math.max(0, nextFileTreeWidth - fileTreeMin));
+        nextFileTreeWidth -= fileTreeReduction;
+        overflow -= fileTreeReduction;
+      }
+      if (overflow > 0) {
+        const listReduction = Math.min(overflow, Math.max(0, nextListWidth - listMin));
+        nextListWidth -= listReduction;
+      }
+
+      if (isSessionListInlineVisible && Math.abs(nextListWidth - listWidth) > 0.5) {
+        setListWidth(nextListWidth);
+      }
+      if (Math.abs(nextEditorWidth - editorWidth) > 0.5) {
+        setEditorWidth(nextEditorWidth);
+      }
+      if (isFileTreeInlineVisible && Math.abs(nextFileTreeWidth - fileTreeWidth) > 0.5) {
+        setFileTreeWidth(nextFileTreeWidth);
+      }
     };
 
-    clampEditorWidthForViewport();
-    window.addEventListener('resize', clampEditorWidthForViewport);
-    return () => window.removeEventListener('resize', clampEditorWidthForViewport);
+    clampPanelsForViewport();
+    window.addEventListener('resize', clampPanelsForViewport);
+    return () => window.removeEventListener('resize', clampPanelsForViewport);
   }, [
-    effectiveFileTreeWidth,
-    effectiveListWidth,
+    listWidth,
+    editorWidth,
+    fileTreeWidth,
+    isSessionListInlineVisible,
+    isFileTreeInlineVisible,
     fixedNonPanelWidth,
   ]);
 
@@ -642,21 +687,25 @@ export function Chat() {
       setIsListResizing(true);
       listDragStartX.current = e.clientX;
       listDragStartWidth.current = listWidth;
+      const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
+      listDragStartChatWidth.current =
+        containerWidth -
+        fixedNonPanelWidth -
+        listWidth -
+        editorWidth -
+        effectiveFileTreeWidth;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
       const onMove = (ev: MouseEvent) => {
         if (!isListDragging.current) return;
         const delta = ev.clientX - listDragStartX.current;
-        const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-        const maxByContainer =
-          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - editorWidth - effectiveFileTreeWidth - fixedNonPanelWidth;
-        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.list.max, Math.max(0, maxByContainer));
-        const dynamicMinWidth = Math.min(CHAT_PANEL_SIZE.list.min, dynamicMaxWidth);
-        const next = Math.min(
-          dynamicMaxWidth,
-          Math.max(dynamicMinWidth, listDragStartWidth.current + delta)
-        );
+        const minDelta = CHAT_PANEL_SIZE.list.min - listDragStartWidth.current;
+        const maxDeltaByList = CHAT_PANEL_SIZE.list.max - listDragStartWidth.current;
+        const maxDeltaByChat = listDragStartChatWidth.current - CHAT_PANEL_SIZE.chatMinWidth;
+        const maxDelta = Math.min(maxDeltaByList, maxDeltaByChat);
+        const clampedDelta = Math.max(minDelta, Math.min(maxDelta, delta));
+        const next = listDragStartWidth.current + clampedDelta;
         listPendingWidthRef.current = next;
         if (listRafRef.current == null) {
           listRafRef.current = window.requestAnimationFrame(() => {
@@ -700,25 +749,26 @@ export function Chat() {
       setIsEditorResizing(true);
       editorDragStartX.current = e.clientX;
       editorDragStartWidth.current = editorWidth;
+      const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
+      editorDragStartChatWidth.current =
+        containerWidth -
+        fixedNonPanelWidth -
+        effectiveListWidth -
+        editorWidth -
+        effectiveFileTreeWidth;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
       const onMove = (ev: MouseEvent) => {
         if (!isEditorDragging.current) return;
         const delta = ev.clientX - editorDragStartX.current;
-        const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-        const maxByContainer =
-          containerWidth -
-          CHAT_PANEL_SIZE.chatMinWidth -
-          effectiveListWidth -
-          effectiveFileTreeWidth -
-          fixedNonPanelWidth;
-        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.editor.max, Math.max(0, maxByContainer));
-        const dynamicMinWidth = Math.min(CHAT_PANEL_SIZE.editor.min, dynamicMaxWidth);
-        const next = Math.min(
-          dynamicMaxWidth,
-          Math.max(dynamicMinWidth, editorDragStartWidth.current - delta)
+        const minDelta = Math.max(
+          CHAT_PANEL_SIZE.chatMinWidth - editorDragStartChatWidth.current,
+          editorDragStartWidth.current - CHAT_PANEL_SIZE.editor.max
         );
+        const maxDelta = editorDragStartWidth.current - CHAT_PANEL_SIZE.editor.min;
+        const clampedDelta = Math.max(minDelta, Math.min(maxDelta, delta));
+        const next = editorDragStartWidth.current - clampedDelta;
         editorPendingWidthRef.current = next;
         if (editorRafRef.current == null) {
           editorRafRef.current = window.requestAnimationFrame(() => {
@@ -764,26 +814,36 @@ export function Chat() {
       setIsFileTreeResizing(true);
       fileTreeDragStartX.current = e.clientX;
       fileTreeDragStartWidth.current = fileTreeWidth;
+      editorDragStartWidth.current = editorWidth;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
       const onMove = (ev: MouseEvent) => {
         if (!isFileTreeDragging.current) return;
         const delta = ev.clientX - fileTreeDragStartX.current;
-        const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-        const maxByContainer =
-          containerWidth - CHAT_PANEL_SIZE.chatMinWidth - effectiveListWidth - editorWidth - fixedNonPanelWidth;
-        const dynamicMaxWidth = Math.min(CHAT_PANEL_SIZE.fileTree.max, Math.max(0, maxByContainer));
-        const dynamicMinWidth = Math.min(CHAT_PANEL_SIZE.fileTree.min, dynamicMaxWidth);
-        const next = Math.min(
-          dynamicMaxWidth,
-          Math.max(dynamicMinWidth, fileTreeDragStartWidth.current - delta)
+        const editorStart = editorDragStartWidth.current;
+        const fileTreeStart = fileTreeDragStartWidth.current;
+        const minDelta = Math.max(
+          CHAT_PANEL_SIZE.editor.min - editorStart,
+          fileTreeStart - CHAT_PANEL_SIZE.fileTree.max
         );
-        fileTreePendingWidthRef.current = next;
+        const maxDelta = Math.min(
+          CHAT_PANEL_SIZE.editor.max - editorStart,
+          fileTreeStart - CHAT_PANEL_SIZE.fileTree.min
+        );
+        const clampedDelta = Math.max(minDelta, Math.min(maxDelta, delta));
+        const nextEditorWidth = editorStart + clampedDelta;
+        const nextFileTreeWidth = fileTreeStart - clampedDelta;
+        fileTreePendingEditorWidthRef.current = nextEditorWidth;
+        fileTreePendingWidthRef.current = nextFileTreeWidth;
         if (fileTreeRafRef.current == null) {
           fileTreeRafRef.current = window.requestAnimationFrame(() => {
             fileTreeRafRef.current = null;
-            if (fileTreePendingWidthRef.current != null) {
+            if (
+              fileTreePendingEditorWidthRef.current != null &&
+              fileTreePendingWidthRef.current != null
+            ) {
+              setEditorWidth(fileTreePendingEditorWidthRef.current);
               setFileTreeWidth(fileTreePendingWidthRef.current);
             }
           });
@@ -797,12 +857,24 @@ export function Chat() {
           window.cancelAnimationFrame(fileTreeRafRef.current);
           fileTreeRafRef.current = null;
         }
-        if (fileTreePendingWidthRef.current != null) {
-          const finalWidth = fileTreePendingWidthRef.current;
-          setFileTreeWidth(finalWidth);
-          commitFileTreeWidth(finalWidth);
+        if (
+          fileTreePendingEditorWidthRef.current != null &&
+          fileTreePendingWidthRef.current != null
+        ) {
+          const finalEditorWidth = fileTreePendingEditorWidthRef.current;
+          const finalFileTreeWidth = fileTreePendingWidthRef.current;
+          setEditorWidth(finalEditorWidth);
+          setFileTreeWidth(finalFileTreeWidth);
+          if (finalEditorWidth >= CHAT_PANEL_SIZE.editor.min) {
+            commitEditorWidth(finalEditorWidth);
+          }
+          if (finalFileTreeWidth >= CHAT_PANEL_SIZE.fileTree.min) {
+            commitFileTreeWidth(finalFileTreeWidth);
+          }
+          fileTreePendingEditorWidthRef.current = null;
           fileTreePendingWidthRef.current = null;
         } else {
+          commitEditorWidth(editorWidth);
           commitFileTreeWidth(fileTreeWidth);
         }
         document.body.style.cursor = '';
@@ -817,11 +889,10 @@ export function Chat() {
     [
       projectPath,
       isFileTreeDrawerOpen,
-      fileTreeWidth,
-      effectiveListWidth,
       editorWidth,
+      fileTreeWidth,
+      commitEditorWidth,
       commitFileTreeWidth,
-      fixedNonPanelWidth,
     ]
   );
 
@@ -1097,7 +1168,7 @@ export function Chat() {
       )}
 
       {/* Chat Panel */}
-      <div className={cn('rounded-2xl border relative flex flex-1 min-w-[300px] flex-col overflow-hidden')}>
+      <div className={cn('rounded-2xl border relative flex flex-1 flex-col overflow-hidden')}>
         {/* Toolbar */}
         <div className="flex shrink-0 items-center justify-end px-4 py-2">
           <ChatToolbar />
@@ -1240,6 +1311,7 @@ export function Chat() {
         </div>
       </div>
 
+      {/* File Tree Panel */}
       {projectPath && (
         <>
           {!isFileTreeDrawerMode && (
