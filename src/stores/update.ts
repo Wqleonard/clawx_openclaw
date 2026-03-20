@@ -354,6 +354,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   },
 
   clearError: () => {
+    // Don't reset needs-reinstall — user must manually install
+    if (get().status === 'needs-reinstall') return;
     set({ error: null, status: 'idle' });
     logClientEvent('info', { source: 'update-store', message: 'action:clear-error' });
   },

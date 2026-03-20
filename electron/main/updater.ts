@@ -400,6 +400,23 @@ export function registerUpdateHandlers(
     return { success: true };
   });
 
+  // Get manual download URL for the current platform/arch
+  ipcMain.handle('update:getManualDownloadUrl', () => {
+    const version = app.getVersion();
+    const channel = detectChannel(version);
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+    const platform = process.platform;
+    let filename: string;
+    if (platform === 'darwin') {
+      filename = `StoryClaw-${version}-mac-${arch}.dmg`;
+    } else if (platform === 'win32') {
+      filename = `StoryClaw-${version}-win-${arch}.exe`;
+    } else {
+      filename = `StoryClaw-${version}-linux-${arch}.AppImage`;
+    }
+    return `${UPDATE_BASE_URL}/${channel}/${filename}`;
+  });
+
 }
 
 // Export singleton instance

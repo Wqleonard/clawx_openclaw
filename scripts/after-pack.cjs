@@ -446,4 +446,23 @@ exports.default = async function afterPack(context) {
   if (nativeRemoved > 0) {
     console.log(`[after-pack] ✅ Removed ${nativeRemoved} non-target native platform packages.`);
   }
+
+  // 5. macOS: re-sign with adhoc and identifier-based designated requirement
+  //    so ShipIt can install future updates without cdhash mismatch errors.
+  if (platform === 'darwin') {
+    const { execSync } = require('child_process');
+    const appName = context.packager.appInfo.productFilename;
+    const appId = context.packager.appInfo.id; // e.g. app.storyclaw.desktop
+    const appPath = join(appOutDir, `${appName}.app`);
+    try {
+      const req = `designated => identifier "${appId}"`;
+      execSync(
+        `echo '${req}' | codesign --sign - --force --deep --timestamp=none --options runtime --requirements - "${appPath}"`,
+        { stdio: 'pipe' }
+      );
+      console.log(`[after-pack] ✅ Re-signed ${appName}.app with identifier requirement: ${appId}`);
+    } catch (e) {
+      console.warn(`[after-pack] ⚠️  Re-sign failed: ${e.message}`);
+    }
+  }
 };

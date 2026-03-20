@@ -211,7 +211,8 @@
       "autoInstalling": "Restarting to install update in {{seconds}}s...",
       "failed": "Update check failed",
       "latest": "You have the latest version",
-      "check": "Check for updates to get the latest features"
+      "check": "Check for updates to get the latest features",
+      "needsReinstall": "Manual installation required"
     },
     "action": {
       "checking": "Checking...",
@@ -220,11 +221,13 @@
       "install": "Install & Restart",
       "cancelAutoInstall": "Cancel",
       "retry": "Retry",
-      "check": "Check for Updates"
+      "check": "Check for Updates",
+      "downloadManually": "Download Installer"
     },
     "currentVersion": "Current Version",
     "whatsNew": "What's New:",
     "errorDetails": "Error Details:",
+    "reinstallHint": "Due to a signature change, this update cannot be installed automatically. Please download and install the package manually.",
     "help": "When auto-update is enabled, updates are downloaded and installed automatically."
   },
   "advanced": {

@@ -210,7 +210,8 @@
       "autoInstalling": "{{seconds}} 秒後に再起動して更新をインストールします...",
       "failed": "更新の確認に失敗しました",
       "latest": "最新バージョンです",
-      "check": "更新を確認して最新の機能を入手"
+      "check": "更新を確認して最新の機能を入手",
+      "needsReinstall": "手動インストールが必要です"
     },
     "action": {
       "checking": "確認中...",
@@ -219,11 +220,13 @@
       "install": "インストールして再起動",
       "cancelAutoInstall": "キャンセル",
       "retry": "再試行",
-      "check": "更新を確認"
+      "check": "更新を確認",
+      "downloadManually": "インストーラーをダウンロード"
     },
     "currentVersion": "現在のバージョン",
     "whatsNew": "更新内容：",
     "errorDetails": "エラー詳細：",
+    "reinstallHint": "署名の変更により、この更新は自動的にインストールできません。インストーラーを手動でダウンロードしてインストールしてください。",
     "help": "自動アップデートが有効な場合、更新は自動的にダウンロードされインストールされます。"
   },
   "advanced": {
