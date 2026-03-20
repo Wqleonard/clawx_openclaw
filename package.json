@@ -1,6 +1,6 @@
 {
     "name": "storyclaw",
-    "version": "0.2.6",
+    "version": "0.2.5",
     "pnpm": {
         "onlyBuiltDependencies": [
             "@discordjs/opus",
@@ -49,9 +49,9 @@
         "package:mac:qa": "vite build --mode qa && zx scripts/bundle-openclaw.mjs && zx scripts/bundle-openclaw-plugins.mjs && zx scripts/bundle-preinstalled-skills.mjs && electron-builder --mac",
         "package:win:qa": "vite build --mode qa && zx scripts/bundle-openclaw.mjs && zx scripts/bundle-openclaw-plugins.mjs && zx scripts/bundle-preinstalled-skills.mjs && electron-builder --win",
         "package": "vite build --mode prd && zx scripts/bundle-openclaw.mjs && zx scripts/bundle-openclaw-plugins.mjs && zx scripts/bundle-preinstalled-skills.mjs",
-        "package:mac": "pnpm run package && electron-builder --mac --publish never",
-        "package:mac:local": "SKIP_PREINSTALLED_SKILLS=1 pnpm run package && electron-builder --mac --publish never",
-        "package:win": "pnpm run package && electron-builder --win --publish never",
+        "package:mac": "pnpm run package && electron-builder --mac --publish never && node scripts/generate-update-yml.mjs --output-dir release",
+        "package:mac:local": "SKIP_PREINSTALLED_SKILLS=1 pnpm run package && electron-builder --mac --publish never && node scripts/generate-update-yml.mjs --output-dir release",
+        "package:win": "pnpm run package && electron-builder --win --publish never && node scripts/generate-update-yml.mjs --output-dir release",
         "package:linux": "pnpm run package && electron-builder --linux --publish never",
         "release": "pnpm run uv:download && pnpm run package && electron-builder --publish always",
         "version:patch": "pnpm version patch",

@@ -17,7 +17,7 @@ import { setQuitting } from './app-state';
 const UPDATE_BASE_URL = 'https://story-claw.tos-cn-beijing.volces.com';
 
 export interface UpdateStatus {
-  status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'needs-reinstall';
   info?: UpdateInfo;
   progress?: ProgressInfo;
   error?: string;
@@ -50,6 +50,22 @@ export class AppUpdater extends EventEmitter {
 
   /** Delay (in seconds) before auto-installing a downloaded update. */
   private static readonly AUTO_INSTALL_DELAY_SECONDS = 5;
+
+  /**
+   * Check if an error message indicates network or yml is unreachable.
+   * These errors should be silently treated as "no update available".
+   */
+  private static isNetworkOrYmlError(msg: string): boolean {
+    return /net::|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|404|sha512|checksum|HttpError/i.test(msg);
+  }
+
+  /**
+   * Check if an error is a code signature validation failure.
+   * This happens when updating from an adhoc-signed build.
+   */
+  private static isSignatureError(msg: string): boolean {
+    return /code signature|did not pass validation|代码未能满足|ShipIt/i.test(msg);
+  }
 
   constructor() {
     super();
@@ -158,8 +174,16 @@ export class AppUpdater extends EventEmitter {
     });
 
     autoUpdater.on('error', (error: Error) => {
-      this.updateStatus({ status: 'error', error: error.message });
-      this.emit('error', error);
+      if (AppUpdater.isNetworkOrYmlError(error.message)) {
+        logger.info('[Updater] Update check silenced (network/yml unreachable):', error.message);
+        this.updateStatus({ status: 'not-available' });
+      } else if (AppUpdater.isSignatureError(error.message)) {
+        logger.warn('[Updater] Code signature validation failed, manual reinstall required:', error.message);
+        this.updateStatus({ status: 'needs-reinstall' });
+      } else {
+        this.updateStatus({ status: 'error', error: error.message });
+        this.emit('error', error);
+      }
     });
   }
 
@@ -217,8 +241,14 @@ export class AppUpdater extends EventEmitter {
       return result.updateInfo || null;
     } catch (error) {
       logger.error('[Updater] Check for updates failed:', error);
-      this.updateStatus({ status: 'error', error: (error as Error).message || String(error) });
-      throw error;
+      const errMsg = (error as Error).message || String(error);
+      if (AppUpdater.isNetworkOrYmlError(errMsg)) {
+        this.updateStatus({ status: 'not-available' });
+      } else {
+        this.updateStatus({ status: 'error', error: errMsg });
+        throw error;
+      }
+      return null;
     }
   }
 

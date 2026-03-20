@@ -77,11 +77,12 @@ mac:
         - x64
         - arm64
   darkModeSupport: true
-  hardenedRuntime: true
+  hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: entitlements.mac.plist
   entitlementsInherit: entitlements.mac.plist
-  notarize: true
+  notarize: false
+  strictVerify: false
   extendInfo:
     NSMicrophoneUsageDescription: ${productName} requires microphone access for voice features
     NSCameraUsageDescription: ${productName} requires camera access for video features
@@ -115,9 +116,9 @@ win:
   icon: resources/icons/icon.ico
   target:
     - target: nsis
-      arch: x64
-    - target: nsis
-      arch: arm64
+      arch:
+        - x64
+        - arm64
 
 nsis:
   oneClick: false

@@ -21,14 +21,15 @@ export interface ProgressInfo {
   bytesPerSecond: number;
 }
 
-export type UpdateStatus = 
+export type UpdateStatus =
   | 'idle'
   | 'checking'
   | 'available'
   | 'not-available'
   | 'downloading'
   | 'downloaded'
-  | 'error';
+  | 'error'
+  | 'needs-reinstall';
 
 interface UpdateState {
   status: UpdateStatus;
@@ -189,7 +190,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   checkForUpdates: async () => {
     logClientEvent('info', { source: 'update-store', message: 'action:check:start' });
     set({ status: 'checking', error: null });
-    
+
+    const isNetworkOrYmlError = (msg: string) =>
+      /net::|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|404|sha512|checksum|timed out/i.test(msg);
+
     try {
       const result = await Promise.race([
         invokeIpc('update:check'),
@@ -204,13 +208,15 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
           error?: string;
         };
       };
-      
+
       if (result.status) {
+        // Silently treat yml-unreachable / checksum errors as not-available
+        const isYmlError = result.status.status === 'error' && result.status.error && isNetworkOrYmlError(result.status.error);
         set({
-          status: result.status.status,
+          status: isYmlError ? 'not-available' : result.status.status,
           updateInfo: result.status.info || null,
           progress: result.status.progress || null,
-          error: result.status.error || null,
+          error: isYmlError ? null : (result.status.error || null),
         });
         logClientEvent('info', {
           source: 'update-store',
@@ -223,26 +229,36 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
           },
         });
       } else if (!result.success) {
-        set({ status: 'error', error: result.error || 'Failed to check for updates' });
+        const errMsg = result.error || 'Failed to check for updates';
+        if (isNetworkOrYmlError(errMsg)) {
+          set({ status: 'not-available', error: null });
+        } else {
+          set({ status: 'error', error: errMsg });
+        }
         logClientEvent('error', {
           source: 'update-store',
           message: 'action:check:failed-no-status',
-          data: { error: result.error || 'Failed to check for updates' },
+          data: { error: errMsg },
         });
       }
     } catch (error) {
-      set({ status: 'error', error: String(error) });
+      const errMsg = String(error);
+      if (isNetworkOrYmlError(errMsg)) {
+        set({ status: 'not-available', error: null });
+      } else {
+        set({ status: 'error', error: errMsg });
+      }
       logClientEvent('error', {
         source: 'update-store',
         message: 'action:check:exception',
-        data: { error: String(error) },
+        data: { error: errMsg },
       });
     } finally {
       // In dev mode autoUpdater skips without emitting events, so the
-      // status may still be 'checking' or even 'idle'. Catch both.
+      // status may still be 'checking' or even 'idle'. Treat as not-available.
       const currentStatus = get().status;
       if (currentStatus === 'checking' || currentStatus === 'idle') {
-        set({ status: 'error', error: 'Update check completed without a result. This usually means the app is running in dev mode.' });
+        set({ status: 'not-available', error: null });
         logClientEvent('warn', {
           source: 'update-store',
           message: 'action:check:ended-without-result',

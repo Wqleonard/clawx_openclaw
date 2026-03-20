@@ -100,97 +100,78 @@ async function main() {
     throw new Error(`No release artifacts found in ${releaseDir}`);
   }
 
-  const required = {
-    winX64: `StoryClaw-${version}-win-x64.exe`,
-    winArm64: `StoryClaw-${version}-win-arm64.exe`,
-    macX64Zip: `StoryClaw-${version}-mac-x64.zip`,
-    macArm64Zip: `StoryClaw-${version}-mac-arm64.zip`,
-  };
+  const macX64Zip = `StoryClaw-${version}-mac-x64.zip`;
+  const macArm64Zip = `StoryClaw-${version}-mac-arm64.zip`;
+  const winX64Exe = `StoryClaw-${version}-win-x64.exe`;
+  const winArm64Exe = `StoryClaw-${version}-win-arm64.exe`;
 
-  for (const fileName of Object.values(required)) {
-    if (!fileNames.includes(fileName)) {
-      throw new Error(`Missing required release artifact: ${fileName}`);
-    }
+  const hasMac = fileNames.includes(macX64Zip) && fileNames.includes(macArm64Zip);
+  const hasWin = fileNames.includes(winX64Exe) && fileNames.includes(winArm64Exe);
+
+  if (!hasMac && !hasWin) {
+    throw new Error(`No mac or win release artifacts found for version ${version} in ${releaseDir}`);
   }
 
-  const optional = {
-    winUniversal: `StoryClaw-${version}-win.exe`,
-    macX64Dmg: `StoryClaw-${version}-mac-x64.dmg`,
-    macArm64Dmg: `StoryClaw-${version}-mac-arm64.dmg`,
-  };
-
-  const hasOptional = {
-    winUniversal: fileNames.includes(optional.winUniversal),
-    macX64Dmg: fileNames.includes(optional.macX64Dmg),
-    macArm64Dmg: fileNames.includes(optional.macArm64Dmg),
-  };
-
-  const [winX64Meta, winArm64Meta, macX64ZipMeta, macArm64ZipMeta] = await Promise.all([
-    getFileMeta(path.join(releaseDir, required.winX64)),
-    getFileMeta(path.join(releaseDir, required.winArm64)),
-    getFileMeta(path.join(releaseDir, required.macX64Zip)),
-    getFileMeta(path.join(releaseDir, required.macArm64Zip)),
-  ]);
-
-  const optionalMeta = {};
-  if (hasOptional.winUniversal) {
-    optionalMeta.winUniversal = await getFileMeta(path.join(releaseDir, optional.winUniversal));
-  }
-  if (hasOptional.macX64Dmg) {
-    optionalMeta.macX64Dmg = await getFileMeta(path.join(releaseDir, optional.macX64Dmg));
-  }
-  if (hasOptional.macArm64Dmg) {
-    optionalMeta.macArm64Dmg = await getFileMeta(path.join(releaseDir, optional.macArm64Dmg));
-  }
+  const macX64DmgName = `StoryClaw-${version}-mac-x64.dmg`;
+  const macArm64DmgName = `StoryClaw-${version}-mac-arm64.dmg`;
+  const winUniversalName = `StoryClaw-${version}-win.exe`;
 
   const releaseDate = new Date().toISOString();
-
-  const winFiles = [
-    { url: required.winX64, ...winX64Meta },
-    { url: required.winArm64, ...winArm64Meta },
-  ];
-  if (optionalMeta.winUniversal) {
-    winFiles.push({ url: optional.winUniversal, ...optionalMeta.winUniversal });
-  }
-
-  const macFiles = [
-    { url: required.macX64Zip, ...macX64ZipMeta },
-    { url: required.macArm64Zip, ...macArm64ZipMeta },
-  ];
-  if (optionalMeta.macX64Dmg) {
-    macFiles.push({ url: optional.macX64Dmg, ...optionalMeta.macX64Dmg });
-  }
-  if (optionalMeta.macArm64Dmg) {
-    macFiles.push({ url: optional.macArm64Dmg, ...optionalMeta.macArm64Dmg });
-  }
-
-  const winYaml = toYaml({
-    version,
-    files: winFiles,
-    pathValue: required.winX64,
-    topSha512: winX64Meta.sha512,
-    releaseDate,
-  });
-
-  const macYaml = toYaml({
-    version,
-    files: macFiles,
-    pathValue: required.macX64Zip,
-    topSha512: macX64ZipMeta.sha512,
-    releaseDate,
-  });
+  const written = [];
 
   await fs.mkdir(outputDir, { recursive: true });
-  const winOutputPath = path.join(outputDir, `${channel}.yml`);
-  const macOutputPath = path.join(outputDir, `${channel}-mac.yml`);
-  await Promise.all([
-    fs.writeFile(winOutputPath, winYaml, 'utf8'),
-    fs.writeFile(macOutputPath, macYaml, 'utf8'),
-  ]);
+
+  if (hasMac) {
+    const [macX64ZipMeta, macArm64ZipMeta] = await Promise.all([
+      getFileMeta(path.join(releaseDir, macX64Zip)),
+      getFileMeta(path.join(releaseDir, macArm64Zip)),
+    ]);
+    const macFiles = [
+      { url: macX64Zip, ...macX64ZipMeta },
+      { url: macArm64Zip, ...macArm64ZipMeta },
+    ];
+    if (fileNames.includes(macX64DmgName)) {
+      macFiles.push({ url: macX64DmgName, ...await getFileMeta(path.join(releaseDir, macX64DmgName)) });
+    }
+    if (fileNames.includes(macArm64DmgName)) {
+      macFiles.push({ url: macArm64DmgName, ...await getFileMeta(path.join(releaseDir, macArm64DmgName)) });
+    }
+    const macOutputPath = path.join(outputDir, `${channel}-mac.yml`);
+    await fs.writeFile(macOutputPath, toYaml({
+      version,
+      files: macFiles,
+      pathValue: macArm64Zip,
+      topSha512: macArm64ZipMeta.sha512,
+      releaseDate,
+    }), 'utf8');
+    written.push(path.relative(PROJECT_ROOT, macOutputPath));
+  }
+
+  if (hasWin) {
+    const [winX64Meta, winArm64Meta] = await Promise.all([
+      getFileMeta(path.join(releaseDir, winX64Exe)),
+      getFileMeta(path.join(releaseDir, winArm64Exe)),
+    ]);
+    const winFiles = [
+      { url: winX64Exe, ...winX64Meta },
+      { url: winArm64Exe, ...winArm64Meta },
+    ];
+    if (fileNames.includes(winUniversalName)) {
+      winFiles.push({ url: winUniversalName, ...await getFileMeta(path.join(releaseDir, winUniversalName)) });
+    }
+    const winOutputPath = path.join(outputDir, `${channel}.yml`);
+    await fs.writeFile(winOutputPath, toYaml({
+      version,
+      files: winFiles,
+      pathValue: winX64Exe,
+      topSha512: winX64Meta.sha512,
+      releaseDate,
+    }), 'utf8');
+    written.push(path.relative(PROJECT_ROOT, winOutputPath));
+  }
 
   console.log(`[update-yml] version=${version} channel=${channel}`);
-  console.log(`[update-yml] wrote ${path.relative(PROJECT_ROOT, winOutputPath)}`);
-  console.log(`[update-yml] wrote ${path.relative(PROJECT_ROOT, macOutputPath)}`);
+  for (const p of written) console.log(`[update-yml] wrote ${p}`);
 }
 
 main().catch((error) => {
