@@ -158,6 +158,7 @@ export function Chat() {
   const loadHistory = useChatStore((s) => s.loadHistory);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
   const agents = useAgentsStore((s) => s.agents);
+  const deleteAgent = useAgentsStore((s) => s.deleteAgent);
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
   const projectPath = useFileSystemStore((s) => s.projectPath);
@@ -201,6 +202,7 @@ export function Chat() {
   const [isEditorResizing, setIsEditorResizing] = useState(false);
   const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
   const [isProjectActionsOpen, setIsProjectActionsOpen] = useState(false);
+  const [projectToClose, setProjectToClose] = useState<string | null>(null);
   const [showWorkspaceSetupDialog, setShowWorkspaceSetupDialog] = useState(false);
   const minLoading = useMinLoading(loading && messages.length > 0);
   const { contentRef, scrollRef } = useStickToBottomInstant(currentSessionKey);
@@ -967,14 +969,31 @@ export function Chat() {
     }
   }, [projectPath]);
 
-  const handleCloseCurrentProject = useCallback(async () => {
+  const handleCloseCurrentProject = useCallback(() => {
     if (!projectPath) return;
     setIsProjectActionsOpen(false);
-    const target = projectPath;
+    setProjectToClose(projectPath);
+  }, [projectPath]);
+
+  const handleConfirmCloseCurrentProject = useCallback(async () => {
+    if (!projectToClose) return;
+    const target = projectToClose;
+    setProjectToClose(null);
+    const linkedAgents = useAgentsStore
+      .getState()
+      .agents.filter((agent) => workspacePathMatches(agent.workspace, target));
+    try {
+      for (const agent of linkedAgents) {
+        await deleteAgent(agent.id);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || '删除关联 Agent 失败，已取消关闭 Project');
+      return;
+    }
+
     const targetAgentIds = new Set(
-      agents
-        .filter((agent) => workspacePathMatches(agent.workspace, target))
-        .map((agent) => agent.id)
+      linkedAgents.map((agent) => agent.id)
     );
     const sessionsToDelete = useChatStore
       .getState()
@@ -1006,8 +1025,8 @@ export function Chat() {
     resetChatRuntimeState();
     await clearProject();
   }, [
-    projectPath,
-    agents,
+    projectToClose,
+    deleteAgent,
     deleteSession,
     projectShortcuts,
     removeProjectShortcut,
@@ -1158,7 +1177,7 @@ export function Chat() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleCloseCurrentProject()}
+                  onClick={handleCloseCurrentProject}
                   className="w-full rounded px-2 py-1.5 text-left text-sm font-bold hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   {t('common:actions.close')}
@@ -1548,6 +1567,22 @@ export function Chat() {
         }}
         onCancel={() => setSessionToDelete(null)}
       />
+      <ConfirmDialog
+        open={!!projectToClose}
+        title={t('common:actions.close')}
+        message={
+          projectToClose
+            ? `确定关闭 Project「${getWorkspaceName(projectToClose)}」吗？这将同时删除与该工作区绑定的 Agent。`
+            : ''
+        }
+        confirmLabel={t('common:actions.close')}
+        cancelLabel={t('common:actions.cancel')}
+        variant="destructive"
+        onConfirm={() => {
+          void handleConfirmCloseCurrentProject();
+        }}
+        onCancel={() => setProjectToClose(null)}
+      />
       {workspaceSetupDialog}
     </div>
   );
@@ -1590,6 +1625,7 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
   const { t } = useTranslation('chat');
   return (
     <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
+      <ProjectsRail />
       <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
         <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>
