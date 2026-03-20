@@ -8,6 +8,9 @@
  */
 import { autoUpdater, UpdateInfo, ProgressInfo, UpdateDownloadedEvent } from 'electron-updater';
 import { BrowserWindow, app, ipcMain } from 'electron';
+import { execSync, spawnSync as _spawnSync } from 'child_process';
+import { existsSync, writeFileSync } from 'fs';
+import { join, dirname } from 'path';
 import { logger } from '../utils/logger';
 import { EventEmitter } from 'events';
 import { setQuitting } from './app-state';
@@ -77,7 +80,7 @@ export class AppUpdater extends EventEmitter {
     });
     
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.autoInstallOnAppQuit = false;
     
     autoUpdater.logger = {
       info: (msg: string) => logger.info('[Updater]', msg),
@@ -165,6 +168,16 @@ export class AppUpdater extends EventEmitter {
         version: event.version,
         releaseDate: event.releaseDate,
       });
+
+      // Log current app's designated requirement so we can diagnose ShipIt failures
+      try {
+        const appPath = app.getAppPath().replace('/Contents/Resources/app.asar', '');
+        const req = execSync(`codesign -d --requirements - "${appPath}" 2>&1`).toString().trim();
+        logger.info('[Updater] installed app designated requirement:', req);
+      } catch (e) {
+        logger.warn('[Updater] could not read app requirements:', String(e));
+      }
+
       this.updateStatus({ status: 'downloaded', info: event });
       this.emit('update-downloaded', event);
 
@@ -179,7 +192,8 @@ export class AppUpdater extends EventEmitter {
         this.updateStatus({ status: 'not-available' });
       } else if (AppUpdater.isSignatureError(error.message)) {
         logger.warn('[Updater] Code signature validation failed, manual reinstall required:', error.message);
-        this.updateStatus({ status: 'needs-reinstall' });
+        // Preserve info so the renderer knows which version to download manually
+        this.updateStatus({ status: 'needs-reinstall', info: this.status.info });
       } else {
         this.updateStatus({ status: 'error', error: error.message });
         this.emit('error', error);
@@ -193,7 +207,8 @@ export class AppUpdater extends EventEmitter {
   private updateStatus(newStatus: Partial<UpdateStatus>): void {
     this.status = {
       status: newStatus.status ?? this.status.status,
-      info: newStatus.info,
+      // Preserve existing info if not explicitly provided
+      info: newStatus.info !== undefined ? newStatus.info : this.status.info,
       progress: newStatus.progress,
       error: newStatus.error,
     };
@@ -278,6 +293,43 @@ export class AppUpdater extends EventEmitter {
    */
   quitAndInstall(): void {
     logger.info('[Updater] quitAndInstall called');
+
+    // On macOS, bypass ShipIt (Squirrel.Mac) to avoid code signature
+    // validation failures when using adhoc signing without a Developer ID.
+    // On Windows, NsisUpdater handles install directly (verifyUpdateCodeSignature: false).
+    if (process.platform === 'darwin') {
+      const pendingDir = join(app.getPath('home'), 'Library', 'Caches', 'storyclaw-updater', 'pending');
+      const version = this.status.info?.version;
+      const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+      const zipName = version ? `StoryClaw-${version}-mac-${arch}.zip` : null;
+      const zipPath = zipName ? join(pendingDir, zipName) : null;
+      const appInstallPath = dirname(dirname(dirname(app.getAppPath())));
+
+      if (zipPath && existsSync(zipPath) && appInstallPath.endsWith('.app')) {
+        logger.info(`[Updater] Bypassing ShipIt — direct install from ${zipPath} to ${appInstallPath}`);
+
+        const parentDir = dirname(appInstallPath);
+        const script = [
+          '#!/bin/sh',
+          `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.5; done`,
+          `rm -rf "${appInstallPath}"`,
+          `unzip -q -o "${zipPath}" -d "${parentDir}"`,
+          `open "${appInstallPath}"`,
+        ].join('\n');
+
+        const scriptPath = join(app.getPath('temp'), 'storyclaw-update.sh');
+        writeFileSync(scriptPath, script, { mode: 0o755 });
+        execSync(`sh "${scriptPath}" &`);
+
+        logger.info('[Updater] Update script launched, quitting app');
+        setQuitting();
+        app.quit();
+        return;
+      }
+
+      logger.warn(`[Updater] zip not found at ${zipPath ?? 'unknown'}, falling back to Squirrel`);
+    }
+
     setQuitting();
     autoUpdater.quitAndInstall();
   }
@@ -402,7 +454,9 @@ export function registerUpdateHandlers(
 
   // Get manual download URL for the current platform/arch
   ipcMain.handle('update:getManualDownloadUrl', () => {
-    const version = app.getVersion();
+    // Use the pending update version if available, otherwise fall back to current
+    const pendingVersion = updater.getStatus().info?.version;
+    const version = pendingVersion ?? app.getVersion();
     const channel = detectChannel(version);
     const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
     const platform = process.platform;
@@ -414,7 +468,9 @@ export function registerUpdateHandlers(
     } else {
       filename = `StoryClaw-${version}-linux-${arch}.AppImage`;
     }
-    return `${UPDATE_BASE_URL}/${channel}/${filename}`;
+    const url = `${UPDATE_BASE_URL}/${channel}/${filename}`;
+    logger.info(`[Updater] manual download URL: ${url} (version=${version})`);
+    return url;
   });
 
 }
