@@ -65,7 +65,16 @@ async function setupTarget(id) {
   try {
     // Download (use curl to respect system proxy settings)
     echo`⬇️ Downloading: ${downloadUrl}`;
-    await $`curl -L --retry 3 --connect-timeout 30 -o ${archivePath} ${downloadUrl}`;
+    if (os.platform() === 'win32') {
+      const { execFileSync } = await import('child_process');
+      execFileSync(
+        'curl.exe',
+        ['-L', '--retry', '3', '--connect-timeout', '30', '-o', archivePath, downloadUrl],
+        { stdio: 'inherit' }
+      );
+    } else {
+      await $`curl -L --retry 3 --connect-timeout 30 -o ${archivePath} ${downloadUrl}`;
+    }
 
     // Extract
     echo`📂 Extracting...`;
