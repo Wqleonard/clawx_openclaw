@@ -35,7 +35,8 @@ import { useSettingsStore } from '@/stores/settings';
 import { invokeIpc } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { useLoginStore } from '@/stores/loginStore';
-import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
+import { VisuallyHidden } from '@/components/ui/dialog';
 import { ProjectsRail } from '@/components/layout/ProjectsRail';
 
 const INITIAL_NOW_MS = Date.now();
@@ -1306,6 +1307,9 @@ export function Chat() {
             hideOverlay
             className="border-none py-3 space-y-0.5 max-w-none data-[vaul-drawer-direction=left]:top-10 data-[vaul-drawer-direction=left]:h-auto"
           >
+            <VisuallyHidden>
+              <DrawerTitle>Session list drawer</DrawerTitle>
+            </VisuallyHidden>
             <div className="flex h-full">
               <ProjectsRail />
               <div className="h-[calc(100%+2px)] p-3 -mt-[2px] flex-1 border rounded-ss-2xl rounded-es-2xl overflow-y-auto overflow-x-hidden">
@@ -1508,6 +1512,9 @@ export function Chat() {
                 className="max-w-none py-3 !border-none !rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:h-auto"
                 style={{ width: `min(86vw, ${fileTreeWidth}px)` }}
               >
+                <VisuallyHidden>
+                  <DrawerTitle>File tree drawer</DrawerTitle>
+                </VisuallyHidden>
                 <div className="h-full  border overflow-hidden">
                   <FileTree key={`${projectPath}-drawer`} className="h-full" />
                 </div>
