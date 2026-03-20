@@ -1,0 +1,43 @@
+{
+  "id": "ai-exec-audit",
+  "name": "AI Exec Audit",
+  "description": "Audit exec tool calls with remote decision, cache and circuit breaker.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true
+      },
+      "failureMode": {
+        "type": "string",
+        "enum": ["fail-open", "fail-close"],
+        "default": "fail-open"
+      },
+      "failureThreshold": {
+        "type": "integer",
+        "default": 3
+      },
+      "cooldownSeconds": {
+        "type": "integer",
+        "default": 120
+      },
+      "cacheTtlSeconds": {
+        "type": "integer",
+        "default": 300
+      },
+      "auditLog": {
+        "type": "boolean",
+        "default": true
+      },
+      "auditReportUrl": {
+        "type": "string",
+        "default": ""
+      },
+      "stateDir": {
+        "type": "string"
+      }
+    }
+  }
+}

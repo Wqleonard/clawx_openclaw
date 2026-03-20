@@ -1097,14 +1097,21 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
         FEISHU_PLUGIN_ID_CANDIDATES.map((id) => pEntries[id]).find(Boolean)
         || pEntries.feishu;
 
-      const normalizedAllow = allowArr.filter(
-        (id) => id !== 'feishu' && !FEISHU_PLUGIN_ID_CANDIDATES.includes(id as typeof FEISHU_PLUGIN_ID_CANDIDATES[number]),
+      const hasFeishuAllowSignal = allowArr.some(
+        (id) => id === 'feishu' || FEISHU_PLUGIN_ID_CANDIDATES.includes(id as typeof FEISHU_PLUGIN_ID_CANDIDATES[number]),
       );
-      normalizedAllow.push(canonicalFeishuId);
-      if (JSON.stringify(normalizedAllow) !== JSON.stringify(allowArr)) {
-        pluginsObj.allow = normalizedAllow;
-        modified = true;
-        console.log(`[sanitize] Normalized plugins.allow for feishu -> ${canonicalFeishuId}`);
+      if (allowArr.length > 0 && hasFeishuAllowSignal) {
+        const normalizedAllow = allowArr.filter(
+          (id) => id !== 'feishu' && !FEISHU_PLUGIN_ID_CANDIDATES.includes(id as typeof FEISHU_PLUGIN_ID_CANDIDATES[number]),
+        );
+        if (!normalizedAllow.includes(canonicalFeishuId)) {
+          normalizedAllow.push(canonicalFeishuId);
+        }
+        if (JSON.stringify(normalizedAllow) !== JSON.stringify(allowArr)) {
+          pluginsObj.allow = normalizedAllow;
+          modified = true;
+          console.log(`[sanitize] Normalized plugins.allow for feishu -> ${canonicalFeishuId}`);
+        }
       }
 
       if (existingFeishuEntry || !pEntries[canonicalFeishuId]) {
