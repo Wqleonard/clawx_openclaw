@@ -174,6 +174,7 @@ export function Chat() {
   const projectShortcuts = useFileSystemStore((s) => s.projectShortcuts);
   const removeProjectShortcut = useFileSystemStore((s) => s.removeProjectShortcut);
   const clearProject = useFileSystemStore((s) => s.clearProject);
+  const refreshTree = useFileSystemStore((s) => s.refreshTree);
   const activeFile = useFileSystemStore((s) => s.activeFile);
   const fileContents = useFileSystemStore((s) => s.fileContents);
   const applyProjectForSession = useFileSystemStore((s) => s.applyProjectForSession);
@@ -186,6 +187,7 @@ export function Chat() {
   const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
   const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
   const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
+  const isProjectSwitching = useChatLayoutStore((s) => s.isProjectSwitching);
   const setProjectSwitching = useChatLayoutStore((s) => s.setProjectSwitching);
   const setSessionDrawerOpen = useChatLayoutStore((s) => s.setSessionDrawerOpen);
   const setSessionDrawerMode = useChatLayoutStore((s) => s.setSessionDrawerMode);
@@ -199,6 +201,7 @@ export function Chat() {
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
   const prevSessionDrawerModeRef = useRef(isSessionDrawerMode);
   const prevFileTreeDrawerModeRef = useRef(isFileTreeDrawerMode);
+  const lastTreeRefreshProjectRef = useRef<string | null>(null);
 
   const [isListResizing, setIsListResizing] = useState(false);
   const [isEditorResizing, setIsEditorResizing] = useState(false);
@@ -299,6 +302,17 @@ export function Chat() {
     setProjectSwitching(false);
     resetChatRuntimeState();
   }, [projectPath, resetChatRuntimeState, setProjectSwitching]);
+
+  useEffect(() => {
+    if (!projectPath) {
+      lastTreeRefreshProjectRef.current = null;
+      return;
+    }
+    if (isProjectSwitching) return;
+    if (lastTreeRefreshProjectRef.current === projectPath) return;
+    lastTreeRefreshProjectRef.current = projectPath;
+    void refreshTree(projectPath);
+  }, [projectPath, isProjectSwitching, refreshTree]);
 
   useEffect(() => {
     if (!isGatewayRunning) {
