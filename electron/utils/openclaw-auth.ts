@@ -1043,9 +1043,11 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
       }
     }
 
-    // ── tools.profile & sessions.visibility ───────────────────────
+    // ── tools.profile / sessions.visibility / fs.workspaceOnly ────
     // OpenClaw 3.8+ requires tools.profile = 'full' and tools.sessions.visibility = 'all'
     // for ClawX to properly integrate with its updated tool system.
+    // We also enforce tools.fs.workspaceOnly=true so write/read/edit-style tools
+    // cannot escape the active workspace root.
     const toolsConfig = (config.tools as Record<string, unknown> | undefined) || {};
     let toolsModified = false;
 
@@ -1061,10 +1063,17 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
       toolsModified = true;
     }
 
+    const fsTools = (toolsConfig.fs as Record<string, unknown> | undefined) || {};
+    if (fsTools.workspaceOnly !== true) {
+      fsTools.workspaceOnly = true;
+      toolsConfig.fs = fsTools;
+      toolsModified = true;
+    }
+
     if (toolsModified) {
       config.tools = toolsConfig;
       modified = true;
-      console.log('[sanitize] Enforced tools.profile="full" and tools.sessions.visibility="all" for OpenClaw 3.8+');
+      console.log('[sanitize] Enforced tools.profile="full", tools.sessions.visibility="all", tools.fs.workspaceOnly=true');
     }
 
     // ── plugins.entries.feishu cleanup ──────────────────────────────

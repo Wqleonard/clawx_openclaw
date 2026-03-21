@@ -373,6 +373,14 @@ function trimTrailingSeparators(path: string): string {
   return path.replace(/[\\/]+$/, '');
 }
 
+function normalizeWorkspaceInput(workspacePath: string): string {
+  const trimmed = workspacePath.trim();
+  if (!trimmed) {
+    throw new Error('Workspace path is required');
+  }
+  return trimmed;
+}
+
 function getManagedWorkspaceDirectory(agent: AgentListEntry): string | null {
   if (agent.id === MAIN_AGENT_ID) return null;
 
@@ -634,7 +642,7 @@ export async function createAgent(
     }
 
     const resolvedWorkspace = options?.workspacePath?.trim()
-      ? options.workspacePath.trim()
+      ? normalizeWorkspaceInput(options.workspacePath)
       : `~/.openclaw/workspace-${nextId}`;
 
     const nextEntries = syntheticMain ? [createImplicitMainEntry(config), ...entries.filter((_, index) => index > 0)] : [...entries];
@@ -698,10 +706,7 @@ export async function updateAgentWorkspace(
   workspacePath: string,
 ): Promise<{ snapshot: AgentsSnapshot; changed: boolean }> {
   return withConfigLock(async () => {
-    const nextWorkspace = workspacePath.trim();
-    if (!nextWorkspace) {
-      throw new Error('Workspace path is required');
-    }
+    const nextWorkspace = normalizeWorkspaceInput(workspacePath);
 
     const config = await readOpenClawConfig() as AgentConfigDocument;
     const { agentsConfig, entries } = normalizeAgentsConfig(config);
