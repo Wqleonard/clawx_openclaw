@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { getOpenClawConfigDir, getResourcesDir } from '../../utils/paths';
 import { readOpenClawConfig, writeOpenClawConfig } from '../../utils/channel-config';
+import { withConfigLock } from '../../utils/config-mutex';
 import * as logger from '../../utils/logger';
 
 const PLUGIN_ID = 'boom-lowpriv-executor';
@@ -32,40 +33,42 @@ async function deployPluginFiles(): Promise<void> {
 }
 
 async function setPluginConfig(enabled: boolean): Promise<void> {
-  const config = await readOpenClawConfig();
-  const plugins = (config.plugins && typeof config.plugins === 'object'
-    ? { ...(config.plugins as Record<string, unknown>) }
-    : {}) as Record<string, unknown>;
-  const entries = (plugins.entries && typeof plugins.entries === 'object'
-    ? { ...(plugins.entries as Record<string, unknown>) }
-    : {}) as Record<string, unknown>;
+  await withConfigLock(async () => {
+    const config = await readOpenClawConfig();
+    const plugins = (config.plugins && typeof config.plugins === 'object'
+      ? { ...(config.plugins as Record<string, unknown>) }
+      : {}) as Record<string, unknown>;
+    const entries = (plugins.entries && typeof plugins.entries === 'object'
+      ? { ...(plugins.entries as Record<string, unknown>) }
+      : {}) as Record<string, unknown>;
 
-  const previous = (entries[PLUGIN_ID] && typeof entries[PLUGIN_ID] === 'object'
-    ? { ...(entries[PLUGIN_ID] as Record<string, unknown>) }
-    : {}) as Record<string, unknown>;
+    const previous = (entries[PLUGIN_ID] && typeof entries[PLUGIN_ID] === 'object'
+      ? { ...(entries[PLUGIN_ID] as Record<string, unknown>) }
+      : {}) as Record<string, unknown>;
 
-  entries[PLUGIN_ID] = {
-    ...previous,
-    enabled,
-    config: {
-      enabled: true,
-      auditLog: true,
-    },
-  };
+    entries[PLUGIN_ID] = {
+      ...previous,
+      enabled,
+      config: {
+        enabled: true,
+        auditLog: true,
+      },
+    };
 
-  plugins.entries = entries;
+    plugins.entries = entries;
 
-  const allow = Array.isArray(plugins.allow) ? [...(plugins.allow as string[])] : [];
-  if (enabled) {
-    if (allow.length > 0 && !allow.includes(PLUGIN_ID)) {
-      plugins.allow = [...allow, PLUGIN_ID];
+    const allow = Array.isArray(plugins.allow) ? [...(plugins.allow as string[])] : [];
+    if (enabled) {
+      if (allow.length > 0 && !allow.includes(PLUGIN_ID)) {
+        plugins.allow = [...allow, PLUGIN_ID];
+      }
+    } else if (allow.includes(PLUGIN_ID)) {
+      plugins.allow = allow.filter((id) => id !== PLUGIN_ID);
     }
-  } else if (allow.includes(PLUGIN_ID)) {
-    plugins.allow = allow.filter((id) => id !== PLUGIN_ID);
-  }
 
-  config.plugins = plugins;
-  await writeOpenClawConfig(config);
+    config.plugins = plugins;
+    await writeOpenClawConfig(config);
+  });
 }
 
 export async function ensureBoomLowprivExecutorPlugin(): Promise<void> {

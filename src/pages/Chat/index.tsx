@@ -1251,6 +1251,9 @@ export function Chat() {
   if (!projectPath) {
     return (
       <>
+        <div className="hidden">
+          <ProjectsRail />
+        </div>
         <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />
         {workspaceSetupDialog}
       </>
