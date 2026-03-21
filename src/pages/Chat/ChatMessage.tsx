@@ -126,7 +126,7 @@ export const ChatMessage = memo(function ChatMessage({
         )}
 
         {/* File attachments — images above text for user, file cards below */}
-        {isUser && attachedFiles.length > 0 && (
+        {/* {isUser && attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {attachedFiles.map((file, i) => {
               const isImage = file.mimeType.startsWith('image/');
@@ -155,7 +155,7 @@ export const ChatMessage = memo(function ChatMessage({
               return <FileCard key={`local-${i}`} file={file} />;
             })}
           </div>
-        )}
+        )} */}
 
         {/* Main text bubble */}
         {hasText && (
@@ -187,7 +187,7 @@ export const ChatMessage = memo(function ChatMessage({
         )}
 
         {/* File attachments — assistant messages (below text) */}
-        {!isUser && attachedFiles.length > 0 && (
+        {/* {!isUser && attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {attachedFiles.map((file, i) => {
               const isImage = file.mimeType.startsWith('image/');
@@ -214,7 +214,7 @@ export const ChatMessage = memo(function ChatMessage({
               return <FileCard key={`local-${i}`} file={file} />;
             })}
           </div>
-        )}
+        )} */}
 
         {/* Hover row for user messages — timestamp only */}
         {isUser && message.timestamp && (
