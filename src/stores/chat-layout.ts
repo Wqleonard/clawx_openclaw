@@ -4,22 +4,21 @@ import { persist } from 'zustand/middleware';
 export const SESSION_LIST_DRAWER_BREAKPOINT = 1400;
 export const FILE_TREE_DRAWER_BREAKPOINT = 1020;
 export const CHAT_PANEL_SIZE = {
-  list: {
-    min: 220,
-    max: 520,
+  session: {
+    min: 180,
     default: 280,
   },
+  chat: {
+    min: 360,
+  },
   editor: {
-    min: 260,
-    max: 1600,
+    min: 400,
     default: 560,
   },
   fileTree: {
-    min: 220,
-    max: 520,
+    min: 180,
     default: 260,
   },
-  chatMinWidth: 320,
 } as const;
 
 type ChatLayoutState = {
@@ -47,13 +46,13 @@ type ChatLayoutState = {
   toggleSessionDrawer: () => void;
 };
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+function clampMin(value: number, min: number): number {
+  return Math.max(min, value);
 }
 
 function loadLegacyPanelWidths() {
   const fallback = {
-    listWidth: CHAT_PANEL_SIZE.list.default,
+    listWidth: CHAT_PANEL_SIZE.session.default,
     editorWidth: CHAT_PANEL_SIZE.editor.default,
     fileTreeWidth: CHAT_PANEL_SIZE.fileTree.default,
   };
@@ -65,20 +64,17 @@ function loadLegacyPanelWidths() {
       state?: { listWidth?: number; editorWidth?: number; fileTreeWidth?: number };
     };
     return {
-      listWidth: clamp(
+      listWidth: clampMin(
         parsed.state?.listWidth ?? fallback.listWidth,
-        CHAT_PANEL_SIZE.list.min,
-        CHAT_PANEL_SIZE.list.max
+        CHAT_PANEL_SIZE.session.min
       ),
-      editorWidth: clamp(
+      editorWidth: clampMin(
         parsed.state?.editorWidth ?? fallback.editorWidth,
-        CHAT_PANEL_SIZE.editor.min,
-        CHAT_PANEL_SIZE.editor.max
+        CHAT_PANEL_SIZE.editor.min
       ),
-      fileTreeWidth: clamp(
+      fileTreeWidth: clampMin(
         parsed.state?.fileTreeWidth ?? fallback.fileTreeWidth,
-        CHAT_PANEL_SIZE.fileTree.min,
-        CHAT_PANEL_SIZE.fileTree.max
+        CHAT_PANEL_SIZE.fileTree.min
       ),
     };
   } catch {
@@ -102,22 +98,22 @@ export const useChatLayoutStore = create<ChatLayoutState>()(
       isFileTreeDrawerMode: window.innerWidth < FILE_TREE_DRAWER_BREAKPOINT,
       setListWidth: (width) => {
         set({
-          listWidth: clamp(width, CHAT_PANEL_SIZE.list.min, CHAT_PANEL_SIZE.list.max),
+          listWidth: clampMin(width, CHAT_PANEL_SIZE.session.min),
         });
       },
       setEditorWidth: (width) => {
         set({
-          editorWidth: clamp(width, CHAT_PANEL_SIZE.editor.min, CHAT_PANEL_SIZE.editor.max),
+          editorWidth: clampMin(width, CHAT_PANEL_SIZE.editor.min),
         });
       },
       setFileTreeWidth: (width) => {
         set({
-          fileTreeWidth: clamp(width, CHAT_PANEL_SIZE.fileTree.min, CHAT_PANEL_SIZE.fileTree.max),
+          fileTreeWidth: clampMin(width, CHAT_PANEL_SIZE.fileTree.min),
         });
       },
       resetPanelWidths: () => {
         set({
-          listWidth: CHAT_PANEL_SIZE.list.default,
+          listWidth: CHAT_PANEL_SIZE.session.default,
           editorWidth: CHAT_PANEL_SIZE.editor.default,
           fileTreeWidth: CHAT_PANEL_SIZE.fileTree.default,
         });
