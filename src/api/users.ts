@@ -78,7 +78,7 @@ const postFrozenUserEmailReq = (email: string) => {
   });
 };
 
-// 使用兑换码兑换积分
+// 使用兑换码兑换贝壳
 const postRedeemPointsReq = (code: string) => {
   return apiClient.post('/redemption-codes/redeem', {
     code,
@@ -86,7 +86,7 @@ const postRedeemPointsReq = (code: string) => {
 };
 
 /**
- * 查询当前用户积分消耗记录
+ * 查询当前用户贝壳消耗记录
  * 接口返回结果直接就是 data
  */
 const getPointsConsumption = (params?: { page: number, page_size: number }): Promise<any> => {

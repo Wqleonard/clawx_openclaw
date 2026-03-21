@@ -43,9 +43,9 @@ export function McpSection() {
 export function PointsSection() {
   return (
     <ComingSoon
-      titleZh="积分详情"
+      titleZh="贝壳详情"
       titleEn="Points"
-      descZh="查看积分余额和消耗记录。"
+      descZh="查看贝壳余额和消耗记录。"
       descEn="View your points balance and transaction history."
     />
   );

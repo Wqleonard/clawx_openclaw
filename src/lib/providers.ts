@@ -350,11 +350,11 @@ export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
     model: 'doubao-seed-1.8',
     label: 'Doubao-seed-1.8',
   },
-  {
-    id: 'doubao-seed-1.6-flash:custom-baowenmao',
-    model: 'doubao-seed-1.6-flash',
-    label: 'Doubao-seed-1.6-flash',
-  },
+  // {
+  //   id: 'doubao-seed-1.6-flash:custom-baowenmao',
+  //   model: 'doubao-seed-1.6-flash',
+  //   label: 'Doubao-seed-1.6-flash',
+  // },
 ];
 
 /** Get the SVG logo URL for a provider type, falls back to undefined */
