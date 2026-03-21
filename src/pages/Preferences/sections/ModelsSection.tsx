@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ProvidersSettings } from '@/components/settings/ProvidersSettings';
 import { useTranslation } from 'react-i18next';
 import { useGatewayStore } from '@/stores/gateway';
@@ -6,6 +6,9 @@ import { useSettingsStore } from '@/stores/settings';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { hostApiFetch } from '@/lib/host-api';
+import { Button } from '@/components/ui/button';
+import { ExternalLink } from 'lucide-react';
+import { invokeIpc } from '@/lib/api-client';
 
 export function ModelsSection() {
   const { i18n, t } = useTranslation('settings');
@@ -20,7 +23,9 @@ export function ModelsSection() {
   const [portDraft, setPortDraft] = useState(String(activePort));
   const [portError, setPortError] = useState('');
   const [savingPort, setSavingPort] = useState(false);
-  const [tab, setTab] = useState<'models' | 'gateway'>('models');
+  const [tab, setTab] = useState<'models' | 'gateway' | 'logs'>('models');
+  const [logContent, setLogContent] = useState('');
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   const handleApplyPort = async () => {
     const num = parseInt(portDraft, 10);
@@ -45,12 +50,41 @@ export function ModelsSection() {
     }
   };
 
+  const handleShowLogs = useCallback(async () => {
+    setLoadingLogs(true);
+    try {
+      const logs = await hostApiFetch<{ content: string }>('/api/logs?tailLines=100');
+      setLogContent(logs.content);
+    } catch {
+      setLogContent(isZh ? '加载日志失败。' : 'Failed to load logs.');
+    } finally {
+      setLoadingLogs(false);
+    }
+  }, [isZh]);
+
+  const handleOpenLogDir = async () => {
+    try {
+      const { dir: logDir } = await hostApiFetch<{ dir: string | null }>('/api/logs/dir');
+      if (logDir) {
+        await invokeIpc('shell:showItemInFolder', logDir);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'logs') {
+      void handleShowLogs();
+    }
+  }, [tab, handleShowLogs]);
+
   return (
     <div className="space-y-0">
       <div className="sticky top-0 z-10 backdrop-blur-sm bg-background/80 border-b border-black/5 dark:border-white/5">
         <div className="max-w-2xl mx-auto px-8 py-4">
         <div className="inline-flex rounded-xl p-1 border border-black/10 dark:border-white/10">
-          {(['models', 'gateway'] as const).map((item) => (
+          {(['models', 'gateway', 'logs'] as const).map((item) => (
             <button
               key={item}
               onClick={() => setTab(item)}
@@ -59,7 +93,11 @@ export function ModelsSection() {
                 tab === item ? 'bg-black/8 dark:bg-white/10 text-foreground' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              {item === 'models' ? t('preferencesNav.tabs.models') : t('preferencesNav.tabs.gateway')}
+              {item === 'models'
+                ? t('preferencesNav.tabs.models')
+                : item === 'gateway'
+                  ? t('preferencesNav.tabs.gateway')
+                  : (isZh ? '日志' : 'Logs')}
             </button>
           ))}
         </div>
@@ -74,7 +112,7 @@ export function ModelsSection() {
           </p>
           <ProvidersSettings />
         </div>
-      ) : (
+      ) : tab === 'gateway' ? (
         <div>
           <p className="text-[13px] text-muted-foreground px-1 mb-4">
             {t('gateway.description')}
@@ -139,6 +177,32 @@ export function ModelsSection() {
                   : 'Gateway will restart automatically after changing the port. If the default port is occupied, the system will try adjacent ports.'}
               </p>
             </div>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className="text-[13px] text-muted-foreground px-1 mb-4">
+            {isZh ? '查看应用最近日志。' : 'View recent application logs.'}
+          </p>
+          <div className="p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-medium text-[14px]">{t('gateway.appLogs')}</p>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" className="h-7 text-[12px] rounded-full hover:bg-black/5 dark:hover:bg-white/10" onClick={() => void handleShowLogs()}>
+                  {isZh ? '刷新' : 'Refresh'}
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-[12px] rounded-full hover:bg-black/5 dark:hover:bg-white/10" onClick={handleOpenLogDir}>
+                  <ExternalLink className="h-3 w-3 mr-1.5" />
+                  {t('gateway.openFolder')}
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-[12px] rounded-full hover:bg-black/5 dark:hover:bg-white/10" onClick={() => setTab('gateway')}>
+                  {t('common:actions.close')}
+                </Button>
+              </div>
+            </div>
+            <pre className="text-[12px] text-muted-foreground bg-white dark:bg-card p-4 rounded-xl max-h-60 overflow-auto whitespace-pre-wrap font-mono border border-black/5 dark:border-white/5 shadow-inner">
+              {loadingLogs ? (isZh ? '日志加载中...' : 'Loading logs...') : (logContent || t('chat:noLogs'))}
+            </pre>
           </div>
         </div>
         )}
