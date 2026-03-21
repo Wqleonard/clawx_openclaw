@@ -16,6 +16,7 @@ import { useFileSystemStore } from '@/stores/filesystem.ts';
 import { useSettingsStore } from '@/stores/settings.ts';
 import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components/ui/dialog.tsx';
 import { Preferences } from '@/pages/Preferences';
+// import { useSettingDialogStore } from '@/stores/setting-dialog.ts';
 
 type ProjectItem = {
   path: string;
@@ -125,6 +126,7 @@ function WorkspaceShortcutButton({
 export function ProjectsRail() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
   const projectPath = useFileSystemStore((state) => state.projectPath);
   const initProject = useFileSystemStore((state) => state.initProject);
   const clearProject = useFileSystemStore((state) => state.clearProject);

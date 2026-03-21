@@ -26,6 +26,7 @@ export function ModelsSection() {
   const [tab, setTab] = useState<'models' | 'gateway' | 'logs'>('models');
   const [logContent, setLogContent] = useState('');
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [restartingGateway, setRestartingGateway] = useState(false);
 
   const handleApplyPort = async () => {
     const num = parseInt(portDraft, 10);
@@ -70,6 +71,18 @@ export function ModelsSection() {
       }
     } catch {
       // ignore
+    }
+  };
+
+  const handleRestartGateway = async () => {
+    setRestartingGateway(true);
+    try {
+      await restart();
+      toast.success(isZh ? 'Gateway 正在重启。' : 'Gateway is restarting.');
+    } catch {
+      toast.error(isZh ? '重启 Gateway 失败。' : 'Failed to restart Gateway.');
+    } finally {
+      setRestartingGateway(false);
     }
   };
 
@@ -145,6 +158,13 @@ export function ModelsSection() {
                   className="shrink-0 h-8 px-3 rounded-lg text-[13px] font-medium border border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {isZh ? '重新连接' : 'Reconnect'}
+                </button>
+                <button
+                  onClick={() => void handleRestartGateway()}
+                  disabled={restartingGateway}
+                  className="shrink-0 h-8 px-3 rounded-lg text-[13px] font-medium border border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                >
+                  {restartingGateway ? (isZh ? '重启中...' : 'Restarting...') : (isZh ? '重新启动' : 'Restart Gateway')}
                 </button>
               </div>
             </div>

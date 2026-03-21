@@ -520,10 +520,7 @@ function ProviderCard({
 
   const currentLabelClasses = isDefault ? "text-[13px] text-muted-foreground" : labelClasses;
   const currentSectionLabelClasses = isDefault ? "text-[14px] font-bold text-foreground/80" : labelClasses;
-  const labelAlreadyContainsModelHint = /\([^()]+\)/.test(account.label);
-  const displayName = account.model && !labelAlreadyContainsModelHint
-    ? `${account.label} (${account.model})`
-    : account.label;
+  const displayName = account.label;
   const canShowDeleteAction = Boolean(onDelete) && !isBaowenmaoPreset;
 
   return (
