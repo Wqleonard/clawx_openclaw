@@ -403,7 +403,8 @@ function MessageBubble({
             {text}
           </ReactMarkdown>
           {isStreaming && (
-            <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />
+            // <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />
+            <StreamingIndicator />
           )}
         </div>
       )}
@@ -643,6 +644,29 @@ function ToolCard({ name, input }: { name: string; input: unknown }) {
           {typeof input === 'string' ? input : JSON.stringify(input, null, 2) as string}
         </pre>
       )}
+    </div>
+  );
+}
+
+function StreamingIndicator() {
+  return (
+    <div className="flex gap-3">
+      <div className="text-foreground rounded-2xl px-1 py-3">
+        <div className="flex gap-1">
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '0ms' }}
+          />
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '300ms' }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
