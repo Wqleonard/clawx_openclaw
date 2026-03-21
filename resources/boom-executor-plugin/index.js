@@ -1,6 +1,6 @@
-const BOOM_LOWPRIV_EXECUTOR_LOG_TAG = "boom-lowpriv-executor";
-const BOOM_LOWPRIV_EXECUTOR_CONFIG_PATH = "/plugins/boom-lowpriv-executor/config";
-const BOOM_LOWPRIV_EXECUTOR_TOOLS = new Set(["exec", "bash", "bash_tool", "execute_command", "run_command", "shell", "powershell"]);
+const BOOM_EXECUTOR_GUARD_LOG_TAG = "boom-executor-guard";
+const BOOM_EXECUTOR_GUARD_CONFIG_PATH = "/plugins/boom-executor-guard/config";
+const BOOM_EXECUTOR_GUARD_TOOLS = new Set(["exec", "bash", "bash_tool", "execute_command", "run_command", "shell", "powershell"]);
 const BOOM_EXECUTOR_FILE_NAME = "boom-executor.exe";
 
 const runtimeState = {
@@ -18,11 +18,11 @@ function normalizeConfig(input) {
 }
 
 function isExecTool(name) {
-  return BOOM_LOWPRIV_EXECUTOR_TOOLS.has(String(name || "").trim().toLowerCase());
+  return BOOM_EXECUTOR_GUARD_TOOLS.has(String(name || "").trim().toLowerCase());
 }
 
 function getLauncherArgs() {
-  return "--low-il --restricted-token --job-object";
+  return "--integrity-floor --cap-drop-token --process-cage";
 }
 
 function resolvePowerShellPath() {
@@ -79,16 +79,16 @@ function commandPreview(command) {
 }
 
 const plugin = {
-  id: "boom-lowpriv-executor",
-  name: "Boom Lowpriv Executor",
-  description: "Uniformly wrap exec commands with lowpriv launcher.",
+  id: "boom-executor-guard",
+  name: "Boom Executor Guard",
+  description: "Uniformly wrap exec commands with Boom executor.",
 
   register(api) {
     runtimeState.config = normalizeConfig(api.pluginConfig || {});
 
     const wrapperPath = resolveExecutorPath();
     api.registerHttpRoute({
-      path: BOOM_LOWPRIV_EXECUTOR_CONFIG_PATH,
+      path: BOOM_EXECUTOR_GUARD_CONFIG_PATH,
       auth: "plugin",
       match: "exact",
       handler: async (req, res) => {
@@ -122,7 +122,7 @@ const plugin = {
       if (!command) return;
       if (!wrapperPath) {
         if (config.auditLog) {
-          const noWrapperMessage = `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] wrapper missing, pass-through tool=${event.toolName} callId=${event.toolCallId || ""}`;
+          const noWrapperMessage = `[${BOOM_EXECUTOR_GUARD_LOG_TAG}] wrapper missing, pass-through tool=${event.toolName} callId=${event.toolCallId || ""}`;
           console.warn(noWrapperMessage);
           api.logger.warn(noWrapperMessage);
         }
@@ -130,14 +130,14 @@ const plugin = {
       }
 
       if (config.auditLog) {
-        const inputMessage = `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] input tool=${event.toolName} callId=${event.toolCallId || ""} cmd="${commandPreview(command)}"`;
+        const inputMessage = `[${BOOM_EXECUTOR_GUARD_LOG_TAG}] input tool=${event.toolName} callId=${event.toolCallId || ""} cmd="${commandPreview(command)}"`;
         console.log(inputMessage);
         api.logger.warn(inputMessage);
       }
 
       const wrappedCommand = wrapCommand(command, wrapperPath);
       if (config.auditLog) {
-        const rewriteMessage = `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] rewrite tool=${event.toolName} callId=${event.toolCallId || ""} mode=strict cmd="${commandPreview(wrappedCommand)}"`;
+        const rewriteMessage = `[${BOOM_EXECUTOR_GUARD_LOG_TAG}] rewrite tool=${event.toolName} callId=${event.toolCallId || ""} mode=strict cmd="${commandPreview(wrappedCommand)}"`;
         console.log(rewriteMessage);
         api.logger.warn(rewriteMessage);
       }
@@ -148,7 +148,7 @@ const plugin = {
     });
 
     api.logger.info(
-      `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] ready platform=${process.platform} wrapper=${wrapperPath || "none"} mode=strict`,
+      `[${BOOM_EXECUTOR_GUARD_LOG_TAG}] ready platform=${process.platform} wrapper=${wrapperPath || "none"} mode=strict`,
     );
   },
 };

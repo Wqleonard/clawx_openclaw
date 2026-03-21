@@ -1,12 +1,12 @@
-# BOOM Lowpriv Executor 插件说明
+# BOOM Executor Guard 插件说明
 
-本文档说明 `boom-lowpriv-executor` 的构建、部署、运行原理、权限边界与开关方式。
+本文档说明 `boom-executor-guard` 的构建、部署、运行原理、权限边界与开关方式。
 
 ---
 
 ## 1. 组件关系
 
-- 执行器插件目录：`resources/boom-lowpriv-executor-plugin`
+- 执行器插件目录：`resources/boom-executor-plugin`
 - Rust 可执行文件目录：`boom-executor`
 - 插件部署代码：`electron/services/boom-lowpriv-executor/plugin-deploy.ts`
 - 主进程启动挂载：`electron/main/index.ts`
@@ -14,7 +14,7 @@
 运行时链路：
 
 1. Electron 启动后执行 `ensureBoomLowprivExecutorPlugin()`
-2. 插件文件复制到 `~/.openclaw/extensions/boom-lowpriv-executor`
+2. 插件文件复制到 `~/.openclaw/extensions/boom-executor-guard`
 3. `before_tool_call` 拦截 `exec` 类工具调用
 4. 将原命令重写为通过 `boom-executor.exe` 执行
 
@@ -111,7 +111,7 @@ Windows 安装包阶段，`electron-builder.yml` 会把：
 原命令会被改写为：
 
 ```text
-boom-executor.exe --low-il --restricted-token --job-object -- powershell.exe -NoProfile -NonInteractive -Command "<原命令>"
+boom-executor.exe --integrity-floor --cap-drop-token --process-cage -- powershell.exe -NoProfile -NonInteractive -Command "<原命令>"
 ```
 
 其中插件会自动解析 `boom-executor.exe` 路径，无需环境变量。
@@ -167,7 +167,7 @@ boom-executor.exe --low-il --restricted-token --job-object -- powershell.exe -No
 
 ## 5. 配置项说明
 
-插件配置定义见 `resources/boom-lowpriv-executor-plugin/openclaw.plugin.json`。
+插件配置定义见 `resources/boom-executor-plugin/openclaw.plugin.json`。
 
 - `enabled`（boolean，默认 `true`）
   - 插件总开关
@@ -177,22 +177,22 @@ boom-executor.exe --low-il --restricted-token --job-object -- powershell.exe -No
 
 运行时配置路由：
 
-- `GET /plugins/boom-lowpriv-executor/config`：查看当前内存配置
-- `POST/PUT /plugins/boom-lowpriv-executor/config`：更新当前内存配置
+- `GET /plugins/boom-executor-guard/config`：查看当前内存配置
+- `POST/PUT /plugins/boom-executor-guard/config`：更新当前内存配置
 
 示例（网关端口按实际环境）：
 
 ```powershell
 # 查看当前配置
-curl http://127.0.0.1:18789/plugins/boom-lowpriv-executor/config
+curl http://127.0.0.1:18789/plugins/boom-executor-guard/config
 
 # 运行时临时关闭
-curl -X POST http://127.0.0.1:18789/plugins/boom-lowpriv-executor/config `
+curl -X POST http://127.0.0.1:18789/plugins/boom-executor-guard/config `
   -H "Content-Type: application/json" `
   -d "{\"enabled\":false}"
 
 # 运行时重新开启
-curl -X POST http://127.0.0.1:18789/plugins/boom-lowpriv-executor/config `
+curl -X POST http://127.0.0.1:18789/plugins/boom-executor-guard/config `
   -H "Content-Type: application/json" `
   -d "{\"enabled\":true}"
 ```
@@ -219,8 +219,8 @@ curl -X POST http://127.0.0.1:18789/plugins/boom-lowpriv-executor/config `
 
 在 `~/.openclaw/openclaw.json` 中将：
 
-- `plugins.entries["boom-lowpriv-executor"].enabled = false`
-- 可选：`plugins.entries["boom-lowpriv-executor"].config.enabled = false`
+- `plugins.entries["boom-executor-guard"].enabled = false`
+- 可选：`plugins.entries["boom-executor-guard"].config.enabled = false`
 
 如果项目启用了 `plugins.allow` 严格白名单，也需要确保该插件不在 allow 列表中。
 

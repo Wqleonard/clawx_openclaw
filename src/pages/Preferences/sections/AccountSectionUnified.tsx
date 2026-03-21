@@ -59,7 +59,7 @@ export function AccountSectionUnified() {
   const [runtimePluginLoading, setRuntimePluginLoading] = useState(true);
   const [updatingPluginId, setUpdatingPluginId] = useState<'security-protection' | null>(null);
   const [aiExecAuditEnabled, setAiExecAuditEnabled] = useState(true);
-  const [boomLowprivExecutorEnabled, setBoomLowprivExecutorEnabled] = useState(true);
+  const [boomExecutorGuardEnabled, setBoomExecutorGuardEnabled] = useState(true);
 
   useEffect(() => {
     let alive = true;
@@ -68,7 +68,7 @@ export function AccountSectionUnified() {
         const snapshot = await getRuntimePluginToggles();
         if (!alive) return;
         setAiExecAuditEnabled(snapshot.aiExecAudit?.enabled !== false);
-        setBoomLowprivExecutorEnabled(snapshot.boomLowprivExecutor?.enabled !== false);
+        setBoomExecutorGuardEnabled(snapshot.boomExecutorGuard?.enabled !== false);
       } catch (error) {
         if (!alive) return;
         toast.error(isZh ? '读取插件开关失败' : 'Failed to load plugin toggles');
@@ -86,21 +86,21 @@ export function AccountSectionUnified() {
   const updateSecurityProtectionToggle = async (enabled: boolean) => {
     if (updatingPluginId) return;
     const previousAi = aiExecAuditEnabled;
-    const previousExecutor = boomLowprivExecutorEnabled;
+    const previousExecutor = boomExecutorGuardEnabled;
 
     setAiExecAuditEnabled(enabled);
-    setBoomLowprivExecutorEnabled(enabled);
+    setBoomExecutorGuardEnabled(enabled);
     setUpdatingPluginId('security-protection');
 
     try {
       await Promise.all([
         setRuntimePluginToggle('ai-exec-audit', enabled),
-        setRuntimePluginToggle('boom-lowpriv-executor', enabled),
+        setRuntimePluginToggle('boom-executor-guard', enabled),
       ]);
       toast.success(enabled ? 'StoryClaw安全防护已开启' : 'StoryClaw安全防护已关闭');
     } catch (error) {
       setAiExecAuditEnabled(previousAi);
-      setBoomLowprivExecutorEnabled(previousExecutor);
+      setBoomExecutorGuardEnabled(previousExecutor);
       toast.error(isZh ? 'StoryClaw安全防护开关更新失败' : 'Failed to update StoryClaw protection toggle');
       console.error(error);
     } finally {
@@ -190,7 +190,7 @@ export function AccountSectionUnified() {
             desc={isZh ? '开启后AI将不能读取你的管理员权限文件，不能删除和修改敏感文件。' : 'When enabled, AI cannot access admin-protected files or delete/modify sensitive files.'}
             control={
               <Switch
-                checked={aiExecAuditEnabled && boomLowprivExecutorEnabled}
+                checked={aiExecAuditEnabled && boomExecutorGuardEnabled}
                 disabled={runtimePluginLoading || updatingPluginId !== null}
                 onCheckedChange={(checked) => {
                   void updateSecurityProtectionToggle(checked);
