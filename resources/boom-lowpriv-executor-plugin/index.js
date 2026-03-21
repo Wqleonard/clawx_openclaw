@@ -1,6 +1,7 @@
 const BOOM_LOWPRIV_EXECUTOR_LOG_TAG = "boom-lowpriv-executor";
 const BOOM_LOWPRIV_EXECUTOR_CONFIG_PATH = "/plugins/boom-lowpriv-executor/config";
 const BOOM_LOWPRIV_EXECUTOR_TOOLS = new Set(["exec", "bash", "bash_tool", "execute_command", "run_command", "shell", "powershell"]);
+const BOOM_EXECUTOR_FILE_NAME = "boom-executor.exe";
 
 const runtimeState = {
   config: {
@@ -41,11 +42,40 @@ function resolvePowerShellPath() {
   return "powershell.exe";
 }
 
+function resolveExecutorPath() {
+  if (process.platform !== "win32") return "";
+  const fs = require("fs");
+  const path = require("path");
+
+  const candidates = [];
+  if (typeof process.resourcesPath === "string" && process.resourcesPath.trim()) {
+    candidates.push(path.join(process.resourcesPath, "bin", BOOM_EXECUTOR_FILE_NAME));
+  }
+  candidates.push(path.join(process.cwd(), "bin", BOOM_EXECUTOR_FILE_NAME));
+  candidates.push(path.join(process.cwd(), "..", "bin", BOOM_EXECUTOR_FILE_NAME));
+  candidates.push(path.join(process.cwd(), "..", "..", "bin", BOOM_EXECUTOR_FILE_NAME));
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    } catch {}
+  }
+  return "";
+}
+
 function wrapCommand(command, wrapperPath) {
   const escaped = String(command || "").replace(/'/g, "''");
   const launcherArgs = getLauncherArgs();
   const psPath = resolvePowerShellPath();
   return `& '${wrapperPath}' ${launcherArgs} -- "${psPath}" -NoProfile -NonInteractive -Command '${escaped}'`;
+}
+
+function commandPreview(command) {
+  const text = String(command || "").replace(/\s+/g, " ").trim();
+  if (text.length <= 240) return text;
+  return `${text.slice(0, 240)}...`;
 }
 
 const plugin = {
@@ -56,7 +86,7 @@ const plugin = {
   register(api) {
     runtimeState.config = normalizeConfig(api.pluginConfig || {});
 
-    const wrapperPath = String(process.env.QCLAW_TOOL_WRAPPER_PATH || "").trim();
+    const wrapperPath = resolveExecutorPath();
     api.registerHttpRoute({
       path: BOOM_LOWPRIV_EXECUTOR_CONFIG_PATH,
       auth: "plugin",
@@ -99,9 +129,15 @@ const plugin = {
         return;
       }
 
+      if (config.auditLog) {
+        const inputMessage = `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] input tool=${event.toolName} callId=${event.toolCallId || ""} cmd="${commandPreview(command)}"`;
+        console.log(inputMessage);
+        api.logger.warn(inputMessage);
+      }
+
       const wrappedCommand = wrapCommand(command, wrapperPath);
       if (config.auditLog) {
-        const rewriteMessage = `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] rewrite tool=${event.toolName} callId=${event.toolCallId || ""} mode=strict`;
+        const rewriteMessage = `[${BOOM_LOWPRIV_EXECUTOR_LOG_TAG}] rewrite tool=${event.toolName} callId=${event.toolCallId || ""} mode=strict cmd="${commandPreview(wrappedCommand)}"`;
         console.log(rewriteMessage);
         api.logger.warn(rewriteMessage);
       }
