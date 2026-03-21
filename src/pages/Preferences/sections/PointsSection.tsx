@@ -82,7 +82,7 @@ function normalizeRecord(raw: Record<string, unknown>, index: number): PointReco
   const spentPoints = toNumber(raw.spent_points, 0);
   const remainingPoints = toNumber(raw.remaining_points, 0);
   const points = toNumber(
-    // 当前接口主字段是 spent_points（消耗），后续如新增“获得积分”字段可继续扩展
+    // 当前接口主字段是 spent_points（消耗），后续如新增“获得贝壳”字段可继续扩展
     raw.points ?? raw.amount ?? raw.pointChange ?? raw.change ?? raw.delta ?? (spentPoints ? -spentPoints : 0),
     spentPoints ? -spentPoints : 0
   );
@@ -107,7 +107,7 @@ function normalizeRecord(raw: Record<string, unknown>, index: number): PointReco
   return {
     id: toString(raw.id ?? raw.recordId ?? raw.consumptionId) || `record-${index}-${Date.now()}`,
     type,
-    descZh: desc || (type === 'earn' ? '积分获得' : '积分消耗'),
+    descZh: desc || (type === 'earn' ? '贝壳获得' : '贝壳消耗'),
     descEn: desc || (type === 'earn' ? 'Points earned' : 'Points consumed'),
     points,
     date: formatDateLocal(date || '-'),
@@ -212,7 +212,7 @@ export function PointsSection() {
         value: records.reduce((sum, r) => sum + Math.max(0, -r.points), 0),
       },
       {
-        labelZh: '可用积分',
+        labelZh: '可用贝壳',
         labelEn: 'Balance',
         value: total,
       },
@@ -236,7 +236,7 @@ export function PointsSection() {
       setHasMore(nextHasMore);
       setInitialLoaded(true);
     } catch {
-      setError(isZh ? '积分记录加载失败，请稍后重试' : 'Failed to load points records');
+      setError(isZh ? '贝壳记录加载失败，请稍后重试' : 'Failed to load points records');
       if (!append) setInitialLoaded(true);
     } finally {
       setLoading(false);
@@ -308,10 +308,10 @@ export function PointsSection() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 px-1">
-            {isZh ? '积分详情' : 'Points'}
+            {isZh ? '贝壳详情' : 'Points'}
           </h2>
           <p className="text-[13px] text-muted-foreground px-1">
-            {isZh ? '查看积分余额和消耗记录。' : 'View your points balance and transaction history.'}
+            {isZh ? '查看贝壳余额和消耗记录。' : 'View your points balance and transaction history.'}
           </p>
         </div>
         <button
@@ -327,7 +327,7 @@ export function PointsSection() {
       {/* Total + recharge */}
       <div className="rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] px-6 py-5 flex items-center justify-between">
         <div>
-          <p className="text-[12px] text-muted-foreground mb-1">{isZh ? '总积分' : 'Total Points'}</p>
+          <p className="text-[12px] text-muted-foreground mb-1">{isZh ? '总贝壳' : 'Total Points'}</p>
           <p className={cn('text-[32px] font-bold text-foreground leading-none transition-opacity', refreshing && 'opacity-40')}>
             {formatPointValue(total)}
           </p>
@@ -338,7 +338,7 @@ export function PointsSection() {
             setRedeemOpen(true);
           }}
           className="h-8 px-4 rounded-xl text-[13px] font-medium bg-orange-500 text-white hover:bg-orange-500/90 transition-colors"
-          title={isZh ? '使用兑换码兑换积分' : 'Redeem points with code'}
+          title={isZh ? '使用兑换码兑换贝壳' : 'Redeem points with code'}
         >
           {isZh ? '去兑换' : 'Redeem'}
         </button>
@@ -420,9 +420,9 @@ export function PointsSection() {
       >
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle>{isZh ? '兑换积分' : 'Redeem Points'}</DialogTitle>
+            <DialogTitle>{isZh ? '兑换贝壳' : 'Redeem Points'}</DialogTitle>
             <DialogDescription>
-              {isZh ? '请输入兑换码，兑换成功后会自动刷新积分和记录。' : 'Enter your redemption code. Points and records will refresh automatically after success.'}
+              {isZh ? '请输入兑换码，兑换成功后会自动刷新贝壳和记录。' : 'Enter your redemption code. Points and records will refresh automatically after success.'}
             </DialogDescription>
           </DialogHeader>
 

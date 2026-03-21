@@ -461,6 +461,17 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       await upsertPreset(preset);
     }
 
+    // 清理不再属于当前 preset 列表的旧 baowenmao 账号
+    const currentPresetIds = new Set(BAOWENMAO_PRESET_ACCOUNTS.map((p) => p.id));
+    const staleAccounts = accounts.filter(
+      (account) => account.vendorId === 'baowenmao' && !currentPresetIds.has(account.id)
+    );
+    for (const stale of staleAccounts) {
+      await hostApiFetch<{ success: boolean }>(`/api/provider-accounts/${encodeURIComponent(stale.id)}`, {
+        method: 'DELETE',
+      });
+    }
+
     const defaultPreset = BAOWENMAO_PRESET_ACCOUNTS.find((preset) => preset.isDefault) ?? BAOWENMAO_PRESET_ACCOUNTS[0];
     const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
       '/api/provider-accounts/default',

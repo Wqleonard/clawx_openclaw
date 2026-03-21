@@ -27,11 +27,11 @@ use windows::Win32::System::Threading::{
 #[command(name = "boom-executor")]
 #[command(about = "Boom low-privilege executor launcher")]
 struct Cli {
-    #[arg(long, action = ArgAction::SetTrue)]
+    #[arg(long = "integrity-floor", action = ArgAction::SetTrue)]
     low_il: bool,
-    #[arg(long, action = ArgAction::SetTrue)]
+    #[arg(long = "cap-drop-token", action = ArgAction::SetTrue)]
     restricted_token: bool,
-    #[arg(long, action = ArgAction::SetTrue)]
+    #[arg(long = "process-cage", action = ArgAction::SetTrue)]
     job_object: bool,
     #[arg(long)]
     max_processes: Option<u32>,

@@ -330,26 +330,31 @@ export const PROVIDER_TYPE_INFO: ProviderTypeInfo[] = [
 /** Preconfigured Baowenmao accounts that are auto-managed by the app */
 export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
   {
-    id: 'ark:custom-baowenmao',
-    model: 'ark:ep-20260123143950-zm9zl',
-    label: 'Ark',
-  },
-  {
     id: 'qwen3-max:custom-baowenmao',
-    model: 'aliyun:qwen3-max',
+    model: 'qwen3-max',
     label: 'Qwen3-max',
     isDefault: true,
   },
   {
-    id: 'glm:custom-baowenmao',
-    model: 'aliyun:glm-5',
+    id: 'glm-5:custom-baowenmao',
+    model: 'glm-5',
     label: 'GLM-5',
   },
   {
-    id: 'kimi:custom-baowenmao',
-    model: 'aliyun:kimi-k2.5',
+    id: 'kimi-k2.5:custom-baowenmao',
+    model: 'kimi-k2.5',
     label: 'Kimi-k2.5',
   },
+  {
+    id: 'doubao-seed-1.8:custom-baowenmao',
+    model: 'doubao-seed-1.8',
+    label: 'Doubao-seed-1.8',
+  },
+  // {
+  //   id: 'doubao-seed-1.6-flash:custom-baowenmao',
+  //   model: 'doubao-seed-1.6-flash',
+  //   label: 'Doubao-seed-1.6-flash',
+  // },
 ];
 
 /** Get the SVG logo URL for a provider type, falls back to undefined */

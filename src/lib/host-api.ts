@@ -210,3 +210,28 @@ export function createHostEventSource(path = '/api/events'): EventSource {
 export function getHostApiBase(): string {
   return HOST_API_BASE;
 }
+
+export type RuntimePluginToggleSnapshot = {
+  success: boolean;
+  aiExecAudit: { enabled: boolean };
+  boomExecutorGuard: { enabled: boolean };
+};
+
+export type RuntimePluginId = 'ai-exec-audit' | 'boom-executor-guard';
+
+export async function getRuntimePluginToggles(): Promise<RuntimePluginToggleSnapshot> {
+  return await hostApiFetch<RuntimePluginToggleSnapshot>('/api/plugins/runtime-config');
+}
+
+export async function setRuntimePluginToggle(
+  pluginId: RuntimePluginId,
+  enabled: boolean,
+): Promise<{ success: boolean; pluginId: RuntimePluginId; config: { enabled: boolean } }> {
+  return await hostApiFetch<{ success: boolean; pluginId: RuntimePluginId; config: { enabled: boolean } }>(
+    '/api/plugins/runtime-config',
+    {
+      method: 'POST',
+      body: JSON.stringify({ pluginId, enabled }),
+    },
+  );
+}

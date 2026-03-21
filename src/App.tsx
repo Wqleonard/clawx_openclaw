@@ -22,6 +22,7 @@ import { Login } from './pages/Login';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
 import { useLoginStore } from './stores/loginStore';
+import { useProviderStore } from './stores/providers';
 import { applyGatewayTransportPreference } from './lib/api-client';
 import { logClientEvent } from './lib/client-log';
 
@@ -105,6 +106,7 @@ function App() {
   const setupComplete = useSettingsStore((state) => state.setupComplete);
   const initGateway = useGatewayStore((state) => state.init);
   const isLoggedIn = useLoginStore((state) => state.isLoggedIn);
+  const ensureBaowenmaoPresetAccounts = useProviderStore((state) => state.ensureBaowenmaoPresetAccounts);
 
   useEffect(() => {
     initSettings();
@@ -121,6 +123,16 @@ function App() {
   useEffect(() => {
     initGateway();
   }, [initGateway]);
+
+  // 已登录时同步 baowenmao preset accounts，确保重启后 provider 配置是最新的
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    void ensureBaowenmaoPresetAccounts(token).catch((err) => {
+      console.error('Failed to sync Baowenmao preset accounts on startup:', err);
+    });
+  }, [isLoggedIn, ensureBaowenmaoPresetAccounts]);
 
   // Routing guard: Login → Setup → Main
   useEffect(() => {

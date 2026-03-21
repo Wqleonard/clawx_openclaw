@@ -13,7 +13,7 @@ export function SkillsSection() {
         </h2>
         <p className="text-[13px] text-muted-foreground px-1 mb-4">
           {isZh
-            ? '技能为 AI 助手扩展额外能力，如网络搜索、图像生成、文档处理等。启用越多，每次对话消耗积分越多。'
+            ? '技能为 AI 助手扩展额外能力，如网络搜索、图像生成、文档处理等。启用越多，每次对话消耗贝壳越多。'
             : 'Skills give your AI assistant extra abilities like web search, image generation, document processing, and more.'}
         </p>
       </div>

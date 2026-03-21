@@ -13,7 +13,23 @@ import {
   type UsageHistoryEntry,
   type UsageWindow,
 } from '@/pages/Models/usage-history';
+import { BAOWENMAO_PRESET_ACCOUNTS } from '@/lib/providers';
 import { cn } from '@/lib/utils';
+
+const BAOWENMAO_KNOWN_MODELS = new Set(BAOWENMAO_PRESET_ACCOUNTS.map((p) => p.model.toLowerCase()));
+
+function isStaleBuiltinEntry(entry: UsageHistoryEntry): boolean {
+  const model = (entry.model ?? '').toLowerCase();
+  const provider = (entry.provider ?? '').toLowerCase();
+  const isBuiltin = model.includes('custom-baowenmao') || provider.includes('custom-baowenmao')
+    || model.includes('baowenmao') || provider.includes('baowenmao');
+  if (!isBuiltin) return false;
+  // 有 label 说明后端已经能解析，不过滤
+  if (entry.label) return false;
+  // model 在当前 preset 列表里，也不过滤
+  if (BAOWENMAO_KNOWN_MODELS.has(model)) return false;
+  return true;
+}
 
 const DEFAULT_USAGE_FETCH_MAX_ATTEMPTS = 6;
 const WINDOWS_USAGE_FETCH_MAX_ATTEMPTS = 10;
@@ -113,7 +129,7 @@ export function UsageSection() {
     return () => { if (usageFetchTimerRef.current) { clearTimeout(usageFetchTimerRef.current); usageFetchTimerRef.current = null; } };
   }, [isGatewayRunning, gatewayStatus.connectedAt, gatewayStatus.pid, usageFetchMaxAttempts, refreshKey]);
 
-  const visibleUsageHistory = isGatewayRunning ? usageHistory : [];
+  const visibleUsageHistory = isGatewayRunning ? usageHistory.filter((e) => !isStaleBuiltinEntry(e)) : [];
   const filteredUsageHistory = filterUsageHistoryByWindow(visibleUsageHistory, usageWindow);
   const usageGroups = groupUsageHistory(filteredUsageHistory, usageGroupBy);
   const usagePageSize = 5;

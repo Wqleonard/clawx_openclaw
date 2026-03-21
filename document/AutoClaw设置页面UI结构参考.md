@@ -20,7 +20,7 @@
 - `src/pages/Preferences/sections/ChannelsSection.tsx` — IM 频道（复用 Channels 页）
 - `src/pages/Preferences/sections/UsageSection.tsx` — 用量统计（复用 Models 页 Token Usage 逻辑）
 - `src/pages/Preferences/sections/AboutSection.tsx` — 关于（版本 + 更新 + 链接）
-- `src/pages/Preferences/sections/PlaceholderSections.tsx` — MCP/积分详情/数据与隐私/提交反馈（占位）
+- `src/pages/Preferences/sections/PlaceholderSections.tsx` — MCP/贝壳详情/数据与隐私/提交反馈（占位）
 - `src/components/layout/Sidebar.tsx` — 新增 SlidersHorizontal 图标入口按钮
 - `src/App.tsx` — 注册 `/preferences` 路由
 - i18n 三语言新增 `sidebar.preferences` key
@@ -45,7 +45,7 @@
 │                   │  [section 标题 - 13px 大写灰色]       │
 │  ● 通用           │  [卡片容器 rounded-2xl]               │
 │  ○ 用量统计       │    [设置行 px-5 py-4]                 │
-│  ○ 积分详情       │    [分隔线 border-b]                  │
+│  ○ 贝壳详情       │    [分隔线 border-b]                  │
 │  ○ 模型与 API     │    [设置行 px-5 py-4]                 │
 │  ○ MCP 服务       │                                       │
 │  ○ 技能           │                                       │
@@ -75,7 +75,7 @@
 |------|-----|------|------|
 | 1 | `general` | 通用 | General |
 | 2 | `usage` | 用量统计 | Usage |
-| 3 | `points` | 积分详情 | Points |
+| 3 | `points` | 贝壳详情 | Points |
 | 4 | `models` | 模型与 API | Models & API |
 | 5 | `mcp` | MCP 服务 | MCP Servers |
 | 6 | `skills` | 技能 | Skills |
@@ -144,11 +144,11 @@
 
 ---
 
-### 4.3 积分详情（Points）— 占位
+### 4.3 贝壳详情（Points）— 占位
 
-- 总积分 + 去充值按钮
-- 积分分类：通用/订阅/赠送/促销
-- 积分记录列表（全部/消耗/获得）
+- 总贝壳 + 去充值按钮
+- 贝壳分类：通用/订阅/赠送/促销
+- 贝壳记录列表（全部/消耗/获得）
 
 ---
 
@@ -217,7 +217,7 @@
 | `src/pages/Preferences/sections/ChannelsSection.tsx` | IM 频道 |
 | `src/pages/Preferences/sections/UsageSection.tsx` | 用量统计 |
 | `src/pages/Preferences/sections/AboutSection.tsx` | 关于 |
-| `src/pages/Preferences/sections/PlaceholderSections.tsx` | MCP/积分/隐私/反馈占位 |
+| `src/pages/Preferences/sections/PlaceholderSections.tsx` | MCP/贝壳/隐私/反馈占位 |
 | `src/components/layout/Sidebar.tsx` | 侧边栏（新增偏好设置按钮） |
 | `src/App.tsx` | 路由注册（`/preferences`） |
 
@@ -228,7 +228,7 @@
 用户将逐一提供每个菜单项的截图，需要：
 1. 对比截图与当前实现的差异
 2. 逐一修复 UI 细节（间距、颜色、字体大小、圆角、分隔线等）
-3. 补全占位 section 的实际功能（积分、MCP、隐私）
+3. 补全占位 section 的实际功能（贝壳、MCP、隐私）
 
 **优化优先级**：
 1. 通用（General）— 最重要，包含账号和外观
