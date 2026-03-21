@@ -36,7 +36,7 @@ export interface FetchResponse {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const SEARCH_MODEL = 'ark:ep-20250911202653-fr9dl';
+const SEARCH_MODEL = 'doubao-seed-1.6-flash';
 
 const SEARCH_ACCOUNT_ID = 'ark:custom-baowenmao';
 
@@ -54,24 +54,33 @@ interface Credentials {
 }
 
 async function getCredentials(): Promise<Credentials | null> {
-  const secret = await getProviderSecret(SEARCH_ACCOUNT_ID);
-  const token =
-    secret?.type === 'api_key'
-      ? secret.apiKey
-      : secret?.type === 'local'
-        ? (secret.apiKey ?? null)
-        : null;
-
-  if (!token) return null;
-
   const store = await getClawXProviderStore();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const accounts = (store.get('providerAccounts') ?? {}) as Record<string, any>;
-  const baseUrl = accounts[SEARCH_ACCOUNT_ID]?.baseUrl as string | undefined;
+  const defaultAccountId = store.get('defaultProviderAccountId') as string | undefined;
+  const accountIds = Object.keys(accounts);
+  const candidateIds = [
+    ...(defaultAccountId ? [defaultAccountId] : []),
+    ...accountIds.filter((id) => id.endsWith(':custom-baowenmao')),
+    SEARCH_ACCOUNT_ID,
+  ].filter((id, index, arr) => arr.indexOf(id) === index);
 
-  if (!baseUrl) return null;
+  for (const accountId of candidateIds) {
+    const secret = await getProviderSecret(accountId);
+    const token =
+      secret?.type === 'api_key'
+        ? secret.apiKey
+        : secret?.type === 'local'
+          ? (secret.apiKey ?? null)
+          : null;
+    const baseUrl = accounts[accountId]?.baseUrl as string | undefined;
 
-  return { token, baseUrl };
+    if (token && baseUrl) {
+      return { token, baseUrl };
+    }
+  }
+
+  return null;
 }
 
 // ── Responses API response parser ─────────────────────────────────────────

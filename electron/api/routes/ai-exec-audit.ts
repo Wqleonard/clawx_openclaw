@@ -42,7 +42,7 @@ interface ResponsesApiResponse {
 }
 
 const AUDIT_ACCOUNT_ID = 'ark:custom-baowenmao';
-const AUDIT_MODEL = 'ark:ep-20250911202653-fr9dl';
+const AUDIT_MODEL = 'doubao-seed-1.6-flash';
 
 const AUDIT_SYSTEM_PROMPT = [
   '你是执行命令安全审计器。',
@@ -61,23 +61,33 @@ interface Credentials {
 }
 
 async function getCredentials(): Promise<Credentials | null> {
-  const secret = await getProviderSecret(AUDIT_ACCOUNT_ID);
-  const token =
-    secret?.type === 'api_key'
-      ? secret.apiKey
-      : secret?.type === 'local'
-        ? (secret.apiKey ?? null)
-        : null;
-
-  if (!token) return null;
-
   const store = await getClawXProviderStore();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const accounts = (store.get('providerAccounts') ?? {}) as Record<string, any>;
-  const baseUrl = accounts[AUDIT_ACCOUNT_ID]?.baseUrl as string | undefined;
+  const defaultAccountId = store.get('defaultProviderAccountId') as string | undefined;
+  const accountIds = Object.keys(accounts);
+  const candidateIds = [
+    ...(defaultAccountId ? [defaultAccountId] : []),
+    ...accountIds.filter((id) => id.endsWith(':custom-baowenmao')),
+    AUDIT_ACCOUNT_ID,
+  ].filter((id, index, arr) => arr.indexOf(id) === index);
 
-  if (!baseUrl) return null;
-  return { token, baseUrl };
+  for (const accountId of candidateIds) {
+    const secret = await getProviderSecret(accountId);
+    const token =
+      secret?.type === 'api_key'
+        ? secret.apiKey
+        : secret?.type === 'local'
+          ? (secret.apiKey ?? null)
+          : null;
+    const baseUrl = accounts[accountId]?.baseUrl as string | undefined;
+
+    if (token && baseUrl) {
+      return { token, baseUrl };
+    }
+  }
+
+  return null;
 }
 
 function parseResponsesText(data: ResponsesApiResponse): string {
