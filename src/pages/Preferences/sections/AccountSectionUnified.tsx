@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LogOut, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { logClientEvent } from '@/lib/client-log';
 import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
+import { getRuntimePluginToggles, setRuntimePluginToggle } from '@/lib/host-api';
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
@@ -55,6 +56,57 @@ export function AccountSectionUnified() {
   const logout = useLoginStore((state) => state.logout);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { theme, setTheme, launchAtStartup, setLaunchAtStartup, showToolCalls, setShowToolCalls } = useSettingsStore();
+  const [runtimePluginLoading, setRuntimePluginLoading] = useState(true);
+  const [updatingPluginId, setUpdatingPluginId] = useState<'security-protection' | null>(null);
+  const [aiExecAuditEnabled, setAiExecAuditEnabled] = useState(true);
+  const [boomLowprivExecutorEnabled, setBoomLowprivExecutorEnabled] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const snapshot = await getRuntimePluginToggles();
+        if (!alive) return;
+        setAiExecAuditEnabled(snapshot.aiExecAudit?.enabled !== false);
+        setBoomLowprivExecutorEnabled(snapshot.boomLowprivExecutor?.enabled !== false);
+      } catch (error) {
+        if (!alive) return;
+        toast.error(isZh ? '读取插件开关失败' : 'Failed to load plugin toggles');
+        console.error(error);
+      } finally {
+        if (alive) setRuntimePluginLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, [isZh]);
+
+  const updateSecurityProtectionToggle = async (enabled: boolean) => {
+    if (updatingPluginId) return;
+    const previousAi = aiExecAuditEnabled;
+    const previousExecutor = boomLowprivExecutorEnabled;
+
+    setAiExecAuditEnabled(enabled);
+    setBoomLowprivExecutorEnabled(enabled);
+    setUpdatingPluginId('security-protection');
+
+    try {
+      await Promise.all([
+        setRuntimePluginToggle('ai-exec-audit', enabled),
+        setRuntimePluginToggle('boom-lowpriv-executor', enabled),
+      ]);
+      toast.success(enabled ? 'StoryClaw安全防护已开启' : 'StoryClaw安全防护已关闭');
+    } catch (error) {
+      setAiExecAuditEnabled(previousAi);
+      setBoomLowprivExecutorEnabled(previousExecutor);
+      toast.error(isZh ? 'StoryClaw安全防护开关更新失败' : 'Failed to update StoryClaw protection toggle');
+      console.error(error);
+    } finally {
+      setUpdatingPluginId(null);
+    }
+  };
 
   return (
     <div className="p-8 space-y-6 max-w-2xl mx-auto">
@@ -131,6 +183,20 @@ export function AccountSectionUnified() {
             label={isZh ? '显示工具调用' : 'Show Tool Calls'}
             desc={isZh ? '在对话消息中展示模型的工具调用详情块。' : 'Display tool call detail blocks in assistant messages.'}
             control={<Switch checked={showToolCalls} onCheckedChange={setShowToolCalls} />}
+          />
+
+          <SettingRow
+            label={isZh ? 'StoryClaw安全防护开关' : 'StoryClaw Security Protection'}
+            desc={isZh ? '开启后AI将不能读取你的管理员权限文件，不能删除和修改敏感文件。' : 'When enabled, AI cannot access admin-protected files or delete/modify sensitive files.'}
+            control={
+              <Switch
+                checked={aiExecAuditEnabled && boomLowprivExecutorEnabled}
+                disabled={runtimePluginLoading || updatingPluginId !== null}
+                onCheckedChange={(checked) => {
+                  void updateSecurityProtectionToggle(checked);
+                }}
+              />
+            }
             last
           />
         </SectionCard>
