@@ -108,7 +108,8 @@ export async function readOpenClawConfig(): Promise<OpenClawConfig> {
 
     try {
         const content = await readFile(CONFIG_FILE, 'utf-8');
-        return JSON.parse(content) as OpenClawConfig;
+        const parsed = JSON.parse(content) as OpenClawConfig;
+        return parsed;
     } catch (error) {
         logger.error('Failed to read OpenClaw config', error);
         console.error('Failed to read OpenClaw config:', error);

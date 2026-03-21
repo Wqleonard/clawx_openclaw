@@ -1,0 +1,12 @@
+{
+  "name": "ai-exec-audit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BoomClaw built-in exec audit plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

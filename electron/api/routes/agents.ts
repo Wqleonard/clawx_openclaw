@@ -110,7 +110,8 @@ export async function handleAgentRoutes(
   ctx: HostApiContext,
 ): Promise<boolean> {
   if (url.pathname === '/api/agents' && req.method === 'GET') {
-    sendJson(res, 200, { success: true, ...(await listAgentsSnapshot()) });
+    const snapshot = await listAgentsSnapshot();
+    sendJson(res, 200, { success: true, ...snapshot });
     return true;
   }
 

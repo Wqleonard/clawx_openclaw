@@ -16,6 +16,7 @@ import { handleFileRoutes } from './routes/files';
 import { handleSessionRoutes } from './routes/sessions';
 import { handleCronRoutes } from './routes/cron';
 import { handleBoomSearchRoutes } from './routes/boom-search';
+import { handleAiExecAuditRoutes } from './routes/ai-exec-audit';
 import { sendJson } from './route-utils';
 
 type RouteHandler = (
@@ -38,6 +39,7 @@ const routeHandlers: RouteHandler[] = [
   handleSessionRoutes,
   handleCronRoutes,
   handleBoomSearchRoutes,
+  handleAiExecAuditRoutes,
   handleLogRoutes,
   handleUsageRoutes,
 ];

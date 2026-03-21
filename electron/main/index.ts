@@ -43,6 +43,8 @@ import { syncAllProviderAuthToRuntime } from '../services/providers/provider-run
 import { contentSafetyManager } from '../utils/content-safety-manager';
 import { APP_DISPLAY_NAME } from '../shared/app-brand';
 import { ensureBoomSearchPlugin } from '../services/boom-search/plugin-deploy';
+import { ensureAiExecAuditPlugin } from '../services/ai-exec-audit/plugin-deploy';
+import { ensureBoomLowprivExecutorPlugin } from '../services/boom-lowpriv-executor/plugin-deploy';
 
 // Store app data under the branded directory.
 app.setPath('userData', join(app.getPath('appData'), 'storyclaw'));
@@ -336,6 +338,14 @@ async function initialize(): Promise<void> {
   // and inject the required config (tools.web.search.enabled: false + plugin enabled).
   void ensureBoomSearchPlugin().catch((error) => {
     logger.warn('Failed to deploy boom-search plugin:', error);
+  });
+
+  void ensureAiExecAuditPlugin().catch((error) => {
+    logger.warn('Failed to deploy ai-exec-audit plugin:', error);
+  });
+
+  void ensureBoomLowprivExecutorPlugin().catch((error) => {
+    logger.warn('Failed to deploy boom-lowpriv-executor plugin:', error);
   });
 
   // Pre-deploy/upgrade bundled OpenClaw plugins (dingtalk, wecom, qqbot, feishu)

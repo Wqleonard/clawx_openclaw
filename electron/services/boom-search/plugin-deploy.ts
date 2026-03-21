@@ -15,6 +15,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { getOpenClawConfigDir, getResourcesDir } from '../../utils/paths';
 import { readOpenClawConfig, writeOpenClawConfig } from '../../utils/channel-config';
+import { withConfigLock } from '../../utils/config-mutex';
 import * as logger from '../../utils/logger';
 
 const PLUGIN_ID = 'boom-search';
@@ -61,7 +62,8 @@ async function deployPluginFiles(): Promise<void> {
  * enabled=false → restore core web_search, disable boom-search plugin
  */
 async function setSearchConfig(enabled: boolean): Promise<void> {
-  const config = await readOpenClawConfig();
+  await withConfigLock(async () => {
+    const config = await readOpenClawConfig();
 
   // tools.web.search.enabled
   const tools = (config.tools && typeof config.tools === 'object'
@@ -114,10 +116,11 @@ async function setSearchConfig(enabled: boolean): Promise<void> {
     }
   }
 
-  config.plugins = plugins;
+    config.plugins = plugins;
 
-  await writeOpenClawConfig(config);
-  logger.info(`[boom-search] Search config updated`, { boomSearchEnabled: enabled });
+    await writeOpenClawConfig(config);
+    logger.info(`[boom-search] Search config updated`, { boomSearchEnabled: enabled });
+  });
 }
 
 /**

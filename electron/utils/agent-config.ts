@@ -432,6 +432,31 @@ async function writeBootstrapFilesFromTemplate(templateId: string, targetWorkspa
   }
 }
 
+async function resolveTemplateIdForProvision(templateId?: string): Promise<string> {
+  const requestedTemplateId = templateId?.trim() || DEFAULT_TEMPLATE_ID;
+  const templatesRoot = join(getResourcesDir(), AGENT_TEMPLATES_DIR);
+  const requestedTemplateDir = join(templatesRoot, requestedTemplateId);
+  if (existsSync(requestedTemplateDir)) {
+    return requestedTemplateId;
+  }
+  if (requestedTemplateId !== DEFAULT_TEMPLATE_ID) {
+    throw new Error(`Agent template "${requestedTemplateId}" not found`);
+  }
+  const preferredFallbackId = 'open_claw';
+  if (existsSync(join(templatesRoot, preferredFallbackId))) {
+    return preferredFallbackId;
+  }
+  const entries = await readdir(templatesRoot, { withFileTypes: true });
+  const firstAvailableTemplate = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b))[0];
+  if (firstAvailableTemplate) {
+    return firstAvailableTemplate;
+  }
+  throw new Error(`Agent template "${requestedTemplateId}" not found`);
+}
+
 async function copyRuntimeFiles(sourceAgentDir: string, targetAgentDir: string): Promise<void> {
   await ensureDir(targetAgentDir);
 
@@ -469,7 +494,7 @@ async function provisionAgentFilesystem(
     await copyBootstrapFiles(sourceWorkspace, targetWorkspace);
   } else {
     // Bootstrap files from a bundled template
-    const resolvedTemplateId = options?.templateId || DEFAULT_TEMPLATE_ID;
+    const resolvedTemplateId = await resolveTemplateIdForProvision(options?.templateId);
     await writeBootstrapFilesFromTemplate(resolvedTemplateId, targetWorkspace);
   }
 
@@ -630,8 +655,12 @@ export async function createAgent(
       list: nextEntries,
     };
 
-    await provisionAgentFilesystem(config, newAgent, options);
-    await writeOpenClawConfig(config);
+    try {
+      await provisionAgentFilesystem(config, newAgent, options);
+      await writeOpenClawConfig(config);
+    } catch (error) {
+      throw error;
+    }
     logger.info('Created agent config entry', { agentId: nextId, ...options });
     return buildSnapshotFromConfig(config);
   });

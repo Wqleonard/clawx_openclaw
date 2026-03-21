@@ -59,6 +59,11 @@
       "slug": "find-skills-in-tencent-skillhub",
       "version": "1.0.0",
       "autoEnable": true
+    },
+    {
+      "slug": "clawhub",
+      "version": "1.0.0",
+      "autoEnable": true
     }
   ]
 }

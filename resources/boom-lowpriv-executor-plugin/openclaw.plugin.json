@@ -1,0 +1,19 @@
+{
+  "id": "boom-lowpriv-executor",
+  "name": "Boom Lowpriv Executor",
+  "description": "Uniformly downgrade exec tool commands via lowpriv-launcher.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true
+      },
+      "auditLog": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  }
+}
