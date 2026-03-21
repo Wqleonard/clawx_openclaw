@@ -4,7 +4,7 @@ import { getSetting } from '../../utils/store';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson, setCorsHeaders } from '../route-utils';
 
-type RuntimePluginId = 'ai-exec-audit' | 'boom-lowpriv-executor';
+type RuntimePluginId = 'ai-exec-audit' | 'boom-executor-guard';
 
 type RuntimePluginConfig = {
   enabled: boolean;
@@ -13,10 +13,10 @@ type RuntimePluginConfig = {
 type RuntimeConfigResponse = {
   success: true;
   aiExecAudit: RuntimePluginConfig;
-  boomLowprivExecutor: RuntimePluginConfig;
+  boomExecutorGuard: RuntimePluginConfig;
 };
 
-const RUNTIME_PLUGIN_IDS: RuntimePluginId[] = ['ai-exec-audit', 'boom-lowpriv-executor'];
+const RUNTIME_PLUGIN_IDS: RuntimePluginId[] = ['ai-exec-audit', 'boom-executor-guard'];
 
 function isRuntimePluginId(value: unknown): value is RuntimePluginId {
   return typeof value === 'string' && RUNTIME_PLUGIN_IDS.includes(value as RuntimePluginId);
@@ -84,14 +84,14 @@ export async function handlePluginRuntimeConfigRoutes(
 
   if (req.method === 'GET') {
     try {
-      const [aiExecAudit, boomLowprivExecutor] = await Promise.all([
+      const [aiExecAudit, boomExecutorGuard] = await Promise.all([
         requestGatewayPluginConfig(ctx, 'ai-exec-audit', 'GET'),
-        requestGatewayPluginConfig(ctx, 'boom-lowpriv-executor', 'GET'),
+        requestGatewayPluginConfig(ctx, 'boom-executor-guard', 'GET'),
       ]);
       const payload: RuntimeConfigResponse = {
         success: true,
         aiExecAudit,
-        boomLowprivExecutor,
+        boomExecutorGuard,
       };
       sendJson(res, 200, payload);
     } catch (error) {

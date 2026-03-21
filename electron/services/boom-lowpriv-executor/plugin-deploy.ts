@@ -6,8 +6,8 @@ import { readOpenClawConfig, writeOpenClawConfig } from '../../utils/channel-con
 import { withConfigLock } from '../../utils/config-mutex';
 import * as logger from '../../utils/logger';
 
-const PLUGIN_ID = 'boom-lowpriv-executor';
-const PLUGIN_SOURCE_DIR = 'boom-lowpriv-executor-plugin';
+const PLUGIN_ID = 'boom-executor-guard';
+const PLUGIN_SOURCE_DIR = 'boom-executor-plugin';
 const PLUGIN_FILES = ['index.js', 'openclaw.plugin.json', 'package.json'];
 
 function getPluginDestDir(): string {
@@ -23,7 +23,7 @@ async function deployPluginFiles(): Promise<void> {
   const destDir = getPluginDestDir();
 
   if (!existsSync(srcDir)) {
-    throw new Error(`Boom lowpriv executor plugin source not found: ${srcDir}`);
+    throw new Error(`Boom executor guard plugin source not found: ${srcDir}`);
   }
 
   await mkdir(destDir, { recursive: true });
@@ -71,16 +71,16 @@ async function setPluginConfig(enabled: boolean): Promise<void> {
   });
 }
 
-export async function ensureBoomLowprivExecutorPlugin(): Promise<void> {
+export async function ensureBoomExecutorGuardPlugin(): Promise<void> {
   try {
     await deployPluginFiles();
     await setPluginConfig(true);
-    logger.info('[boom-lowpriv-executor] Plugin ready');
+    logger.info('[boom-executor-guard] Plugin ready');
   } catch (error) {
-    logger.warn('[boom-lowpriv-executor] Failed to deploy plugin', String(error));
+    logger.warn('[boom-executor-guard] Failed to deploy plugin', String(error));
   }
 }
 
-export async function setBoomLowprivExecutorEnabled(enabled: boolean): Promise<void> {
+export async function setBoomExecutorGuardEnabled(enabled: boolean): Promise<void> {
   await setPluginConfig(enabled);
 }

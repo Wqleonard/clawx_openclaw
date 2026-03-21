@@ -214,10 +214,10 @@ export function getHostApiBase(): string {
 export type RuntimePluginToggleSnapshot = {
   success: boolean;
   aiExecAudit: { enabled: boolean };
-  boomLowprivExecutor: { enabled: boolean };
+  boomExecutorGuard: { enabled: boolean };
 };
 
-export type RuntimePluginId = 'ai-exec-audit' | 'boom-lowpriv-executor';
+export type RuntimePluginId = 'ai-exec-audit' | 'boom-executor-guard';
 
 export async function getRuntimePluginToggles(): Promise<RuntimePluginToggleSnapshot> {
   return await hostApiFetch<RuntimePluginToggleSnapshot>('/api/plugins/runtime-config');

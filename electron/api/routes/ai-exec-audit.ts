@@ -49,6 +49,9 @@ const AUDIT_SYSTEM_PROMPT = [
   '你只输出 JSON，不要输出其它文本。',
   'JSON 格式必须是 {"decision":"ALLOW|BLOCK"}。',
   '当命令可能涉及破坏性、越权、敏感信息泄露、持久化后门、禁用安全机制时，倾向 BLOCK。',
+  '高危示例（应 BLOCK）：del/rm/rmdir 删除关键目录、format/diskpart 分区磁盘、reg add 修改安全策略、net user+localgroup administrators 提权、sc config/stop 关闭防护、powershell IEX/Invoke-Expression 执行远程脚本、takeown/icacls 获取系统目录控制权',
+  '中高风险示例（倾向 BLOCK）：修改 hosts、防火墙、代理、启动项、系统服务配置、批量加解密或覆盖文件、跨盘符递归删除、绕过审计或日志清理。',
+  '低风险示例（可 ALLOW）：pwd/cd/ls/dir/read-only 查询、版本查询、项目内只读搜索、无副作用信息收集。',
   '其它情况输出 ALLOW。',
 ].join('');
 
