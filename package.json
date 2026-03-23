@@ -52,6 +52,8 @@
         "package:mac": "pnpm run package && electron-builder --mac --publish never && node scripts/generate-update-yml.mjs --output-dir release",
         "package:mac:local": "SKIP_PREINSTALLED_SKILLS=1 pnpm run package && electron-builder --mac --publish never && node scripts/generate-update-yml.mjs --output-dir release",
         "package:win": "pnpm run package && electron-builder --win --publish never && node scripts/generate-update-yml.mjs --output-dir release",
+        "package:win:mirror": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ pnpm run package && electron-builder --win --publish never && node scripts/generate-update-yml.mjs --output-dir release",
+        "package:win:x64:mirror": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ pnpm run package && electron-builder --win --x64 --publish never && node scripts/generate-update-yml.mjs --output-dir release",
         "package:linux": "pnpm run package && electron-builder --linux --publish never",
         "release": "pnpm run uv:download && pnpm run package && electron-builder --publish always",
         "version:patch": "pnpm version patch",
