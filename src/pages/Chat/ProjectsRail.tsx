@@ -313,8 +313,11 @@ export function ProjectsRail() {
       return;
     }
 
-    const joinPath = (root: string, child: string): string =>
-      /[\\/]$/.test(root) ? `${root}${child}` : `${root}/${child}`;
+    const joinPath = (root: string, child: string): string => {
+      const separator = root.includes('\\') ? '\\' : '/';
+      const normalizedRoot = root.replace(/[\\/]+$/, '');
+      return `${normalizedRoot}${separator}${child}`;
+    };
     const isAlreadyExistsError = (error: unknown): boolean => {
       const message = error instanceof Error ? error.message : String(error);
       const normalized = message.toLowerCase();
