@@ -15,6 +15,69 @@ export type { UserInfo, AvatarData, Message, InterceptedAction, LoginStore } fro
 
 const NEWBIE_TOUR_STORAGE_KEY = 'hasNewbieTourShowed'
 const READED_IDS_KEY = 'readedMessageIds'
+const AUTH_ENV_FINGERPRINT_KEY = 'auth_env_fingerprint_v1'
+
+interface AuthEnvFingerprint {
+  env: string
+  apiBaseUrl: string
+}
+
+function normalizeBaseUrl(raw: string): string {
+  return raw.trim().replace(/\/+$/, '').toLowerCase()
+}
+
+function getCurrentAuthEnvFingerprint(): AuthEnvFingerprint {
+  const mode = String(import.meta.env.MODE ?? '').trim().toLowerCase()
+  const apiBaseUrl = normalizeBaseUrl(String(import.meta.env.VITE_BUSINESS_API_BASE_URL ?? ''))
+
+  return {
+    env: mode || 'unknown',
+    apiBaseUrl,
+  }
+}
+
+function clearLoginStorage(): void {
+  localStorage.removeItem('token')
+  localStorage.removeItem('userInfo')
+}
+
+function loadStoredAuthEnvFingerprint(): AuthEnvFingerprint | null {
+  try {
+    const raw = localStorage.getItem(AUTH_ENV_FINGERPRINT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<AuthEnvFingerprint>
+    if (typeof parsed?.env !== 'string' || typeof parsed?.apiBaseUrl !== 'string') {
+      localStorage.removeItem(AUTH_ENV_FINGERPRINT_KEY)
+      return null
+    }
+    return {
+      env: parsed.env,
+      apiBaseUrl: parsed.apiBaseUrl,
+    }
+  } catch {
+    localStorage.removeItem(AUTH_ENV_FINGERPRINT_KEY)
+    return null
+  }
+}
+
+function saveAuthEnvFingerprint(fingerprint: AuthEnvFingerprint): void {
+  localStorage.setItem(AUTH_ENV_FINGERPRINT_KEY, JSON.stringify(fingerprint))
+}
+
+function ensureAuthEnvConsistency(): void {
+  const current = getCurrentAuthEnvFingerprint()
+  const stored = loadStoredAuthEnvFingerprint()
+
+  if (stored) {
+    const changed = stored.env !== current.env || stored.apiBaseUrl !== current.apiBaseUrl
+    if (changed) {
+      clearLoginStorage()
+    }
+  }
+
+  // Always persist the active fingerprint to support future environment switches.
+  saveAuthEnvFingerprint(current)
+}
 
 function extractAuthToken(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null
@@ -155,6 +218,8 @@ function getAvatarDataUrl(userInfo: UserInfo | null): string {
 }
 
 export const useLoginStore = create<LoginStore>((set, get) => {
+  ensureAuthEnvConsistency()
+
   const readedIds = loadReadedMessageIdsFromStorage()
   let savedUserInfo: UserInfo | null = null
   try {
