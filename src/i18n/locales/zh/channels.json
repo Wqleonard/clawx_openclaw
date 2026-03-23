@@ -207,7 +207,7 @@
         },
         "feishu": {
             "description": "通过飞书官方推出的 OpenClaw 插件连接飞书/Lark 机器人",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/GKn8wOvHnibpPNkNkPzcAvGlnzK#Py88dTltfoJc1jxAhIBcW3Pkn7b",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/Ci2hwURlgiknYlk1yO6cIcFbn0d",
             "fields": {
                 "appId": {
                     "label": "应用 ID (App ID)",
@@ -228,7 +228,7 @@
         },
         "wecom": {
             "description": "通过插件连接企业微信机器人",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/JTGnwoV0RixKPtkr4w7c7gpAnDc",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/BcEXwKY4LiglcukyyKXcOob1nBf",
             "fields": {
                 "botId": {
                     "label": "机器人 Bot ID",
@@ -359,7 +359,7 @@
         },
         "qqbot": {
             "description": "通过 @sliverp/qqbot 插件连接 QQ 机器人",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/KPIJwlyiGiupMrkiS9ice39Zn2c",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/KymzwSn5YiixiDkoF0KcfQgtnaf",
             "fields": {
                 "appId": {
                     "label": "App ID",

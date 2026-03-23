@@ -207,7 +207,7 @@
         },
         "feishu": {
             "description": "Connect Feishu/Lark bot via WebSocket",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/GKn8wOvHnibpPNkNkPzcAvGlnzK#GdHUdp9t9oqyegxwV8ScLvVGn1c",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/Ci2hwURlgiknYlk1yO6cIcFbn0d",
             "fields": {
                 "appId": {
                     "label": "App ID",
@@ -227,7 +227,7 @@
         },
         "wecom": {
             "description": "Connect WeCom Bot via plugin",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/JTGnwoV0RixKPtkr4w7c7gpAnDc",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/BcEXwKY4LiglcukyyKXcOob1nBf",
             "fields": {
                 "botId": {
                     "label": "Bot ID",
@@ -358,7 +358,7 @@
         },
         "qqbot": {
             "description": "Connect QQ Bot via @sliverp/qqbot plugin",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/KPIJwlyiGiupMrkiS9ice39Zn2c",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/KymzwSn5YiixiDkoF0KcfQgtnaf",
             "fields": {
                 "appId": {
                     "label": "App ID",
