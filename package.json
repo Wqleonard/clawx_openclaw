@@ -1,6 +1,6 @@
 {
     "name": "storyclaw",
-    "version": "0.2.7",
+    "version": "0.2.8",
     "pnpm": {
         "onlyBuiltDependencies": [
             "@discordjs/opus",
@@ -51,6 +51,7 @@
         "package": "vite build --mode prd && zx scripts/bundle-openclaw.mjs && zx scripts/bundle-openclaw-plugins.mjs && zx scripts/bundle-preinstalled-skills.mjs",
         "package:mac": "pnpm run package && electron-builder --mac --publish never && node scripts/generate-update-yml.mjs --output-dir release",
         "package:mac:local": "SKIP_PREINSTALLED_SKILLS=1 pnpm run package && electron-builder --mac --publish never && node scripts/generate-update-yml.mjs --output-dir release",
+        "package:mac:mirror:sequential": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ pnpm run package && electron-builder --mac --publish never && node scripts/generate-update-yml.mjs --output-dir release",
         "package:win": "pnpm run package && electron-builder --win --publish never && node scripts/generate-update-yml.mjs --output-dir release",
         "package:win:mirror": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ pnpm run package && electron-builder --win --publish never && node scripts/generate-update-yml.mjs --output-dir release",
         "package:win:x64:mirror": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ pnpm run package && electron-builder --win --x64 --publish never && node scripts/generate-update-yml.mjs --output-dir release",

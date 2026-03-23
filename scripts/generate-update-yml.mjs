@@ -46,6 +46,27 @@ function pickNewestVersion(versions) {
   return versions.sort(compareSemver).at(-1) || null;
 }
 
+function pickNewestCompleteVersion(versions, hasRequiredArtifacts) {
+  const sorted = [...versions].sort(compareSemver).reverse();
+  for (const version of sorted) {
+    if (hasRequiredArtifacts(version)) {
+      return version;
+    }
+  }
+  return null;
+}
+
+function dedupeFilesByUrl(files) {
+  const seen = new Set();
+  const deduped = [];
+  for (const file of files) {
+    if (seen.has(file.url)) continue;
+    seen.add(file.url);
+    deduped.push(file);
+  }
+  return deduped;
+}
+
 async function getFileMeta(filePath) {
   const [buffer, stat] = await Promise.all([fs.readFile(filePath), fs.stat(filePath)]);
   const sha512 = createHash('sha512').update(buffer).digest('base64');
@@ -91,8 +112,21 @@ async function main() {
     if ((m = name.match(/^StoryClaw-(.+)-win-arm64\.exe$/))) knownWinVersions.add(m[1]);
   }
 
-  const macVersion = explicitVersion || pickNewestVersion([...knownMacVersions]);
-  const winVersion = explicitVersion || pickNewestVersion([...knownWinVersions]);
+  const hasCompleteMacArtifacts = (version) => (
+    fileNames.includes(`StoryClaw-${version}-mac-x64.zip`)
+    && fileNames.includes(`StoryClaw-${version}-mac-arm64.zip`)
+  );
+  const hasCompleteWinArtifacts = (version) => (
+    fileNames.includes(`StoryClaw-${version}-win-x64.exe`)
+    && fileNames.includes(`StoryClaw-${version}-win-arm64.exe`)
+  );
+
+  const macVersion = explicitVersion
+    ? (hasCompleteMacArtifacts(explicitVersion) ? explicitVersion : null)
+    : pickNewestCompleteVersion([...knownMacVersions], hasCompleteMacArtifacts);
+  const winVersion = explicitVersion
+    ? (hasCompleteWinArtifacts(explicitVersion) ? explicitVersion : null)
+    : pickNewestCompleteVersion([...knownWinVersions], hasCompleteWinArtifacts);
 
   if (!macVersion && !winVersion) {
     throw new Error(`No release artifacts found in ${releaseDir}`);
@@ -116,6 +150,9 @@ async function main() {
 
   const releaseDate = new Date().toISOString();
   const written = [];
+  const removed = [];
+  const macOutputPath = path.join(outputDir, `${channel}-mac.yml`);
+  const winOutputPath = path.join(outputDir, `${channel}.yml`);
 
   await fs.mkdir(outputDir, { recursive: true });
 
@@ -134,15 +171,20 @@ async function main() {
     if (macArm64DmgName && fileNames.includes(macArm64DmgName)) {
       macFiles.push({ url: macArm64DmgName, ...await getFileMeta(path.join(releaseDir, macArm64DmgName)) });
     }
-    const macOutputPath = path.join(outputDir, `${channel}-mac.yml`);
+    const dedupedMacFiles = dedupeFilesByUrl(macFiles);
     await fs.writeFile(macOutputPath, toYaml({
       version: macVersion,
-      files: macFiles,
+      files: dedupedMacFiles,
       pathValue: macArm64Zip,
       topSha512: macArm64ZipMeta.sha512,
       releaseDate,
     }), 'utf8');
     written.push(path.relative(PROJECT_ROOT, macOutputPath));
+  } else {
+    try {
+      await fs.unlink(macOutputPath);
+      removed.push(path.relative(PROJECT_ROOT, macOutputPath));
+    } catch { /* ignore */ }
   }
 
   if (hasWin) {
@@ -157,19 +199,25 @@ async function main() {
     if (winUniversalName && fileNames.includes(winUniversalName)) {
       winFiles.push({ url: winUniversalName, ...await getFileMeta(path.join(releaseDir, winUniversalName)) });
     }
-    const winOutputPath = path.join(outputDir, `${channel}.yml`);
+    const dedupedWinFiles = dedupeFilesByUrl(winFiles);
     await fs.writeFile(winOutputPath, toYaml({
       version: winVersion,
-      files: winFiles,
+      files: dedupedWinFiles,
       pathValue: winX64Exe,
       topSha512: winX64Meta.sha512,
       releaseDate,
     }), 'utf8');
     written.push(path.relative(PROJECT_ROOT, winOutputPath));
+  } else {
+    try {
+      await fs.unlink(winOutputPath);
+      removed.push(path.relative(PROJECT_ROOT, winOutputPath));
+    } catch { /* ignore */ }
   }
 
   console.log(`[update-yml] mac=${macVersion ?? 'none'} win=${winVersion ?? 'none'} channel=${channel}`);
   for (const p of written) console.log(`[update-yml] wrote ${p}`);
+  for (const p of removed) console.log(`[update-yml] removed stale ${p}`);
 }
 
 main().catch((error) => {
