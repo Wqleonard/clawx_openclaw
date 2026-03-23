@@ -207,7 +207,7 @@
         },
         "feishu": {
             "description": "WebSocket 経由で Feishu/Lark ボットに接続します",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/GKn8wOvHnibpPNkNkPzcAvGlnzK#GdHUdp9t9oqyegxwV8ScLvVGn1c",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/Ci2hwURlgiknYlk1yO6cIcFbn0d",
             "fields": {
                 "appId": {
                     "label": "App ID",
@@ -227,7 +227,7 @@
         },
         "wecom": {
             "description": "プラグイン経由で WeCom Bot (企業微信) に接続します",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/JTGnwoV0RixKPtkr4w7c7gpAnDc",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/BcEXwKY4LiglcukyyKXcOob1nBf",
             "fields": {
                 "botId": {
                     "label": "ボット ID",
@@ -373,7 +373,7 @@
                 "App ID と Client Secret を取得します",
                 "認証情報を入力します"
             ],
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/KPIJwlyiGiupMrkiS9ice39Zn2c"
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/KymzwSn5YiixiDkoF0KcfQgtnaf"
         }
     },
     "viewDocs": "ドキュメントを表示"

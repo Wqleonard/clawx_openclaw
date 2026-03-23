@@ -310,9 +310,9 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
                 className="h-8 min-w-16 gap-1.5 border-transparent bg-transparent px-2 hover:bg-black/5 dark:hover:bg-white/10"
                 aria-label="Body font size"
               >
-                <span className="text-xs">{bodyFontSizePx}</span>
+                <span className="text-xs text-muted-foreground">{bodyFontSizePx}</span>
               </SelectTrigger>
-              <SelectContent align="start">
+              <SelectContent align="start" className='text-muted-foreground'>
                 <SelectItem value="sm">14px</SelectItem>
                 <SelectItem value="md">16px</SelectItem>
                 <SelectItem value="lg">18px</SelectItem>
