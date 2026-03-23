@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -46,6 +46,17 @@ type MarkdownEditorProps = {
 };
 
 type HeadingLevelValue = 'paragraph' | 'h1' | 'h2' | 'h3' | 'h4';
+type BodyFontSizeValue = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
+
+const BODY_FONT_SIZE_MAP: Record<BodyFontSizeValue, string> = {
+  sm: '14px',
+  md: '16px',
+  lg: '18px',
+  xl: '20px',
+  '2xl': '22px',
+  '3xl': '24px',
+  '4xl': '28px',
+};
 
 type ToolbarButtonProps = {
   tooltip: string;
@@ -98,6 +109,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
   const onChangeRef = useRef(onChange);
   const skipNextHeadingValueChangeRef = useRef<Exclude<HeadingLevelValue, 'paragraph'> | null>(null);
   const [headingLevel, setHeadingLevel] = useState<HeadingLevelValue>('paragraph');
+  const [bodyFontSize, setBodyFontSize] = useState<BodyFontSizeValue>('md');
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -166,6 +178,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
   }, [editor]);
 
   const isSourceMode = mode === 'source';
+  const bodyFontSizePx = BODY_FONT_SIZE_MAP[bodyFontSize];
   const toggleMode = () => {
     onModeChange?.(isSourceMode ? 'rendered' : 'source');
   };
@@ -198,7 +211,14 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
     };
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
+    <div
+      className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}
+      style={
+        {
+          '--markdown-body-font-size': bodyFontSizePx,
+        } as CSSProperties
+      }
+    >
       <TooltipProvider>
         <Toolbar className="shrink-0 border-b">
           <ToolbarGroup>
@@ -273,6 +293,33 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
                     <Heading4 className="h-4 w-4" />
                   </div>
                 </SelectItem>
+              </SelectContent>
+            </Select>
+          </ToolbarGroup>
+
+          <ToolbarSeparator />
+
+          <ToolbarGroup>
+            <Select
+              value={bodyFontSize}
+              onValueChange={(next) => setBodyFontSize(next as BodyFontSizeValue)}
+              disabled={isSourceMode}
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-8 min-w-16 gap-1.5 border-transparent bg-transparent px-2 hover:bg-black/5 dark:hover:bg-white/10"
+                aria-label="Body font size"
+              >
+                <span className="text-xs">{bodyFontSizePx}</span>
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectItem value="sm">14px</SelectItem>
+                <SelectItem value="md">16px</SelectItem>
+                <SelectItem value="lg">18px</SelectItem>
+                <SelectItem value="xl">20px</SelectItem>
+                <SelectItem value="2xl">22px</SelectItem>
+                <SelectItem value="3xl">24px</SelectItem>
+                <SelectItem value="4xl">28px</SelectItem>
               </SelectContent>
             </Select>
           </ToolbarGroup>
@@ -370,13 +417,13 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
       {
         isSourceMode ? (
           <textarea
-          className="h-full w-full flex-1 resize-none border-0 bg-transparent p-4 font-mono text-base leading-6 text-foreground outline-none"
+          className="h-full w-full flex-1 resize-none border-0 bg-transparent p-4 font-mono text-[length:var(--markdown-body-font-size)] leading-6 text-foreground outline-none"
           value={value}
           onChange={(event) => onChangeRef.current?.(event.target.value)}
           spellCheck={false}
         />
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto scrollbar-hover">
+          <div className="min-h-0 flex-1 overflow-auto scrollbar-hover [&_.tiptap]:text-[length:var(--markdown-body-font-size)]">
             <EditorContent editor={editor} className="h-full" />
           </div>
         )

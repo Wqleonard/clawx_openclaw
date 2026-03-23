@@ -1348,7 +1348,7 @@ export function Chat() {
         >
           <DrawerContent
             hideOverlay
-            className="border-none py-3 space-y-0.5 max-w-none data-[vaul-drawer-direction=left]:top-10 data-[vaul-drawer-direction=left]:h-auto"
+            className="border-none !w-80 py-3 space-y-0.5 max-w-none data-[vaul-drawer-direction=left]:top-10 data-[vaul-drawer-direction=left]:h-auto"
           >
             <VisuallyHidden>
               <DrawerTitle>Session list drawer</DrawerTitle>
