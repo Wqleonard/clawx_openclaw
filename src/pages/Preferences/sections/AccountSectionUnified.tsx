@@ -123,7 +123,7 @@ export function AccountSectionUnified() {
               {userInfo?.username ? maskPhone(userInfo.username) : '—'}
             </p>
           </div>
-          <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5">
+          {/* <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5">
             <div className="min-w-0">
               <p className="text-[14px] font-medium text-foreground">
                 {isZh ? '注销账号' : 'Delete Account'}
@@ -142,7 +142,7 @@ export function AccountSectionUnified() {
             >
               {isZh ? '注销' : 'Delete'}
             </Button>
-          </div>
+          </div> */}
 
           <div className="px-5 py-4 border-b border-black/5 dark:border-white/5">
             <div className="flex items-center justify-between gap-4">

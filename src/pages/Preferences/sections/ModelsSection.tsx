@@ -15,6 +15,7 @@ export function ModelsSection() {
   const isZh = i18n.language?.startsWith('zh');
   const gatewayStatus = useGatewayStore((state) => state.status);
   const restart = useGatewayStore((state) => state.restart);
+  const startGateway = useGatewayStore((state) => state.start);
   const gatewayPort = useSettingsStore((state) => state.gatewayPort);
   const setGatewayPort = useSettingsStore((state) => state.setGatewayPort);
   const activePort = gatewayStatus.port ?? gatewayPort;
@@ -27,6 +28,7 @@ export function ModelsSection() {
   const [logContent, setLogContent] = useState('');
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [restartingGateway, setRestartingGateway] = useState(false);
+  const [reconnectingGateway, setReconnectingGateway] = useState(false);
 
   const handleApplyPort = async () => {
     const num = parseInt(portDraft, 10);
@@ -83,6 +85,19 @@ export function ModelsSection() {
       toast.error(isZh ? '重启 Gateway 失败。' : 'Failed to restart Gateway.');
     } finally {
       setRestartingGateway(false);
+    }
+  };
+
+  const handleReconnectGateway = async () => {
+    setReconnectingGateway(true);
+    try {
+      // Reconnect should prefer a guarded start path instead of stop+start restart.
+      await startGateway();
+      toast.success(isZh ? 'Gateway 正在连接。' : 'Gateway is reconnecting.');
+    } catch {
+      toast.error(isZh ? '重连 Gateway 失败。' : 'Failed to reconnect Gateway.');
+    } finally {
+      setReconnectingGateway(false);
     }
   };
 
@@ -154,10 +169,11 @@ export function ModelsSection() {
                   className="w-[200px] h-8 rounded-lg bg-black/5 dark:bg-white/5 border border-black/8 dark:border-white/8 px-3 text-[13px] font-mono text-muted-foreground focus:outline-none"
                 />
                 <button
-                  onClick={() => void restart()}
-                  className="shrink-0 h-8 px-3 rounded-lg text-[13px] font-medium border border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => void handleReconnectGateway()}
+                  disabled={reconnectingGateway || restartingGateway}
+                  className="shrink-0 h-8 px-3 rounded-lg text-[13px] font-medium border border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
                 >
-                  {isZh ? '重新连接' : 'Reconnect'}
+                  {reconnectingGateway ? (isZh ? '连接中...' : 'Reconnecting...') : (isZh ? '重新连接' : 'Reconnect')}
                 </button>
                 <button
                   onClick={() => void handleRestartGateway()}

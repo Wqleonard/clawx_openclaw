@@ -16,6 +16,8 @@ const LOAD_SESSIONS_MIN_INTERVAL_MS = 1_200;
 const LOAD_HISTORY_MIN_INTERVAL_MS = 800;
 let lastLoadSessionsAt = 0;
 let lastLoadHistoryAt = 0;
+const GATEWAY_STATUS_POLL_INTERVAL_MS = 400;
+const GATEWAY_STATUS_POLL_TIMEOUT_MS = 10_000;
 
 interface GatewayHealth {
   ok: boolean;
@@ -36,6 +38,36 @@ interface GatewayState {
   rpc: <T>(method: string, params?: unknown, timeoutMs?: number) => Promise<T>;
   setStatus: (status: GatewayStatus) => void;
   clearError: () => void;
+}
+
+async function fetchGatewayStatusSafely(): Promise<GatewayStatus | null> {
+  try {
+    return await hostApiFetch<GatewayStatus>('/api/gateway/status');
+  } catch {
+    try {
+      return await invokeIpc<GatewayStatus>('gateway:status');
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function pollGatewayStatusUntilStable(): Promise<GatewayStatus | null> {
+  const start = Date.now();
+  let lastStatus: GatewayStatus | null = null;
+
+  while (Date.now() - start < GATEWAY_STATUS_POLL_TIMEOUT_MS) {
+    const status = await fetchGatewayStatusSafely();
+    if (status) {
+      lastStatus = status;
+      if (status.state !== 'starting' && status.state !== 'reconnecting') {
+        return status;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, GATEWAY_STATUS_POLL_INTERVAL_MS));
+  }
+
+  return lastStatus;
 }
 
 function pruneGatewayEventDedupe(now: number): void {
@@ -306,6 +338,13 @@ export const useGatewayStore = create<GatewayState>((set, get) => ({
           status: { ...get().status, state: 'error', error: result.error },
           lastError: result.error || 'Failed to start Gateway',
         });
+        return;
+      }
+
+      // Avoid relying solely on pushed events; reconcile state with host status.
+      const settled = await pollGatewayStatusUntilStable();
+      if (settled) {
+        set({ status: settled, lastError: settled.error ?? null });
       }
     } catch (error) {
       set({
@@ -318,7 +357,12 @@ export const useGatewayStore = create<GatewayState>((set, get) => ({
   stop: async () => {
     try {
       await hostApiFetch('/api/gateway/stop', { method: 'POST' });
-      set({ status: { ...get().status, state: 'stopped' }, lastError: null });
+      const status = await fetchGatewayStatusSafely();
+      if (status) {
+        set({ status, lastError: status.error ?? null });
+      } else {
+        set({ status: { ...get().status, state: 'stopped' }, lastError: null });
+      }
     } catch (error) {
       console.error('Failed to stop Gateway:', error);
       set({ lastError: String(error) });
@@ -336,6 +380,13 @@ export const useGatewayStore = create<GatewayState>((set, get) => ({
           status: { ...get().status, state: 'error', error: result.error },
           lastError: result.error || 'Failed to restart Gateway',
         });
+        return;
+      }
+
+      // Restart can be suppressed/deferred by governor/controller; sync final state explicitly.
+      const settled = await pollGatewayStatusUntilStable();
+      if (settled) {
+        set({ status: settled, lastError: settled.error ?? null });
       }
     } catch (error) {
       set({
