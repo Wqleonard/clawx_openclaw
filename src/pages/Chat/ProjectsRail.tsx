@@ -1,19 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../../components/ui/button.tsx';
-import { Input } from '@/components/ui/input.tsx';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog.tsx';
-import { AddAgentDialog } from '../../components/layout/AddAgentDialog.tsx';
 import { invokeIpc } from '@/lib/api-client.ts';
 import { cn } from '@/lib/utils.ts';
 import { useAgentsStore } from '@/stores/agents.ts';
 import { useChatStore } from '@/stores/chat.ts';
 import { useFileSystemStore } from '@/stores/filesystem.ts';
-import { useSettingsStore } from '@/stores/settings.ts';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog.tsx';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 // import { useSettingDialogStore } from '@/stores/setting-dialog.ts';
 
@@ -93,41 +87,17 @@ function normalizeComparePath(inputPath: string): string {
 
 export function ProjectsRail() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   // const openSettingDialog = useSettingDialogStore((state) => state.openDialog);
   const projectPath = useFileSystemStore((state) => state.projectPath);
-  const initProject = useFileSystemStore((state) => state.initProject);
   const clearProject = useFileSystemStore((state) => state.clearProject);
   const projectShortcuts = useFileSystemStore((state) => state.projectShortcuts);
   const initProjectShortcuts = useFileSystemStore((state) => state.initProjectShortcuts);
   const addProjectShortcut = useFileSystemStore((state) => state.addProjectShortcut);
   const removeProjectShortcut = useFileSystemStore((state) => state.removeProjectShortcut);
-  const workspaceRoots = useSettingsStore((state) => state.workspaceRoots);
-  const createAgent = useAgentsStore((state) => state.createAgent);
   const deleteAgent = useAgentsStore((state) => state.deleteAgent);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
   const [projectToClose, setProjectToClose] = useState<string | null>(null);
-  const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
-  const [showAddProjectDialog, setShowAddProjectDialog] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [pendingProjectBaseName, setPendingProjectBaseName] = useState('');
-  const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
-
-  const recoverWorkspaceRootFromDisk = useCallback(async (): Promise<string> => {
-    const currentRoot = useSettingsStore.getState().workspaceRoots.trim();
-    if (currentRoot) return currentRoot;
-
-    try {
-      const result = await hostApiFetch<{ value?: unknown }>('/api/settings/workspaceRoots');
-      const persistedRoot = typeof result?.value === 'string' ? result.value.trim() : '';
-      if (!persistedRoot) return '';
-      useSettingsStore.setState({ workspaceRoots: persistedRoot });
-      return persistedRoot;
-    } catch {
-      return '';
-    }
-  }, []);
 
   const recoverProjectShortcutsFromDisk = useCallback(async () => {
     const currentShortcuts = useFileSystemStore.getState().projectShortcuts;
@@ -163,9 +133,8 @@ export function ProjectsRail() {
   }, [initProjectShortcuts]);
 
   useEffect(() => {
-    void recoverWorkspaceRootFromDisk();
     void recoverProjectShortcutsFromDisk();
-  }, [recoverProjectShortcutsFromDisk, recoverWorkspaceRootFromDisk]);
+  }, [recoverProjectShortcutsFromDisk]);
 
   useEffect(() => {
     if (!projectPath) return;
@@ -192,14 +161,6 @@ export function ProjectsRail() {
     };
   }, []);
 
-  useEffect(() => {
-    const openCreateProjectDialog = () => setShowAddProjectDialog(true);
-    window.addEventListener('project:create-request', openCreateProjectDialog);
-    return () => {
-      window.removeEventListener('project:create-request', openCreateProjectDialog);
-    };
-  }, []);
-
   const handleContextMenu = (event: React.MouseEvent, targetPath: string) => {
     event.preventDefault();
     event.stopPropagation();
@@ -210,235 +171,14 @@ export function ProjectsRail() {
     });
   };
 
-  const agents = useAgentsStore((state) => state.agents);
-
-  const switchToProjectSession = useCallback(
-    async (targetPath: string) => {
-      const chatState = useChatStore.getState();
-      const fsState = useFileSystemStore.getState();
-
-      // Prefer agent-based routing: match workspace path to a known agent.
-      const matchingAgent = agents.find(
-        (a) => normalizeComparePath(a.workspace) === normalizeComparePath(targetPath)
-      );
-
-      if (matchingAgent) {
-        // Find the most recent session for this agent by key prefix.
-        const agentSessions = [...chatState.sessions]
-          .filter((s) => s.key.startsWith(`agent:${matchingAgent.id}:`))
-          .sort(
-            (a, b) =>
-              (chatState.sessionLastActivity[b.key] ?? 0) -
-              (chatState.sessionLastActivity[a.key] ?? 0)
-          );
-
-        const targetKey = agentSessions[0]?.key ?? `agent:${matchingAgent.id}:main`;
-        if (targetKey !== chatState.currentSessionKey) {
-          chatState.switchSession(targetKey);
-        }
-        return;
-      }
-
-      // Non-agent workspace: fall back to projectBindings lookup.
-      const targetSessions = [...chatState.sessions]
-        .filter((session) => fsState.projectBindings[session.key] === targetPath)
-        .sort(
-          (a, b) =>
-            (chatState.sessionLastActivity[b.key] ?? 0) -
-            (chatState.sessionLastActivity[a.key] ?? 0)
-        );
-
-      if (targetSessions.length > 0) {
-        const nextSessionKey = targetSessions[0].key;
-        if (nextSessionKey !== chatState.currentSessionKey) {
-          chatState.switchSession(nextSessionKey);
-        }
-        return;
-      }
-
-      chatState.newSession();
-      const newSessionKey = useChatStore.getState().currentSessionKey;
-      if (newSessionKey) {
-        await fsState.bindProjectToSession(newSessionKey, targetPath);
-      }
-    },
-    [agents]
-  );
-
-  const handleActivateProject = useCallback(
-    async (targetPath: string) => {
-      if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
-        navigate('/chat');
-        return;
-      }
-      await switchToProjectSession(targetPath);
-      await initProject(targetPath);
-      navigate('/chat');
-    },
-    [initProject, navigate, switchToProjectSession]
-  );
-
-  const handleOpenProject = useCallback(async () => {
-    try {
-      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
-        properties: ['openDirectory'],
-        defaultPath: projectPath || workspaceRoots || undefined,
-      });
-      if (result.canceled || !result.filePaths?.length) return;
-      const selected = result.filePaths[0];
-      addProjectShortcut(selected);
-      await handleActivateProject(selected);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(message || '打开项目失败');
-    }
-  }, [addProjectShortcut, handleActivateProject, projectPath, workspaceRoots]);
-
-  useEffect(() => {
-    const handleSwitchProject = (event: Event) => {
-      const customEvent = event as CustomEvent<{ path?: string }>;
-      const targetPath = customEvent.detail?.path;
-      if (!targetPath) return;
-      void handleActivateProject(targetPath);
-    };
-    window.addEventListener('project:switch-request', handleSwitchProject as EventListener);
-    return () => {
-      window.removeEventListener('project:switch-request', handleSwitchProject as EventListener);
-    };
-  }, [handleActivateProject]);
-
-  useEffect(() => {
-    const handleOpenProjectRequest = () => {
-      void handleOpenProject();
-    };
-    window.addEventListener('project:open-request', handleOpenProjectRequest as EventListener);
-    return () => {
-      window.removeEventListener('project:open-request', handleOpenProjectRequest as EventListener);
-    };
-  }, [handleOpenProject]);
-
-  const handleConfirmProjectName = async () => {
-    const allowedRoot = (await recoverWorkspaceRootFromDisk()) || workspaceRoots?.trim() || '';
-    if (!allowedRoot) {
-      toast.error('请先在设置中配置可用工作区');
-      return;
-    }
-
-    const rawName = newProjectName;
-    if (/^\s/.test(rawName)) {
-      toast.error('Project 名称不能以空格开头');
-      return;
-    }
-
-    const normalizedName = rawName.trim();
-    if (!normalizedName) {
-      toast.error('请输入 Project 名称');
-      return;
-    }
-    if (/[<>:"/\\|*?]/.test(normalizedName)) {
-      toast.error('Project 名称不能包含以下字符：< > : " / \\ | * ?');
-      return;
-    }
-
-    setPendingProjectBaseName(normalizedName);
-    setShowAddProjectDialog(false);
-    setShowAddAgentDialog(true);
-  };
-
-  const handleCreateAgentAndProject = async (
-    name: string,
-    options: { templateId?: string; sourceAgentId?: string; workspacePath?: string }
-  ) => {
-    const allowedRoot = (await recoverWorkspaceRootFromDisk()) || workspaceRoots?.trim() || '';
-    if (!allowedRoot) {
-      toast.error('请先在设置中配置可用工作区');
-      return;
-    }
-    const baseName = pendingProjectBaseName.trim();
-    if (!baseName) {
-      toast.error('请输入 Project 名称');
-      return;
-    }
-
-    const joinPath = (root: string, child: string): string => {
-      const separator = root.includes('\\') ? '\\' : '/';
-      const normalizedRoot = root.replace(/[\\/]+$/, '');
-      return `${normalizedRoot}${separator}${child}`;
-    };
-    const isAlreadyExistsError = (error: unknown): boolean => {
-      const message = error instanceof Error ? error.message : String(error);
-      const normalized = message.toLowerCase();
-      return normalized.includes('exist') || normalized.includes('already');
-    };
-
-    setIsAddingWorkspace(true);
-    try {
-      await invokeIpc<string>('fs:set-workspace', allowedRoot);
-
-      let suffix = 0;
-      let selected = '';
-      while (suffix < 10_000) {
-        const candidateName = suffix === 0 ? baseName : `${baseName}-${suffix}`;
-        const candidatePath = joinPath(allowedRoot, candidateName);
-        try {
-          await invokeIpc<unknown>('fs:read-tree', candidatePath);
-          suffix += 1;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          const normalized = message.toLowerCase();
-          if (normalized.includes('enoent') || normalized.includes('no such file')) {
-            selected = candidatePath;
-            break;
-          }
-          throw error;
-        }
-      }
-
-      if (!selected) {
-        toast.error('创建 Project 失败，请更换名称后重试');
-        return;
-      }
-
-      const beforeIds = new Set(useAgentsStore.getState().agents.map((agent) => agent.id));
-      await createAgent(name, { ...options, workspacePath: selected });
-      const afterAgents = useAgentsStore.getState().agents;
-      const createdAgent =
-        afterAgents.find((agent) => !beforeIds.has(agent.id)) ??
-        afterAgents.find(
-          (agent) =>
-            normalizeComparePath(agent.workspace) === normalizeComparePath(selected) &&
-            agent.name === name
-        );
-      if (!createdAgent) {
-        throw new Error('创建 Agent 后无法定位对应会话');
-      }
-
-      await useFileSystemStore
-        .getState()
-        .bindProjectToSession(createdAgent.mainSessionKey, selected);
-
-      try {
-        await invokeIpc<boolean>('fs:create-folder', selected);
-      } catch (error) {
-        if (!isAlreadyExistsError(error)) {
-          throw error;
-        }
-      }
-
-      await switchToProjectSession(selected);
-      await initProject(selected);
-      addProjectShortcut(selected);
-      setShowAddAgentDialog(false);
-      setPendingProjectBaseName('');
-      setNewProjectName('');
-      toast.success(t('common:status.agentCreated'));
-    } catch (error) {
-      console.error(error);
-      toast.error(t('common:projectDialog.error'), { position: 'top-center' });
-    } finally {
-      setIsAddingWorkspace(false);
-    }
-  };
+  const requestProjectSwitch = useCallback((targetPath: string) => {
+    if (!targetPath) return;
+    window.dispatchEvent(
+      new CustomEvent('project:switch-request', {
+        detail: { path: targetPath },
+      }),
+    );
+  }, []);
 
   const handleClose = () => {
     if (!menuState) return;
@@ -500,8 +240,7 @@ export function ProjectsRail() {
 
     if (projectPath === target && nextShortcuts.length > 0) {
       const nextProject = nextShortcuts[0];
-      await switchToProjectSession(nextProject);
-      await initProject(nextProject);
+      requestProjectSwitch(nextProject);
       return;
     }
 
@@ -556,7 +295,7 @@ export function ProjectsRail() {
                     type="button"
                     title={project.path}
                     onClick={() => {
-                      void handleActivateProject(project.path);
+                      requestProjectSwitch(project.path);
                       setProjectMenuOpen(false);
                     }}
                     onContextMenu={(event) => handleContextMenu(event, project.path)}
@@ -575,9 +314,8 @@ export function ProjectsRail() {
                 <button
                   type="button"
                   className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
-                  disabled={isAddingWorkspace}
                   onClick={() => {
-                    setShowAddProjectDialog(true);
+                    window.dispatchEvent(new CustomEvent('project:create-request'));
                     setProjectMenuOpen(false);
                   }}
                 >
@@ -635,63 +373,6 @@ export function ProjectsRail() {
         }}
         onCancel={() => setProjectToClose(null)}
       />
-
-      <AddAgentDialog
-        open={showAddAgentDialog}
-        onClose={() => {
-          setShowAddAgentDialog(false);
-          setPendingProjectBaseName('');
-        }}
-        hideWorkspaceSelector
-        onCreate={handleCreateAgentAndProject}
-      />
-
-      <Dialog
-        open={showAddProjectDialog}
-        onOpenChange={(open) => {
-          setShowAddProjectDialog(open);
-          if (!open) {
-            setNewProjectName('');
-            setPendingProjectBaseName('');
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogTitle>{t('common:projectDialog.title')}</DialogTitle>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">{t('common:projectDialog.description')}</p>
-            <Input
-              autoFocus
-              value={newProjectName}
-              onChange={(event) => setNewProjectName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  void handleConfirmProjectName();
-                }
-              }}
-              maxLength={200}
-              placeholder={t('common:projectDialog.placeholder')}
-              disabled={isAddingWorkspace}
-            />
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowAddProjectDialog(false)}
-                disabled={isAddingWorkspace}
-              >
-                {t('common:actions.cancel')}
-              </Button>
-              <Button onClick={() => void handleConfirmProjectName()} disabled={isAddingWorkspace}>
-                {isAddingWorkspace
-                  ? t('common:projectDialog.creating')
-                  : t('common:projectDialog.create')}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
     </>
   );
 }

@@ -174,6 +174,7 @@ export function Chat() {
   const bindProjectToSession = useFileSystemStore((s) => s.bindProjectToSession);
   const projectBindings = useFileSystemStore((s) => s.projectBindings);
   const projectShortcuts = useFileSystemStore((s) => s.projectShortcuts);
+  const addProjectShortcut = useFileSystemStore((s) => s.addProjectShortcut);
   const removeProjectShortcut = useFileSystemStore((s) => s.removeProjectShortcut);
   const clearProject = useFileSystemStore((s) => s.clearProject);
   const refreshTree = useFileSystemStore((s) => s.refreshTree);
@@ -993,6 +994,58 @@ export function Chat() {
     [agents]
   );
 
+  const handleActivateProject = useCallback(
+    async (targetPath: string) => {
+      if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
+        navigate('/chat');
+        return;
+      }
+      await switchToProjectSession(targetPath);
+      await initProject(targetPath);
+      navigate('/chat');
+    },
+    [initProject, navigate, switchToProjectSession]
+  );
+
+  const handleOpenProject = useCallback(async () => {
+    try {
+      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
+        properties: ['openDirectory'],
+        defaultPath: projectPath || workspaceRoots || undefined,
+      });
+      if (result.canceled || !result.filePaths?.length) return;
+      const selected = result.filePaths[0];
+      addProjectShortcut(selected);
+      await handleActivateProject(selected);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || '打开项目失败');
+    }
+  }, [addProjectShortcut, handleActivateProject, projectPath, workspaceRoots]);
+
+  useEffect(() => {
+    const handleSwitchProject = (event: Event) => {
+      const customEvent = event as CustomEvent<{ path?: string }>;
+      const targetPath = customEvent.detail?.path;
+      if (!targetPath) return;
+      void handleActivateProject(targetPath);
+    };
+    window.addEventListener('project:switch-request', handleSwitchProject as EventListener);
+    return () => {
+      window.removeEventListener('project:switch-request', handleSwitchProject as EventListener);
+    };
+  }, [handleActivateProject]);
+
+  useEffect(() => {
+    const handleOpenProjectRequest = () => {
+      void handleOpenProject();
+    };
+    window.addEventListener('project:open-request', handleOpenProjectRequest as EventListener);
+    return () => {
+      window.removeEventListener('project:open-request', handleOpenProjectRequest as EventListener);
+    };
+  }, [handleOpenProject]);
+
   const handleOpenProjectInFileExplorer = useCallback(async () => {
     if (!projectPath) return;
     setIsProjectActionsOpen(false);
@@ -1188,6 +1241,16 @@ export function Chat() {
     window.dispatchEvent(new CustomEvent('project:create-request'));
   }, []);
 
+  useEffect(() => {
+    const handleProjectCreateRequest = () => {
+      window.dispatchEvent(new CustomEvent('project:create-dialog-open'));
+    };
+    window.addEventListener('project:create-request', handleProjectCreateRequest);
+    return () => {
+      window.removeEventListener('project:create-request', handleProjectCreateRequest);
+    };
+  }, []);
+
   const sessionListContent = (
     <>
       <div className="mb-3 rounded-lg pl-2 py-2">
@@ -1229,13 +1292,7 @@ export function Chat() {
 
   if (!projectPath) {
     return (
-      <>
-        <div className="hidden">
-          <ProjectsRail />
-        </div>
-        <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />
-        {workspaceSetupDialog}
-      </>
+      <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />
     );
   }
 
@@ -1247,7 +1304,6 @@ export function Chat() {
         isSessionDrawerMode ? 'pl-3' : 'pl-0'
       )}
     >
-      {!isSessionDrawerMode && <ProjectsRail />}
 
       {/* Session List Panel */}
       {!isSessionDrawerMode && projectPath && (
@@ -1299,7 +1355,6 @@ export function Chat() {
               <DrawerTitle>Session list drawer</DrawerTitle>
             </VisuallyHidden>
             <div className="flex h-full">
-              <ProjectsRail />
               <div className="h-[calc(100%+2px)] p-3 -mt-[2px] flex-1 border rounded-ss-2xl rounded-es-2xl overflow-y-auto overflow-x-hidden">
                 {sessionListContent}
               </div>
@@ -1667,7 +1722,6 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
   const { t } = useTranslation('chat');
   return (
     <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
-      <ProjectsRail />
       <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
         <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>
