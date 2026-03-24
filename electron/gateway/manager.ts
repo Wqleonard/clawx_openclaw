@@ -110,6 +110,9 @@ export class GatewayManager extends EventEmitter {
   private reconnectAttemptsTotal = 0;
   private reconnectSuccessTotal = 0;
   private static readonly RELOAD_POLICY_REFRESH_MS = 15_000;
+  private static readonly HEARTBEAT_INTERVAL_MS = 30_000;
+  private static readonly HEARTBEAT_TIMEOUT_MS = 12_000;
+  private static readonly HEARTBEAT_MAX_MISSES = 3;
   public static readonly RESTART_COOLDOWN_MS = 5_000;
   private lastRestartAt = 0;
 
@@ -240,8 +243,16 @@ export class GatewayManager extends EventEmitter {
           await this.connect(port, externalToken);
         },
         onConnectedToExistingGateway: () => {
-          this.ownsProcess = false;
-          this.setStatus({ pid: undefined });
+
+          // If the existing gateway is actually our own spawned UtilityProcess
+          // (e.g. after a self-restart code=1012), keep ownership so that
+          // stop() can still terminate the process during a restart() cycle.
+          const isOwnProcess = this.process?.pid != null && this.ownsProcess;
+          if (!isOwnProcess) {
+            this.ownsProcess = false;
+            this.setStatus({ pid: undefined });
+          }
+
           this.startHealthCheck();
         },
         waitForPortFree: async (port) => {
@@ -349,6 +360,25 @@ export class GatewayManager extends EventEmitter {
 
     this.restartController.resetDeferredRestart();
     this.setStatus({ state: 'stopped', error: undefined, pid: undefined, connectedAt: undefined, uptime: undefined });
+  }
+
+  /**
+   * Best-effort emergency cleanup for app-quit timeout paths.
+   * Only terminates a process this manager still owns.
+   */
+  async forceTerminateOwnedProcessForQuit(): Promise<boolean> {
+    if (!this.process || !this.ownsProcess) {
+      return false;
+    }
+
+    const child = this.process;
+    await terminateOwnedGatewayProcess(child);
+    if (this.process === child) {
+      this.process = null;
+    }
+    this.ownsProcess = false;
+    this.setStatus({ pid: undefined });
+    return true;
   }
 
   /**
@@ -698,6 +728,7 @@ export class GatewayManager extends EventEmitter {
       onExit: (exitedChild, code) => {
         this.processExitCode = code;
         this.ownsProcess = false;
+        this.connectionMonitor.clear();
         if (this.process === exitedChild) {
           this.process = null;
         }
@@ -718,6 +749,7 @@ export class GatewayManager extends EventEmitter {
 
     this.process = child;
     this.ownsProcess = true;
+    logger.debug(`Gateway manager now owns process pid=${child.pid ?? 'unknown'}`);
     this.lastSpawnSummary = lastSpawnSummary;
   }
 
@@ -733,8 +765,8 @@ export class GatewayManager extends EventEmitter {
       getToken: async () => await import('../utils/store').then(({ getSetting }) => getSetting('gatewayToken')),
       onHandshakeComplete: (ws) => {
         this.ws = ws;
-        this.ws.on('pong', () => {
-          this.connectionMonitor.handlePong();
+        ws.on('pong', () => {
+          this.connectionMonitor.markAlive('pong');
         });
         this.setStatus({
           state: 'running',
@@ -747,6 +779,7 @@ export class GatewayManager extends EventEmitter {
         this.handleMessage(message);
       },
       onCloseAfterHandshake: () => {
+        this.connectionMonitor.clear();
         if (this.status.state === 'running') {
           this.setStatus({ state: 'stopped' });
           this.scheduleReconnect();
@@ -759,6 +792,8 @@ export class GatewayManager extends EventEmitter {
    * Handle incoming WebSocket message
    */
   private handleMessage(message: unknown): void {
+    this.connectionMonitor.markAlive('message');
+
     if (typeof message !== 'object' || message === null) {
       logger.debug('Received non-object Gateway message');
       return;
@@ -811,24 +846,34 @@ export class GatewayManager extends EventEmitter {
    * Start ping interval to keep connection alive
    */
   private startPing(): void {
-    this.connectionMonitor.startPing(
-      () => {
+    this.connectionMonitor.startPing({
+      intervalMs: GatewayManager.HEARTBEAT_INTERVAL_MS,
+      timeoutMs: GatewayManager.HEARTBEAT_TIMEOUT_MS,
+      maxConsecutiveMisses: GatewayManager.HEARTBEAT_MAX_MISSES,
+      sendPing: () => {
         if (this.ws?.readyState === WebSocket.OPEN) {
           this.ws.ping();
         }
       },
-      () => {
-        logger.error('Gateway WebSocket dead connection detected (pong timeout)');
-        if (this.ws) {
-          this.ws.terminate(); // Force close the dead connection immediately
-          this.ws = null;
+      onHeartbeatTimeout: ({ consecutiveMisses, timeoutMs }) => {
+        if (this.status.state !== 'running' || !this.shouldReconnect) {
+          return;
         }
-        if (this.status.state === 'running') {
-          this.setStatus({ state: 'error', error: 'WebSocket ping timeout' });
-          this.scheduleReconnect();
+        const ws = this.ws;
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          return;
         }
-      }
-    );
+
+        logger.warn(
+          `Gateway heartbeat timed out after ${consecutiveMisses} consecutive misses (timeout=${timeoutMs}ms); terminating stale socket`,
+        );
+        try {
+          ws.terminate();
+        } catch (error) {
+          logger.warn('Failed to terminate stale Gateway socket after heartbeat timeout:', error);
+        }
+      },
+    });
   }
 
   /**
@@ -937,7 +982,7 @@ export class GatewayManager extends EventEmitter {
     };
 
     trackMetric('gateway.reconnect', properties);
-    captureTelemetryEvent('gateway_reconnect', properties);
+    // Keep local metrics only; do not upload reconnect details to PostHog.
   }
 
   /**

@@ -105,6 +105,7 @@ ClawX 直接基于官方 **OpenClaw** 核心构建。无需单独安装，我们
 ### 📡 多频道管理
 同时配置和监控多个 AI 频道。每个频道独立运行，允许你为不同任务运行专门的智能体。
 现在每个频道支持多个账号，并可在 Channels 页面直接完成账号绑定到 Agent 与默认账号切换。
+ClawX 现在还内置了腾讯官方个人微信渠道插件，可直接在 Channels 页面通过内置二维码流程完成微信连接。
 
 ### ⏰ 定时任务自动化
 调度 AI 任务自动执行。定义触发器、设置时间间隔，让 AI 智能体 7×24 小时不间断工作。
@@ -120,6 +121,7 @@ Skills 页面可展示来自多个 OpenClaw 来源的技能（托管目录、wor
 
 ### 🔐 安全的供应商集成
 连接多个 AI 供应商（OpenAI、Anthropic 等），凭证安全存储在系统原生密钥链中。OpenAI 同时支持 API Key 与浏览器 OAuth（Codex 订阅）登录。
+如果你通过 **自定义（Custom）Provider** 对接 OpenAI-compatible 网关，可以在 **设置 → AI Providers → 编辑 Provider** 中配置自定义 `User-Agent`，以提高兼容性。
 
 ### 🌙 自适应主题
 支持浅色模式、深色模式或跟随系统主题。ClawX 自动适应你的偏好设置。
@@ -195,7 +197,10 @@ ClawX 内置了代理设置，适用于需要通过本地代理客户端访问�
 - 高级代理项留空时，会自动回退到“代理服务器”。
 - 保存代理设置后，Electron 网络层会立即重新应用代理，并自动重启 Gateway。
 - 如果启用了 Telegram，ClawX 还会把代理同步到 OpenClaw 的 Telegram 频道配置中。
+- 当 ClawX 代理处于关闭状态时，Gateway 的常规重启会保留已有的 Telegram 频道代理配置。
+- 如果你要明确清空 OpenClaw 中的 Telegram 代理，请在关闭代理后点一次“保存代理设置”。
 - 在 **设置 → 高级 → 开发者** 中，可以直接运行 **OpenClaw Doctor**，执行 `openclaw doctor --json` 并在应用内查看诊断输出。
+- 在 Windows 打包版本中，内置的 `openclaw` CLI/TUI 会通过随包分发的 `node.exe` 入口运行，以保证终端输入行为稳定。
 
 ---
 
@@ -255,6 +260,17 @@ ClawX 采用 **双进程 + Host API 统一接入架构**。渲染进程只调用
 - **优雅恢复**：内置重连、超时、退避逻辑，自动处理瞬时故障
 - **安全存储**：API 密钥和敏感数据利用操作系统原生的安全存储机制
 - **CORS 安全**：本地 HTTP 请求由主进程代理，避免渲染进程跨域问题
+
+### 进程模型与 Gateway 排障
+
+- ClawX 基于 Electron，**单个应用实例出现多个系统进程是正常现象**（main/renderer/zygote/utility）。
+- 单实例保护同时使用 Electron 自带锁与本地进程文件锁回退机制，可在桌面会话总线异常时避免重复启动。
+- 滚动升级期间若新旧版本混跑，单实例保护仍可能出现不对称行为。为保证稳定性，建议桌面客户端尽量统一升级到同一版本。
+- 但 OpenClaw Gateway 监听应始终保持**单实例**：`127.0.0.1:18789` 只能有一个监听者。
+- 可用以下命令确认监听进程：
+  - macOS/Linux：`lsof -nP -iTCP:18789 -sTCP:LISTEN`
+  - Windows（PowerShell）：`Get-NetTCPConnection -LocalPort 18789 -State Listen`
+- 点击窗口关闭按钮（`X`）默认只是最小化到托盘，并不会完全退出应用。请在托盘菜单中选择 **Quit ClawX** 执行完整退出。
 
 ---
 

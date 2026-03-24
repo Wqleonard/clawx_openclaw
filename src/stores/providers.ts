@@ -37,8 +37,8 @@ interface ProviderState {
   defaultAccountId: string | null;
   loading: boolean;
   error: string | null;
-  
-  // 基础动作
+  // Actions
+  init: () => Promise<void>;
   refreshProviderSnapshot: () => Promise<void>;
   createAccount: (account: ProviderAccount, apiKey?: string) => Promise<void>;
   removeAccount: (accountId: string) => Promise<void>;
@@ -108,7 +108,11 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   defaultAccountId: null,
   loading: false,
   error: null,
-  
+
+  init: async () => {
+    await get().refreshProviderSnapshot();
+  },
+
   refreshProviderSnapshot: async () => {
     set({ loading: true, error: null });
     

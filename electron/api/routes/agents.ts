@@ -39,7 +39,7 @@ const execAsync = promisify(exec);
  * stale bot connections is to kill the Gateway process entirely and
  * spawn a fresh one that reads the updated openclaw.json from scratch.
  */
-async function restartGatewayForAgentDeletion(ctx: HostApiContext): Promise<void> {
+export async function restartGatewayForAgentDeletion(ctx: HostApiContext): Promise<void> {
   try {
     // Capture the PID of the running Gateway BEFORE stop() clears it.
     const status = ctx.gatewayManager.getStatus();
@@ -53,10 +53,14 @@ async function restartGatewayForAgentDeletion(ctx: HostApiContext): Promise<void
     // and the old process stays alive with its stale channel connections.
     if (pid) {
       try {
-        process.kill(pid, 'SIGTERM');
-        // Give it a moment to die
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        try { process.kill(pid, 0); process.kill(pid, 'SIGKILL'); } catch { /* already dead */ }
+        if (process.platform === 'win32') {
+          await execAsync(`taskkill /F /PID ${pid} /T`);
+        } else {
+          process.kill(pid, 'SIGTERM');
+          // Give it a moment to die
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          try { process.kill(pid, 0); process.kill(pid, 'SIGKILL'); } catch { /* already dead */ }
+        }
       } catch {
         // process already gone – that's fine
       }
@@ -88,7 +92,7 @@ async function restartGatewayForAgentDeletion(ctx: HostApiContext): Promise<void
             }
           }
           for (const p of pids) {
-            try { await execAsync(`taskkill /F /PID ${p}`); } catch { /* ignore */ }
+            try { await execAsync(`taskkill /F /PID ${p} /T`); } catch { /* ignore */ }
           }
         }
       } catch {

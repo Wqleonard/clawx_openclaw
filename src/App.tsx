@@ -105,8 +105,12 @@ function App() {
   const language = useSettingsStore((state) => state.language);
   const setupComplete = useSettingsStore((state) => state.setupComplete);
   const initGateway = useGatewayStore((state) => state.init);
+
   const isLoggedIn = useLoginStore((state) => state.isLoggedIn);
   const ensureBaowenmaoPresetAccounts = useProviderStore((state) => state.ensureBaowenmaoPresetAccounts);
+
+  const initProviders = useProviderStore((state) => state.init);
+
 
   useEffect(() => {
     initSettings();
@@ -124,7 +128,14 @@ function App() {
     initGateway();
   }, [initGateway]);
 
+
   // 已登录时同步 baowenmao preset accounts，确保重启后 provider 配置是最新的
+
+  // Initialize provider snapshot on mount
+  useEffect(() => {
+    initProviders();
+  }, [initProviders]);
+
   useEffect(() => {
     if (!isLoggedIn) return;
     const token = localStorage.getItem('token');

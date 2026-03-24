@@ -11,6 +11,7 @@ import {
 } from '@/lib/channel-status';
 import { useGatewayStore } from './gateway';
 import { CHANNEL_NAMES, type Channel, type ChannelType } from '../types/channel';
+import { toOpenClawChannelType, toUiChannelType } from '@/lib/channel-alias';
 
 interface AddChannelParams {
   type: ChannelType;
@@ -39,6 +40,17 @@ interface ChannelsState {
 
 const reconnectTimers = new Map<string, NodeJS.Timeout>();
 const reconnectAttempts = new Map<string, number>();
+
+function splitChannelId(channelId: string): { channelType: string; accountId?: string } {
+  const separatorIndex = channelId.indexOf('-');
+  if (separatorIndex === -1) {
+    return { channelType: channelId };
+  }
+  return {
+    channelType: channelId.slice(0, separatorIndex),
+    accountId: channelId.slice(separatorIndex + 1),
+  };
+}
 
 export const useChannelsStore = create<ChannelsState>((set, get) => ({
   channels: [],
@@ -75,6 +87,8 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
         // Parse the complex channels.status response into simple Channel objects
         const channelOrder = data.channelOrder || Object.keys(data.channels || {});
         for (const channelId of channelOrder) {
+          const uiChannelId = toUiChannelType(channelId) as ChannelType;
+          const gatewayChannelId = toOpenClawChannelType(channelId);
           const summary = (data.channels as Record<string, unknown> | undefined)?.[channelId] as Record<string, unknown> | undefined;
           const configured =
             typeof summary?.configured === 'boolean'
@@ -101,14 +115,17 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
                 : undefined;
 
           channels.push({
-            id: `${channelId}-${primaryAccount?.accountId || 'default'}`,
-            type: channelId as ChannelType,
-            name: primaryAccount?.name || CHANNEL_NAMES[channelId as ChannelType] || channelId,
+            id: `${uiChannelId}-${primaryAccount?.accountId || 'default'}`,
+            type: uiChannelId,
+            name: primaryAccount?.name || CHANNEL_NAMES[uiChannelId] || uiChannelId,
             status,
             accountId: primaryAccount?.accountId,
             error:
               (typeof primaryAccount?.lastError === 'string' ? primaryAccount.lastError : undefined) ||
               (typeof summaryError === 'string' ? summaryError : undefined),
+            metadata: {
+              gatewayChannelId,
+            },
           });
         }
 
@@ -161,9 +178,11 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
   },
 
   deleteChannel: async (channelId) => {
-    // 优先从当前状态精确定位类型，避免 channelId 中包含额外 '-' 时解析错误
+    // Prefer the in-memory channel type; fallback to parsed id when missing.
     const current = get().channels.find((channel) => channel.id === channelId);
-    const channelType = current?.type ?? (channelId.split('-')[0] as ChannelType);
+    const { channelType: parsedChannelType } = splitChannelId(channelId);
+    const channelType = current?.type ?? (parsedChannelType as ChannelType);
+    const gatewayChannelType = toOpenClawChannelType(channelType);
 
     try {
       // Delete the channel configuration from openclaw.json
@@ -175,7 +194,7 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
     }
 
     try {
-      await useGatewayStore.getState().rpc('channels.delete', { channelId: channelType });
+      await useGatewayStore.getState().rpc('channels.delete', { channelId: gatewayChannelType });
     } catch (error) {
       // Continue with local deletion even if gateway fails
       console.error('Failed to delete channel from gateway:', error);
@@ -192,7 +211,10 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
     updateChannel(channelId, { status: 'connecting', error: undefined });
 
     try {
-      await useGatewayStore.getState().rpc('channels.connect', { channelId });
+      const { channelType, accountId } = splitChannelId(channelId);
+      await useGatewayStore.getState().rpc('channels.connect', {
+        channelId: `${toOpenClawChannelType(channelType)}${accountId ? `-${accountId}` : ''}`,
+      });
       updateChannel(channelId, { status: 'connected' });
     } catch (error) {
       updateChannel(channelId, { status: 'error', error: String(error) });
@@ -204,7 +226,10 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
     clearAutoReconnect(channelId);
 
     try {
-      await useGatewayStore.getState().rpc('channels.disconnect', { channelId });
+      const { channelType, accountId } = splitChannelId(channelId);
+      await useGatewayStore.getState().rpc('channels.disconnect', {
+        channelId: `${toOpenClawChannelType(channelType)}${accountId ? `-${accountId}` : ''}`,
+      });
     } catch (error) {
       console.error('Failed to disconnect channel:', error);
     }
@@ -215,7 +240,7 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
   requestQrCode: async (channelType) => {
     return await useGatewayStore.getState().rpc<{ qrCode: string; sessionId: string }>(
       'channels.requestQr',
-      { type: channelType },
+      { type: toOpenClawChannelType(channelType) },
     );
   },
 

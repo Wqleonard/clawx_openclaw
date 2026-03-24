@@ -557,10 +557,12 @@ function upsertOpenClawProviderEntry(
     models: mergeProviderModels(registryModels, existingModels, runtimeModels),
   };
   if (options.apiKeyEnv) nextProvider.apiKey = options.apiKeyEnv;
-  if (options.headers && Object.keys(options.headers).length > 0) {
-    nextProvider.headers = options.headers;
-  } else {
-    delete nextProvider.headers;
+  if (options.headers !== undefined) {
+    if (Object.keys(options.headers).length > 0) {
+      nextProvider.headers = options.headers;
+    } else {
+      delete nextProvider.headers;
+    }
   }
   if (options.authHeader !== undefined) {
     nextProvider.authHeader = options.authHeader;
@@ -745,6 +747,42 @@ export async function getActiveOpenClawProviders(): Promise<Set<string>> {
   }
 
   return activeProviders;
+}
+
+/**
+ * Read models.providers entries and agents.defaults.model from openclaw.json.
+ * Used by ClawX to seed the provider store when it's empty but providers are
+ * configured externally (e.g. via CLI or by editing openclaw.json directly).
+ */
+export async function getOpenClawProvidersConfig(): Promise<{
+  providers: Record<string, Record<string, unknown>>;
+  defaultModel: string | undefined;
+}> {
+  try {
+    const config = await readOpenClawJson();
+
+    const models = config.models as Record<string, unknown> | undefined;
+    const providers =
+      models?.providers && typeof models.providers === 'object'
+        ? (models.providers as Record<string, Record<string, unknown>>)
+        : {};
+
+    const agents = config.agents as Record<string, unknown> | undefined;
+    const defaults =
+      agents?.defaults && typeof agents.defaults === 'object'
+        ? (agents.defaults as Record<string, unknown>)
+        : undefined;
+    const modelConfig =
+      defaults?.model && typeof defaults.model === 'object'
+        ? (defaults.model as Record<string, unknown>)
+        : undefined;
+    const defaultModel =
+      typeof modelConfig?.primary === 'string' ? modelConfig.primary : undefined;
+
+    return { providers, defaultModel };
+  } catch {
+    return { providers: {}, defaultModel: undefined };
+  }
 }
 
 /**
@@ -1003,6 +1041,28 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
             }
           }
           if (modified) pluginsObj.load = validLoad;
+        } else if (pluginsObj.load && typeof pluginsObj.load === 'object' && !Array.isArray(pluginsObj.load)) {
+          // Handle nested shape: plugins.load.paths (array of absolute paths)
+          const loadObj = pluginsObj.load as Record<string, unknown>;
+          if (Array.isArray(loadObj.paths)) {
+            const validPaths: unknown[] = [];
+            const countBefore = loadObj.paths.length;
+            for (const p of loadObj.paths) {
+              if (typeof p === 'string' && p.startsWith('/')) {
+                if (p.includes('node_modules/openclaw/extensions') || !(await fileExists(p))) {
+                  console.log(`[sanitize] Removing stale/bundled plugin path "${p}" from plugins.load.paths`);
+                  modified = true;
+                } else {
+                  validPaths.push(p);
+                }
+              } else {
+                validPaths.push(p);
+              }
+            }
+            if (validPaths.length !== countBefore) {
+              loadObj.paths = validPaths;
+            }
+          }
         }
       }
     }

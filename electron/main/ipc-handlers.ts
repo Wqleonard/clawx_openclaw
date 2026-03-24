@@ -20,6 +20,7 @@ import {
   saveProviderKeyToOpenClaw,
   removeProviderFromOpenClaw,
 } from '../utils/openclaw-auth';
+import { syncProxyConfigToOpenClaw } from '../utils/openclaw-proxy';
 import { buildOpenClawControlUiUrl } from '../utils/openclaw-control-ui';
 import { logger } from '../utils/logger';
 import {
@@ -245,6 +246,7 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
   const providerService = getProviderService();
   const handleProxySettingsChange = async () => {
     const settings = await getAllSettings();
+    await syncProxyConfigToOpenClaw(settings, { preserveExistingWhenDisabled: false });
     await applyProxySettings(settings);
     if (gatewayManager.getStatus().state === 'running') {
       await gatewayManager.restart();
@@ -1402,9 +1404,10 @@ function registerGatewayHandlers(
  * For checking package status and channel configuration
  */
 function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
-  // Keep reload-first for feishu to avoid restart storms when channel auth/network is flaky.
-  // GatewayManager.reload() already falls back to restart when reload is unhealthy.
-  const forceRestartChannels = new Set(['dingtalk', 'wecom', 'whatsapp']);
+  // Plugin-based channels require a full Gateway process restart to properly
+  // initialize / tear-down plugin connections.  SIGUSR1 in-process reload is
+  // not sufficient for channel plugins (see restartGatewayForAgentDeletion).
+  const forceRestartChannels = new Set(['dingtalk', 'wecom', 'whatsapp', 'feishu', 'qqbot']);
 
   const scheduleGatewayChannelRestart = (reason: string): void => {
     if (gatewayManager.getStatus().state !== 'stopped') {
@@ -2161,6 +2164,7 @@ function registerAppHandlers(): void {
 function registerSettingsHandlers(gatewayManager: GatewayManager): void {
   const handleProxySettingsChange = async () => {
     const settings = await getAllSettings();
+    await syncProxyConfigToOpenClaw(settings, { preserveExistingWhenDisabled: false });
     await applyProxySettings(settings);
     if (gatewayManager.getStatus().state === 'running') {
       await gatewayManager.restart();

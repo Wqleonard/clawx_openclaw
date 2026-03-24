@@ -18,7 +18,7 @@ export function ChannelsSection() {
             : `Connect ${APP_DISPLAY_NAME} to Feishu, Telegram, and other messaging platforms.`}
         </p>
       </div>
-      <Channels hideHeader />
+      <Channels hideHeader enableAdvancedAccountsInHideHeader />
     </div>
   );
 }
