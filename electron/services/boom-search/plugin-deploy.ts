@@ -11,7 +11,7 @@
  */
 
 import { copyFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { getOpenClawConfigDir, getResourcesDir } from '../../utils/paths';
 import { readOpenClawConfig, writeOpenClawConfig } from '../../utils/channel-config';
@@ -21,6 +21,21 @@ import * as logger from '../../utils/logger';
 const PLUGIN_ID = 'boom-search';
 const PLUGIN_SOURCE_DIR = 'boom-search-plugin';
 const PLUGIN_FILES = ['index.js', 'openclaw.plugin.json', 'package.json'];
+
+function readPluginVersion(pkgPath: string): string | null {
+  if (!existsSync(pkgPath)) {
+    return null;
+  }
+  try {
+    const raw = readFileSync(pkgPath, 'utf-8');
+    const parsed = JSON.parse(raw) as { version?: string };
+    return typeof parsed.version === 'string' && parsed.version.trim()
+      ? parsed.version.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Destination inside ~/.openclaw/extensions/boom-search/ */
 function getPluginDestDir(): string {
@@ -44,6 +59,13 @@ async function deployPluginFiles(): Promise<void> {
     throw new Error(`Boom-search plugin source not found: ${srcDir}`);
   }
 
+  const sourceVersion = readPluginVersion(join(srcDir, 'package.json'));
+  const installedVersion = readPluginVersion(join(destDir, 'package.json'));
+  if (sourceVersion && installedVersion && sourceVersion === installedVersion) {
+    logger.info('[boom-search] Plugin files already up to date', { version: sourceVersion });
+    return;
+  }
+
   await mkdir(destDir, { recursive: true });
 
   for (const file of PLUGIN_FILES) {
@@ -52,7 +74,11 @@ async function deployPluginFiles(): Promise<void> {
     await copyFile(src, dest);
   }
 
-  logger.info('[boom-search] Plugin files deployed', { destDir });
+  logger.info('[boom-search] Plugin files deployed', {
+    destDir,
+    fromVersion: installedVersion ?? 'none',
+    toVersion: sourceVersion ?? 'unknown',
+  });
 }
 
 /**

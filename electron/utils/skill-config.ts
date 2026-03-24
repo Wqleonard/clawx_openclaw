@@ -5,7 +5,7 @@
  *
  * All file I/O uses async fs/promises to avoid blocking the main thread.
  */
-import { readFile, writeFile, access, cp, mkdir } from 'fs/promises';
+import { readFile, writeFile, access, cp, mkdir, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { constants } from 'fs';
 import { join } from 'path';
@@ -50,7 +50,7 @@ interface PreinstalledLockFile {
 }
 
 interface PreinstalledMarker {
-    source: 'clawx-preinstalled';
+    source: 'storyclaw-preinstalled';
     slug: string;
     version: string;
     installedAt: string;
@@ -192,7 +192,7 @@ export async function getAllSkillConfigs(): Promise<Record<string, SkillEntry>> 
 }
 
 /**
- * Built-in skills bundled with ClawX that should be pre-deployed to
+ * Built-in skills bundled with StoryClaw that should be pre-deployed to
  * ~/.openclaw/skills/ on first launch.  These come from the openclaw package's
  * extensions directory and are available in both dev and packaged builds.
  */
@@ -234,8 +234,8 @@ export async function ensureBuiltinSkillsInstalled(): Promise<void> {
 }
 
 const PREINSTALLED_MANIFEST_NAME = 'preinstalled-manifest.json';
-const PREINSTALLED_MARKER_NAME = '.clawx-preinstalled.json';
-const LOCAL_SKILLS_MARKER_NAME = '.clawx-local-skill.json';
+const PREINSTALLED_MARKER_NAME = '.storyclaw-preinstalled.json';
+const LOCAL_SKILLS_MARKER_NAME = '.storyclaw-local-skill.json';
 const MANAGED_LOCAL_SKILLS: ManagedLocalSkill[] = [];
 
 async function readPreinstalledManifest(): Promise<PreinstalledSkillSpec[]> {
@@ -318,9 +318,8 @@ async function tryReadMarker(markerPath: string): Promise<PreinstalledMarker | n
  *
  * Policy:
  * - If skill is missing locally, install it.
- * - If local skill exists without our marker, treat as user-managed and never overwrite.
  * - If marker exists with same version, skip.
- * - If marker exists with a different version, skip by default to avoid overwriting edits.
+ * - Otherwise, force overwrite so bundled assets stay in sync with app version.
  */
 export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
     const skills = await readPreinstalledManifest();
@@ -354,24 +353,20 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             || (spec.version || 'unknown').trim()
             || 'unknown';
         const marker = await tryReadMarker(markerPath);
+        const isAlreadyInstalled = existsSync(targetManifest);
 
-        if (existsSync(targetManifest)) {
-            if (!marker) {
-                logger.info(`Skipping user-managed skill: ${spec.slug}`);
-                continue;
-            }
-            if (marker.version === desiredVersion) {
-                continue;
-            }
-            logger.info(`Skipping preinstalled skill update for ${spec.slug} (local marker version=${marker.version}, desired=${desiredVersion})`);
+        if (isAlreadyInstalled && marker?.version === desiredVersion) {
             continue;
         }
 
         try {
+            // Strict mirror: remove existing target directory first so stale files
+            // from previous versions are not retained.
+            await rm(targetDir, { recursive: true, force: true });
             await mkdir(targetDir, { recursive: true });
             await cp(sourceDir, targetDir, { recursive: true, force: true });
             const markerPayload: PreinstalledMarker = {
-                source: 'clawx-preinstalled',
+                source: 'storyclaw-preinstalled',
                 slug: spec.slug,
                 version: desiredVersion,
                 installedAt: new Date().toISOString(),
@@ -380,7 +375,13 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             if (spec.autoEnable) {
                 toEnable.push(spec.slug);
             }
-            logger.info(`Installed preinstalled skill: ${spec.slug} -> ${targetDir}`);
+            if (isAlreadyInstalled) {
+                logger.info(
+                    `Updated preinstalled skill: ${spec.slug} (local marker version=${marker?.version ?? 'none'}, desired=${desiredVersion})`,
+                );
+            } else {
+                logger.info(`Installed preinstalled skill: ${spec.slug} -> ${targetDir}`);
+            }
         } catch (error) {
             logger.warn(`Failed to install preinstalled skill ${spec.slug}:`, error);
         }
@@ -436,7 +437,7 @@ export async function ensureManagedLocalSkillsInstalled(): Promise<void> {
                 await writeFile(
                     markerPath,
                     `${JSON.stringify({
-                        source: 'clawx-local-skill',
+                        source: 'storyclaw-local-skill',
                         slug: spec.slug,
                         installedAt: new Date().toISOString(),
                     }, null, 2)}\n`,
