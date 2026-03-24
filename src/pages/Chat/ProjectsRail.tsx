@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { SlidersHorizontal, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/ui/button.tsx';
@@ -8,13 +8,14 @@ import { Input } from '@/components/ui/input.tsx';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog.tsx';
 import { AddAgentDialog } from '../../components/layout/AddAgentDialog.tsx';
 import { invokeIpc } from '@/lib/api-client.ts';
+import { hostApiFetch } from '@/lib/host-api.ts';
 import { cn } from '@/lib/utils.ts';
 import { useAgentsStore } from '@/stores/agents.ts';
 import { useChatStore } from '@/stores/chat.ts';
 import { useFileSystemStore } from '@/stores/filesystem.ts';
 import { useSettingsStore } from '@/stores/settings.ts';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog.tsx';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
+import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components/ui/dialog.tsx';
+import { Preferences } from '@/pages/Preferences';
 // import { useSettingDialogStore } from '@/stores/setting-dialog.ts';
 
 type ProjectItem = {
@@ -52,6 +53,12 @@ type ContextMenuState = {
   y: number;
 };
 
+type WorkspaceShortcutButtonProps = {
+  workspace: ProjectItem;
+  onActivate: (workspacePath: string) => Promise<void>;
+  onContextMenu: (event: React.MouseEvent, workspacePath: string) => void;
+};
+
 function getWorkspaceName(workspacePath: string): string {
   const normalized = workspacePath.replace(/[\\/]+$/, '');
   const segments = normalized.split(/[\\/]/).filter(Boolean);
@@ -84,6 +91,38 @@ function normalizeComparePath(inputPath: string): string {
     .toLowerCase();
 }
 
+function WorkspaceShortcutButton({
+  workspace,
+  onActivate,
+  onContextMenu,
+}: WorkspaceShortcutButtonProps) {
+  return (
+    <button
+      key={workspace.path}
+      title={workspace.path}
+      type="button"
+      aria-label={`Switch to workspace ${workspace.name}`}
+      onClick={() => void onActivate(workspace.path)}
+      onContextMenu={(event) => onContextMenu(event, workspace.path)}
+      className={cn(
+        'size-10 rounded-lg p-0.5 flex items-center justify-center border-2',
+        workspace.isActive ? 'border-[var(--workspace-active-border)]' : 'border-transparent'
+      )}
+    >
+      <div
+        className="size-full rounded-sm border text-sm font-semibold flex items-center justify-center"
+        style={{
+          backgroundColor: workspace.theme.bg,
+          color: workspace.theme.text,
+          borderColor: workspace.theme.border,
+        }}
+      >
+        {workspace.initial}
+      </div>
+    </button>
+  );
+}
+
 export function ProjectsRail() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -105,7 +144,7 @@ export function ProjectsRail() {
   const [newProjectName, setNewProjectName] = useState('');
   const [pendingProjectBaseName, setPendingProjectBaseName] = useState('');
   const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
-  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const projectItems = useMemo<ProjectItem[]>(
     () =>
@@ -221,57 +260,15 @@ export function ProjectsRail() {
     [agents]
   );
 
-  const handleActivateProject = useCallback(
-    async (targetPath: string) => {
-      if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
-        navigate('/chat');
-        return;
-      }
-      await switchToProjectSession(targetPath);
-      await initProject(targetPath);
+  const handleActivateProject = async (targetPath: string) => {
+    if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
       navigate('/chat');
-    },
-    [initProject, navigate, switchToProjectSession]
-  );
-
-  const handleOpenProject = useCallback(async () => {
-    try {
-      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
-        properties: ['openDirectory'],
-        defaultPath: projectPath || workspaceRoots || undefined,
-      });
-      if (result.canceled || !result.filePaths?.length) return;
-      const selected = result.filePaths[0];
-      addProjectShortcut(selected);
-      await handleActivateProject(selected);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(message || '打开项目失败');
+      return;
     }
-  }, [addProjectShortcut, handleActivateProject, projectPath, workspaceRoots]);
-
-  useEffect(() => {
-    const handleSwitchProject = (event: Event) => {
-      const customEvent = event as CustomEvent<{ path?: string }>;
-      const targetPath = customEvent.detail?.path;
-      if (!targetPath) return;
-      void handleActivateProject(targetPath);
-    };
-    window.addEventListener('project:switch-request', handleSwitchProject as EventListener);
-    return () => {
-      window.removeEventListener('project:switch-request', handleSwitchProject as EventListener);
-    };
-  }, [handleActivateProject]);
-
-  useEffect(() => {
-    const handleOpenProjectRequest = () => {
-      void handleOpenProject();
-    };
-    window.addEventListener('project:open-request', handleOpenProjectRequest as EventListener);
-    return () => {
-      window.removeEventListener('project:open-request', handleOpenProjectRequest as EventListener);
-    };
-  }, [handleOpenProject]);
+    await switchToProjectSession(targetPath);
+    await initProject(targetPath);
+    navigate('/chat');
+  };
 
   const handleConfirmProjectName = async () => {
     const allowedRoot = workspaceRoots?.trim() ?? '';
@@ -485,64 +482,88 @@ export function ProjectsRail() {
     }
   }, [menuState]);
 
+  const openDevConsole = useCallback(async () => {
+    try {
+      const result = await hostApiFetch<{
+        success: boolean;
+        url?: string;
+        error?: string;
+      }>('/api/gateway/control-ui');
+      if (result.success && result.url) {
+        window.electron.openExternal(result.url);
+      } else {
+        toast.error(result.error || 'Failed to open debug console');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || 'Failed to open debug console');
+    }
+  }, []);
+
   return (
     <>
-      <div className="flex w-3 h-full flex-col items-center gap-0 py-0 px-0 shrink-0">
-        <div className="hidden">
-          <Popover open={projectMenuOpen} onOpenChange={setProjectMenuOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  'h-8 w-full rounded-md border border-[#77d18a]/70 bg-[#e9fbe8] px-2',
-                  'text-[12px] font-semibold text-[#157a2e] flex items-center justify-between gap-1',
-                  'hover:bg-[#dff7de] transition-colors'
-                )}
-                title={projectPath || 'Select Project'}
-              >
-                <span className="truncate">{projectPath ? getWorkspaceName(projectPath) : 'Project'}</span>
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 p-1">
-              <div className="max-h-[420px] overflow-y-auto space-y-1">
-                {projectItems.map((project) => (
-                  <button
-                    key={project.path}
-                    type="button"
-                    title={project.path}
-                    onClick={() => {
-                      void handleActivateProject(project.path);
-                      setProjectMenuOpen(false);
-                    }}
-                    onContextMenu={(event) => handleContextMenu(event, project.path)}
-                    className={cn(
-                      'w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors',
-                      'hover:bg-black/5 dark:hover:bg-white/10',
-                      project.isActive ? 'bg-black/5 dark:bg-white/10 font-medium' : 'text-foreground/80'
-                    )}
-                  >
-                    <div className="truncate">{project.name}</div>
-                    <div className="truncate text-[11px] text-muted-foreground">{project.path}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-1 border-t pt-1">
-                <button
-                  type="button"
-                  className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
-                  disabled={isAddingWorkspace}
-                  onClick={() => {
-                    setShowAddProjectDialog(true);
-                    setProjectMenuOpen(false);
-                  }}
-                >
-                  + {t('common:projectDialog.title')}
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
+      <div className="flex w-16 h-full flex-col items-center gap-3 py-3 px-3 shrink-0">
+        {projectItems.map((project) => (
+          <WorkspaceShortcutButton
+            key={project.path}
+            workspace={project}
+            onActivate={handleActivateProject}
+            onContextMenu={handleContextMenu}
+          />
+        ))}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
+          disabled={isAddingWorkspace}
+          onClick={() => setShowAddProjectDialog(true)}
+          title="Add Project"
+          aria-label="Add Project"
+        >
+          +
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'mt-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
+          onClick={() => setPreferencesOpen(true)}
+          title="Preferences"
+          aria-label="Open preferences"
+        >
+          <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
+        </Button>
+
+        {/* <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
+          onClick={openSettingDialog}
+          title="settings"
+          aria-label="Open settings"
+        >
+          <SettingsIcon className="h-4 w-4" strokeWidth={2} />
+        </Button> */}
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'
+          )}
+          onClick={() => void openDevConsole()}
+          title="Open debug console"
+          aria-label="Open debug console"
+        >
+          <Terminal className="h-4 w-4" strokeWidth={2} />
+        </Button>
       </div>
 
       {menuState && (
@@ -648,6 +669,18 @@ export function ProjectsRail() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={preferencesOpen} onOpenChange={setPreferencesOpen}>
+        <DialogContent
+          className="max-w-[900px] w-[90vw] h-[80vh] p-0 gap-0 overflow-hidden rounded-2xl bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <VisuallyHidden>
+            <DialogTitle>{t('common:sidebar.settings')}</DialogTitle>
+          </VisuallyHidden>
+          <Preferences />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
