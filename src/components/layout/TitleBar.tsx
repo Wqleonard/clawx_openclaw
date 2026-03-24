@@ -5,6 +5,7 @@
  * Linux: use native window chrome (no custom title bar).
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Minus,
   Square,
@@ -143,6 +144,8 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
@@ -227,23 +230,73 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
 
   const handleSwitchProject = useCallback((targetPath: string) => {
     if (!targetPath) return;
+    const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+    if (!isOnChatRoute) {
+      navigate('/chat');
+      window.setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent('project:switch-request', {
+            detail: { path: targetPath },
+          }),
+        );
+      }, 0);
+      setProjectMenuOpen(false);
+      return;
+    }
     window.dispatchEvent(
       new CustomEvent('project:switch-request', {
         detail: { path: targetPath },
-      })
+      }),
     );
     setProjectMenuOpen(false);
-  }, []);
+  }, [location.pathname, navigate]);
 
   const handleCreateProject = useCallback(() => {
+    const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+    if (!isOnChatRoute) {
+      navigate('/chat');
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('project:create-request'));
+      }, 0);
+      setProjectMenuOpen(false);
+      return;
+    }
     window.dispatchEvent(new CustomEvent('project:create-request'));
     setProjectMenuOpen(false);
-  }, []);
+  }, [location.pathname, navigate]);
 
-  const handleOpenProject = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('project:open-request'));
-    setProjectMenuOpen(false);
-  }, []);
+  const handleOpenProject = useCallback(async () => {
+    try {
+      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
+        properties: ['openDirectory'],
+        defaultPath: projectPath || undefined,
+      });
+      if (result.canceled || !result.filePaths?.length) return;
+      const selected = result.filePaths[0];
+      const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+      if (!isOnChatRoute) {
+        navigate('/chat');
+        window.setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('project:switch-request', {
+              detail: { path: selected },
+            }),
+          );
+        }, 0);
+      } else {
+        window.dispatchEvent(
+          new CustomEvent('project:switch-request', {
+            detail: { path: selected },
+          }),
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || '打开项目失败');
+    } finally {
+      setProjectMenuOpen(false);
+    }
+  }, [location.pathname, navigate, projectPath]);
 
   return (
     <>
@@ -293,7 +346,7 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                   <button
                     type="button"
                     className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
-                    onClick={handleOpenProject}
+                    onClick={() => void handleOpenProject()}
                   >
                     {isZh ? '打开项目' : 'Open Project'}
                   </button>

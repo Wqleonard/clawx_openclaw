@@ -3,28 +3,31 @@
  * Handles routing and global providers
  */
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Component, useEffect } from 'react';
+import { Component, useCallback, useEffect, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import i18n from './i18n';
 import { MainLayout } from './components/layout/MainLayout';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Chat } from './pages/Chat';
-import { Agents } from './pages/Agents';
-import { Channels } from './pages/Channels';
-import { Skills } from './pages/Skills';
-import { Cron } from './pages/Cron';
-import { Settings } from './pages/Settings';
-import { Preferences } from './pages/Preferences';
 import { Setup } from './pages/Setup';
-import { Models } from './pages/Models';
 import { Login } from './pages/Login';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
 import { useLoginStore } from './stores/loginStore';
 import { useProviderStore } from './stores/providers';
+import { useAgentsStore } from './stores/agents';
+import { useFileSystemStore } from './stores/filesystem';
+import { useChatStore } from './stores/chat';
 import { applyGatewayTransportPreference } from './lib/api-client';
+import { invokeIpc } from '@/lib/api-client';
+import { hostApiFetch } from '@/lib/host-api';
 import { logClientEvent } from './lib/client-log';
+import { useTranslation } from 'react-i18next';
+import { AddAgentDialog } from './components/layout/AddAgentDialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 /**
  * Error Boundary to catch and display React rendering errors
@@ -95,6 +98,299 @@ class ErrorBoundary extends Component<
     }
     return this.props.children;
   }
+}
+
+function normalizeComparePath(inputPath: string): string {
+  return inputPath
+    .replace(/[\\/]+/g, '/')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+}
+
+function ProjectCreateDialogHost() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const workspaceRoots = useSettingsStore((state) => state.workspaceRoots);
+  const createAgent = useAgentsStore((state) => state.createAgent);
+  const addProjectShortcut = useFileSystemStore((state) => state.addProjectShortcut);
+  const initProject = useFileSystemStore((state) => state.initProject);
+  const agents = useAgentsStore((state) => state.agents);
+  const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
+  const [showAddProjectDialog, setShowAddProjectDialog] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [pendingProjectBaseName, setPendingProjectBaseName] = useState('');
+  const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
+
+  const recoverWorkspaceRootFromDisk = useCallback(async (): Promise<string> => {
+    const currentRoot = useSettingsStore.getState().workspaceRoots.trim();
+    if (currentRoot) return currentRoot;
+
+    try {
+      const result = await hostApiFetch<{ value?: unknown }>('/api/settings/workspaceRoots');
+      const persistedRoot = typeof result?.value === 'string' ? result.value.trim() : '';
+      if (!persistedRoot) return '';
+      useSettingsStore.setState({ workspaceRoots: persistedRoot });
+      return persistedRoot;
+    } catch {
+      return '';
+    }
+  }, []);
+
+  const switchToProjectSession = useCallback(
+    async (targetPath: string) => {
+      const chatState = useChatStore.getState();
+      const fsState = useFileSystemStore.getState();
+
+      const matchingAgent = agents.find(
+        (agent) => normalizeComparePath(agent.workspace) === normalizeComparePath(targetPath),
+      );
+
+      if (matchingAgent) {
+        const agentSessions = [...chatState.sessions]
+          .filter((session) => session.key.startsWith(`agent:${matchingAgent.id}:`))
+          .sort(
+            (a, b) =>
+              (chatState.sessionLastActivity[b.key] ?? 0) -
+              (chatState.sessionLastActivity[a.key] ?? 0),
+          );
+
+        const targetKey = agentSessions[0]?.key ?? `agent:${matchingAgent.id}:main`;
+        if (targetKey !== chatState.currentSessionKey) {
+          chatState.switchSession(targetKey);
+        }
+        return;
+      }
+
+      const targetSessions = [...chatState.sessions]
+        .filter((session) => fsState.projectBindings[session.key] === targetPath)
+        .sort(
+          (a, b) =>
+            (chatState.sessionLastActivity[b.key] ?? 0) -
+            (chatState.sessionLastActivity[a.key] ?? 0),
+        );
+
+      if (targetSessions.length > 0) {
+        const targetSessionKey = targetSessions[0].key;
+        if (targetSessionKey !== chatState.currentSessionKey) {
+          chatState.switchSession(targetSessionKey);
+        }
+        return;
+      }
+
+      chatState.newSession();
+      const newSessionKey = useChatStore.getState().currentSessionKey;
+      if (newSessionKey) {
+        await fsState.bindProjectToSession(newSessionKey, targetPath);
+      }
+    },
+    [agents],
+  );
+
+  const openCreateProjectDialog = useCallback(() => {
+    const currentPath = window.location.pathname;
+    const isOnChatRoute = currentPath === '/' || currentPath === '/chat';
+    if (!isOnChatRoute) {
+      navigate('/chat');
+    }
+    setShowAddProjectDialog(true);
+  }, [navigate]);
+
+  useEffect(() => {
+    const openViaBridge = () => openCreateProjectDialog();
+    window.addEventListener('project:create-request', openCreateProjectDialog);
+    window.addEventListener('project:create-dialog-open', openViaBridge);
+    return () => {
+      window.removeEventListener('project:create-request', openCreateProjectDialog);
+      window.removeEventListener('project:create-dialog-open', openViaBridge);
+    };
+  }, [openCreateProjectDialog]);
+
+  const handleConfirmProjectName = async () => {
+    const allowedRoot = (await recoverWorkspaceRootFromDisk()) || workspaceRoots?.trim() || '';
+    if (!allowedRoot) {
+      toast.error('请先在设置中配置可用工作区');
+      return;
+    }
+
+    const rawName = newProjectName;
+    if (/^\s/.test(rawName)) {
+      toast.error('Project 名称不能以空格开头');
+      return;
+    }
+
+    const normalizedName = rawName.trim();
+    if (!normalizedName) {
+      toast.error('请输入 Project 名称');
+      return;
+    }
+    if (/[<>:"/\\|*?]/.test(normalizedName)) {
+      toast.error('Project 名称不能包含以下字符：< > : " / \\ | * ?');
+      return;
+    }
+
+    setPendingProjectBaseName(normalizedName);
+    setShowAddProjectDialog(false);
+    setShowAddAgentDialog(true);
+  };
+
+  const handleCreateAgentAndProject = async (
+    name: string,
+    options: { templateId?: string; sourceAgentId?: string; workspacePath?: string },
+  ) => {
+    const allowedRoot = (await recoverWorkspaceRootFromDisk()) || workspaceRoots?.trim() || '';
+    if (!allowedRoot) {
+      toast.error('请先在设置中配置可用工作区');
+      return;
+    }
+    const baseName = pendingProjectBaseName.trim();
+    if (!baseName) {
+      toast.error('请输入 Project 名称');
+      return;
+    }
+
+    const joinPath = (root: string, child: string): string => {
+      const separator = root.includes('\\') ? '\\' : '/';
+      const normalizedRoot = root.replace(/[\\/]+$/, '');
+      return `${normalizedRoot}${separator}${child}`;
+    };
+    const isAlreadyExistsError = (error: unknown): boolean => {
+      const message = error instanceof Error ? error.message : String(error);
+      const normalized = message.toLowerCase();
+      return normalized.includes('exist') || normalized.includes('already');
+    };
+
+    setIsAddingWorkspace(true);
+    try {
+      await invokeIpc<string>('fs:set-workspace', allowedRoot);
+
+      let suffix = 0;
+      let selected = '';
+      while (suffix < 10_000) {
+        const candidateName = suffix === 0 ? baseName : `${baseName}-${suffix}`;
+        const candidatePath = joinPath(allowedRoot, candidateName);
+        try {
+          await invokeIpc<unknown>('fs:read-tree', candidatePath);
+          suffix += 1;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const normalized = message.toLowerCase();
+          if (normalized.includes('enoent') || normalized.includes('no such file')) {
+            selected = candidatePath;
+            break;
+          }
+          throw error;
+        }
+      }
+
+      if (!selected) {
+        toast.error('创建 Project 失败，请更换名称后重试');
+        return;
+      }
+
+      const beforeIds = new Set(useAgentsStore.getState().agents.map((agent) => agent.id));
+      await createAgent(name, { ...options, workspacePath: selected });
+      const afterAgents = useAgentsStore.getState().agents;
+      const createdAgent =
+        afterAgents.find((agent) => !beforeIds.has(agent.id)) ??
+        afterAgents.find(
+          (agent) =>
+            normalizeComparePath(agent.workspace) === normalizeComparePath(selected) &&
+            agent.name === name,
+        );
+      if (!createdAgent) {
+        throw new Error('创建 Agent 后无法定位对应会话');
+      }
+
+      await useFileSystemStore
+        .getState()
+        .bindProjectToSession(createdAgent.mainSessionKey, selected);
+
+      try {
+        // createAgent flow may alter workspace context in main process.
+        // Re-pin to project root before creating child folder.
+        await invokeIpc<string>('fs:set-workspace', allowedRoot);
+        await invokeIpc<boolean>('fs:create-folder', selected);
+      } catch (error) {
+        if (!isAlreadyExistsError(error)) {
+          throw error;
+        }
+      }
+
+      await invokeIpc<string>('fs:set-workspace', selected);
+      await switchToProjectSession(selected);
+      await initProject(selected);
+      addProjectShortcut(selected);
+      setShowAddAgentDialog(false);
+      setPendingProjectBaseName('');
+      setNewProjectName('');
+      navigate('/chat');
+      toast.success(t('common:status.agentCreated'));
+    } catch (error) {
+      console.error(error);
+      toast.error(t('common:projectDialog.error'), { position: 'top-center' });
+    } finally {
+      setIsAddingWorkspace(false);
+    }
+  };
+
+  return (
+    <>
+      <AddAgentDialog
+        open={showAddAgentDialog}
+        onClose={() => {
+          setShowAddAgentDialog(false);
+          setPendingProjectBaseName('');
+        }}
+        hideWorkspaceSelector
+        onCreate={handleCreateAgentAndProject}
+      />
+      <Dialog
+        open={showAddProjectDialog}
+        onOpenChange={(open) => {
+          setShowAddProjectDialog(open);
+          if (!open) {
+            setNewProjectName('');
+            setPendingProjectBaseName('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogTitle>{t('common:projectDialog.title')}</DialogTitle>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t('common:projectDialog.description')}</p>
+            <Input
+              autoFocus
+              value={newProjectName}
+              onChange={(event) => setNewProjectName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void handleConfirmProjectName();
+                }
+              }}
+              maxLength={200}
+              placeholder={t('common:projectDialog.placeholder')}
+              disabled={isAddingWorkspace}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddProjectDialog(false)}
+                disabled={isAddingWorkspace}
+              >
+                {t('common:actions.cancel')}
+              </Button>
+              <Button onClick={() => void handleConfirmProjectName()} disabled={isAddingWorkspace}>
+                {isAddingWorkspace
+                  ? t('common:projectDialog.creating')
+                  : t('common:projectDialog.create')}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function App() {
@@ -236,19 +532,21 @@ function App() {
           {/* Main application routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Chat />} />
-            <Route path="/models" element={<Models />} />
+            <Route path="/chat" element={<Chat />} />
+
+            {/* <Route path="/models" element={<Models />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/channels" element={<Channels />} />
             <Route path="/skills" element={<Skills />} />
             <Route path="/cron" element={<Cron />} />
             <Route path="/settings/*" element={<Settings />} />
-            <Route path="/preferences" element={<Preferences />} />
-            <Route path="/chat" element={<Chat />} />
+            <Route path="/preferences" element={<Preferences />} /> */}
           </Route>
         </Routes>
 
         {/* Global toast notifications */}
         <Toaster position="bottom-right" richColors closeButton style={{ zIndex: 99999 }} />
+        <ProjectCreateDialogHost />
       </TooltipProvider>
     </ErrorBoundary>
   );
