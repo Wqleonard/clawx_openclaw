@@ -1270,67 +1270,8 @@ export function Chat() {
       ref={containerRef}
       className={cn(
         'w-full min-w-0 max-w-full overflow-hidden px-3 py-3 pt-0 flex h-full transition-colors duration-500 dark:bg-background',
-        isSessionDrawerMode ? 'pl-3' : 'pl-0'
       )}
     >
-
-      {/* Session List Panel */}
-      {!isSessionDrawerMode && projectPath && (
-        <>
-          {/* Chat List Panel */}
-          <div
-            className={cn(
-              'rounded-2xl border shrink-0 overflow-y-auto overflow-x-hidden space-y-0.5',
-              isListResizing ? 'transition-none' : 'transition-[width] duration-200 ease-out',
-              isSessionListInlineVisible
-                ? 'pointer-events-auto px-3 py-4'
-                : 'w-0 p-0 pointer-events-none border-none'
-            )}
-            style={isSessionListInlineVisible ? { width: listWidth } : undefined}
-          >
-            {sessionListContent}
-          </div>
-
-          {/* session panel & chat panel resize handle */}
-          {isSessionListInlineVisible && (
-            <div
-              onMouseDown={onListDragStart}
-              className="w-2 h-full cursor-col-resize group shrink-0"
-              title={resizeHandleTitle}
-            >
-              <div
-                className={cn(
-                  'w-0.5 mx-auto h-full',
-                  isListResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
-                )}
-              ></div>
-            </div>
-          )}
-        </>
-      )}
-
-      {(isSessionDrawerMode && projectPath) && (
-        <Drawer
-          open={isSessionDrawerOpen}
-          onOpenChange={(open) => setSessionDrawerOpen(open)}
-          direction="left"
-          modal
-        >
-          <DrawerContent
-            hideOverlay
-            className="border-none !w-80 py-3 space-y-0.5 max-w-none data-[vaul-drawer-direction=left]:top-10 data-[vaul-drawer-direction=left]:h-auto"
-          >
-            <VisuallyHidden>
-              <DrawerTitle>Session list drawer</DrawerTitle>
-            </VisuallyHidden>
-            <div className="flex h-full">
-              <div className="h-[calc(100%+2px)] p-3 -mt-[2px] flex-1 border rounded-ss-2xl rounded-es-2xl overflow-y-auto overflow-x-hidden">
-                {sessionListContent}
-              </div>
-            </div>
-          </DrawerContent>
-        </Drawer>
-      )}
 
       {/* Chat Panel */}
       <div
