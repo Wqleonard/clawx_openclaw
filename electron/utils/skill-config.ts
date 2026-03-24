@@ -5,7 +5,7 @@
  *
  * All file I/O uses async fs/promises to avoid blocking the main thread.
  */
-import { readFile, writeFile, access, cp, mkdir } from 'fs/promises';
+import { readFile, writeFile, access, cp, mkdir, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { constants } from 'fs';
 import { join } from 'path';
@@ -318,9 +318,8 @@ async function tryReadMarker(markerPath: string): Promise<PreinstalledMarker | n
  *
  * Policy:
  * - If skill is missing locally, install it.
- * - If local skill exists without our marker, treat as user-managed and never overwrite.
  * - If marker exists with same version, skip.
- * - If marker exists with a different version, skip by default to avoid overwriting edits.
+ * - Otherwise, force overwrite so bundled assets stay in sync with app version.
  */
 export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
     const skills = await readPreinstalledManifest();
@@ -354,20 +353,16 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             || (spec.version || 'unknown').trim()
             || 'unknown';
         const marker = await tryReadMarker(markerPath);
+        const isAlreadyInstalled = existsSync(targetManifest);
 
-        if (existsSync(targetManifest)) {
-            if (!marker) {
-                logger.info(`Skipping user-managed skill: ${spec.slug}`);
-                continue;
-            }
-            if (marker.version === desiredVersion) {
-                continue;
-            }
-            logger.info(`Skipping preinstalled skill update for ${spec.slug} (local marker version=${marker.version}, desired=${desiredVersion})`);
+        if (isAlreadyInstalled && marker?.version === desiredVersion) {
             continue;
         }
 
         try {
+            // Strict mirror: remove existing target directory first so stale files
+            // from previous versions are not retained.
+            await rm(targetDir, { recursive: true, force: true });
             await mkdir(targetDir, { recursive: true });
             await cp(sourceDir, targetDir, { recursive: true, force: true });
             const markerPayload: PreinstalledMarker = {
@@ -380,7 +375,13 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             if (spec.autoEnable) {
                 toEnable.push(spec.slug);
             }
-            logger.info(`Installed preinstalled skill: ${spec.slug} -> ${targetDir}`);
+            if (isAlreadyInstalled) {
+                logger.info(
+                    `Updated preinstalled skill: ${spec.slug} (local marker version=${marker?.version ?? 'none'}, desired=${desiredVersion})`,
+                );
+            } else {
+                logger.info(`Installed preinstalled skill: ${spec.slug} -> ${targetDir}`);
+            }
         } catch (error) {
             logger.warn(`Failed to install preinstalled skill ${spec.slug}:`, error);
         }
