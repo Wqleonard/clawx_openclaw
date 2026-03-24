@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Ellipsis, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Ellipsis, FileText, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -40,7 +40,7 @@ import { VisuallyHidden } from '@/components/ui/dialog';
 import { ProjectsRail } from '@/pages/Chat/ProjectsRail.tsx';
 
 const INITIAL_NOW_MS = Date.now();
-const PROJECTS_RAIL_WIDTH = 62;
+const PROJECTS_RAIL_WIDTH = 12;
 const RESIZE_HANDLE_WIDTH = 8;
 const CONTAINER_HORIZONTAL_PADDING_INLINE = 12;
 const CONTAINER_HORIZONTAL_PADDING_DRAWER = 24;
@@ -135,7 +135,6 @@ export function Chat() {
   const fileTreePendingEditorWidthRef = useRef<number | null>(null);
   const initTaskVersionRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const delayedClampTimerRef = useRef<number | null>(null);
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
 
@@ -184,6 +183,7 @@ export function Chat() {
   const saveFile = useFileSystemStore((s) => s.saveFile);
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
   const setFileTreeDrawerOpen = useChatLayoutStore((s) => s.setFileTreeDrawerOpen);
+  const isChatPanelCollapsed = useChatLayoutStore((s) => s.isChatPanelCollapsed);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
   const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
   const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
@@ -594,6 +594,7 @@ export function Chat() {
     }
   }, [persistedFileTreeWidth]);
   const isSessionListInlineVisible = !isSessionDrawerMode && !isSessionListCollapsed;
+  const isChatPanelVisible = !isChatPanelCollapsed;
   const effectiveListWidth = isSessionListInlineVisible ? listWidth : 0;
   const isFileTreeInlineVisible = !!projectPath && isFileTreeDrawerOpen && !isFileTreeDrawerMode;
   const effectiveFileTreeWidth = isFileTreeInlineVisible ? fileTreeWidth : 0;
@@ -605,7 +606,7 @@ export function Chat() {
   const fixedNonPanelWidth =
     (isSessionDrawerMode ? 0 : PROJECTS_RAIL_WIDTH) +
     (isSessionListInlineVisible ? RESIZE_HANDLE_WIDTH : 0) +
-    RESIZE_HANDLE_WIDTH +
+    (isChatPanelVisible ? RESIZE_HANDLE_WIDTH : 0) +
     (isFileTreeInlineVisible ? RESIZE_HANDLE_WIDTH : 0) +
     containerHorizontalPadding;
 
@@ -618,66 +619,39 @@ export function Chat() {
         fileTreeWidth: currentFileTreeWidth,
       } = panelWidthsRef.current;
       const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-      const minChatWidth = CHAT_PANEL_SIZE.chat.min;
-      const minEditorWidth = CHAT_PANEL_SIZE.editor.min;
+      const maxSidePanelsTotal = Math.max(
+        0,
+        containerWidth -
+          (isChatPanelVisible ? CHAT_PANEL_SIZE.chat.min : 0) -
+          fixedNonPanelWidth
+      );
 
       const listMin = isSessionListInlineVisible ? CHAT_PANEL_SIZE.session.min : 0;
       const fileTreeMin = isFileTreeInlineVisible ? CHAT_PANEL_SIZE.fileTree.min : 0;
+      const editorMin = CHAT_PANEL_SIZE.editor.min;
 
       let nextListWidth = isSessionListInlineVisible
         ? Math.max(listMin, currentListWidth)
         : 0;
-      let nextEditorWidth: number;
+      let nextEditorWidth = Math.max(editorMin, currentEditorWidth);
       let nextFileTreeWidth = isFileTreeInlineVisible
         ? Math.max(fileTreeMin, currentFileTreeWidth)
         : 0;
 
-      // Keep side panel widths stable first, then redistribute the remaining
-      // area between Chat and Markdown panels by their current ratio.
-      let availableForChatAndEditor =
-        containerWidth - fixedNonPanelWidth - nextListWidth - nextFileTreeWidth;
-
-      const minChatAndEditorTotal = minChatWidth + minEditorWidth;
-      if (availableForChatAndEditor < minChatAndEditorTotal) {
-        let sideOverflow = minChatAndEditorTotal - availableForChatAndEditor;
-
-        if (sideOverflow > 0 && isFileTreeInlineVisible) {
-          const fileTreeReduction = Math.min(
-            sideOverflow,
-            Math.max(0, nextFileTreeWidth - fileTreeMin)
-          );
-          nextFileTreeWidth -= fileTreeReduction;
-          sideOverflow -= fileTreeReduction;
-        }
-
-        if (sideOverflow > 0 && isSessionListInlineVisible) {
-          const listReduction = Math.min(sideOverflow, Math.max(0, nextListWidth - listMin));
-          nextListWidth -= listReduction;
-        }
-
-        availableForChatAndEditor =
-          containerWidth - fixedNonPanelWidth - nextListWidth - nextFileTreeWidth;
+      let overflow = nextListWidth + nextEditorWidth + nextFileTreeWidth - maxSidePanelsTotal;
+      if (overflow > 0) {
+        const editorReduction = Math.min(overflow, Math.max(0, nextEditorWidth - editorMin));
+        nextEditorWidth -= editorReduction;
+        overflow -= editorReduction;
       }
-
-      const safeAvailableForChatAndEditor = Math.max(minChatAndEditorTotal, availableForChatAndEditor);
-      const currentChatWidth = Math.max(
-        minChatWidth,
-        containerWidth -
-          fixedNonPanelWidth -
-          (isSessionListInlineVisible ? currentListWidth : 0) -
-          currentEditorWidth -
-          (isFileTreeInlineVisible ? currentFileTreeWidth : 0)
-      );
-      const currentEditorSafe = Math.max(minEditorWidth, currentEditorWidth);
-      const totalCurrentMain = Math.max(1, currentChatWidth + currentEditorSafe);
-      const editorRatio = currentEditorSafe / totalCurrentMain;
-      const editorMax = Math.max(minEditorWidth, safeAvailableForChatAndEditor - minChatWidth);
-
-      if (editorMax <= minEditorWidth) {
-        nextEditorWidth = minEditorWidth;
-      } else {
-        const preferredEditorWidth = safeAvailableForChatAndEditor * editorRatio;
-        nextEditorWidth = Math.max(minEditorWidth, Math.min(editorMax, preferredEditorWidth));
+      if (overflow > 0) {
+        const fileTreeReduction = Math.min(overflow, Math.max(0, nextFileTreeWidth - fileTreeMin));
+        nextFileTreeWidth -= fileTreeReduction;
+        overflow -= fileTreeReduction;
+      }
+      if (overflow > 0) {
+        const listReduction = Math.min(overflow, Math.max(0, nextListWidth - listMin));
+        nextListWidth -= listReduction;
       }
 
       if (isSessionListInlineVisible && Math.abs(nextListWidth - currentListWidth) > 0.5) {
@@ -691,43 +665,12 @@ export function Chat() {
       }
     };
 
-    const scheduleDelayedClamp = () => {
-      if (delayedClampTimerRef.current != null) {
-        window.clearTimeout(delayedClampTimerRef.current);
-      }
-      delayedClampTimerRef.current = window.setTimeout(() => {
-        delayedClampTimerRef.current = null;
-        clampPanelsForViewport();
-      }, 120);
-    };
-
-    const handleViewportResize = () => {
-      clampPanelsForViewport();
-      scheduleDelayedClamp();
-    };
-
     clampPanelsForViewport();
-    window.addEventListener('resize', handleViewportResize);
-
-    const observer = new ResizeObserver(() => {
-      clampPanelsForViewport();
-      scheduleDelayedClamp();
-    });
-    const target = containerRef.current;
-    if (target) {
-      observer.observe(target);
-    }
-
-    return () => {
-      window.removeEventListener('resize', handleViewportResize);
-      observer.disconnect();
-      if (delayedClampTimerRef.current != null) {
-        window.clearTimeout(delayedClampTimerRef.current);
-        delayedClampTimerRef.current = null;
-      }
-    };
+    window.addEventListener('resize', clampPanelsForViewport);
+    return () => window.removeEventListener('resize', clampPanelsForViewport);
   }, [
     isSessionListInlineVisible,
+    isChatPanelVisible,
     isFileTreeInlineVisible,
     fixedNonPanelWidth,
   ]);
@@ -798,7 +741,8 @@ export function Chat() {
         if (!isListDragging.current) return;
         const delta = ev.clientX - listDragStartX.current;
         const minDelta = CHAT_PANEL_SIZE.session.min - listDragStartWidth.current;
-        const maxDeltaByChat = listDragStartChatWidth.current - CHAT_PANEL_SIZE.chat.min;
+        const maxDeltaByChat =
+          listDragStartChatWidth.current - (isChatPanelVisible ? CHAT_PANEL_SIZE.chat.min : 0);
         const maxDelta = maxDeltaByChat;
         const clampedDelta = Math.max(minDelta, Math.min(maxDelta, delta));
         const nextWidth = listDragStartWidth.current + clampedDelta;
@@ -842,6 +786,7 @@ export function Chat() {
       editorWidth,
       effectiveFileTreeWidth,
       isSessionListInlineVisible,
+      isChatPanelVisible,
       fixedNonPanelWidth,
       commitListWidth,
     ]
@@ -849,6 +794,7 @@ export function Chat() {
 
   const onEditorDragStart = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!isChatPanelVisible) return;
       isEditorDragging.current = true;
       setIsEditorResizing(true);
       editorDragStartX.current = event.clientX;
@@ -866,7 +812,8 @@ export function Chat() {
       const onMove = (ev: MouseEvent) => {
         if (!isEditorDragging.current) return;
         const delta = ev.clientX - editorDragStartX.current;
-        const minDelta = CHAT_PANEL_SIZE.chat.min - editorDragStartChatWidth.current;
+        const minDelta =
+          (isChatPanelVisible ? CHAT_PANEL_SIZE.chat.min : 0) - editorDragStartChatWidth.current;
         const maxDelta = editorDragStartWidth.current - CHAT_PANEL_SIZE.editor.min;
         const clampedDelta = Math.max(minDelta, Math.min(maxDelta, delta));
         const nextWidth = editorDragStartWidth.current - clampedDelta;
@@ -905,7 +852,14 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editorWidth, effectiveFileTreeWidth, effectiveListWidth, commitEditorWidth, fixedNonPanelWidth]
+    [
+      isChatPanelVisible,
+      editorWidth,
+      effectiveFileTreeWidth,
+      effectiveListWidth,
+      commitEditorWidth,
+      fixedNonPanelWidth,
+    ]
   );
 
   const onFileTreeDragStart = useCallback(
@@ -1267,80 +1221,6 @@ export function Chat() {
           </div>
         </div>
       </div>
-      <button
-        onClick={() => void handleNewProjectSession()}
-        className={cn(
-          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
-          'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground'
-        )}
-      >
-        <div className="flex shrink-0 items-center justify-center text-foreground/80">
-          <Plus className="h-[18px] w-[18px]" strokeWidth={2} />
-        </div>
-        <span className="flex-1 text-left overflow-hidden text-ellipsis whitespace-nowrap">
-          {t('common:sidebar.newChat')}
-        </span>
-      </button>
-
-      {sessionBuckets.map((bucket) =>
-        bucket.sessions.length > 0 ? (
-          <div key={bucket.key} className="pt-2">
-            <div className="px-2.5 pb-1 text-[11px] font-medium text-muted-foreground/60 tracking-tight">
-              {bucket.label}
-            </div>
-            {bucket.sessions.map((session) => {
-              const agentId = getAgentIdFromSessionKey(session.key);
-              const agentName = agentNameById[agentId] || agentId;
-              return (
-                <div key={session.key} className="group relative flex items-center">
-                  <button
-                    onClick={() => {
-                      switchSession(session.key);
-                      navigate('/');
-                      if (isSessionDrawerMode) {
-                        setSessionDrawerOpen(false);
-                      }
-                    }}
-                    className={cn(
-                      'w-full text-left rounded-lg px-2.5 py-1.5 text-[13px] transition-colors pr-7',
-                      'hover:bg-black/5 dark:hover:bg-white/5',
-                      currentSessionKey === session.key
-                        ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
-                        : 'text-foreground/75'
-                    )}
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/70 dark:bg-white/[0.08]">
-                        {agentName}
-                      </span>
-                      <span className="truncate">
-                        {getSessionLabel(session.key, session.displayName, session.label)}
-                      </span>
-                    </div>
-                  </button>
-                  <button
-                    aria-label="Delete session"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setSessionToDelete({
-                        key: session.key,
-                        label: getSessionLabel(session.key, session.displayName, session.label),
-                      });
-                    }}
-                    className={cn(
-                      'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
-                      'opacity-0 group-hover:opacity-100',
-                      'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
-                    )}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        ) : null
-      )}
     </>
   );
 
@@ -1426,10 +1306,32 @@ export function Chat() {
       )}
 
       {/* Chat Panel */}
-      <div className={cn('rounded-2xl border relative flex flex-1 flex-col overflow-hidden')}>
+      <div
+        className={cn(
+          'rounded-2xl border relative flex flex-col overflow-hidden',
+          isChatPanelVisible ? 'flex-1' : 'w-0 border-none pointer-events-none'
+        )}
+      >
         {/* Toolbar */}
-        <div className="flex shrink-0 items-center justify-end px-4 py-2">
-          <ChatToolbar />
+        <div className="flex shrink-0 items-center justify-start px-4 py-2">
+          <ChatToolbar
+            sessionBuckets={sessionBuckets}
+            currentSessionKey={currentSessionKey}
+            agentNameById={agentNameById}
+            getAgentIdFromSessionKey={getAgentIdFromSessionKey}
+            getSessionLabel={getSessionLabel}
+            onCreateSession={() => void handleNewProjectSession()}
+            onSelectSession={(sessionKey) => {
+              switchSession(sessionKey);
+              navigate('/');
+              if (isSessionDrawerMode) {
+                setSessionDrawerOpen(false);
+              }
+            }}
+            onDeleteSession={({ key, label }) => {
+              setSessionToDelete({ key, label });
+            }}
+          />
         </div>
 
         {/* Messages Area */}
@@ -1441,7 +1343,7 @@ export function Chat() {
           )}
         >
           <div className="w-full px-4 min-w-0 overflow-x-auto">
-            <div ref={contentRef} className="mx-auto w-full min-w-0 space-y-4">
+            <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-4xl space-y-4">
               {isEmpty ? (
                 <WelcomeScreen />
               ) : (
@@ -1530,29 +1432,41 @@ export function Chat() {
         )}
       </div>
 
-      <div
-        onMouseDown={onEditorDragStart}
-        className="w-2 h-full cursor-col-resize group shrink-0"
-        title={resizeHandleTitle}
-      >
+      {isChatPanelVisible && (
         <div
-          className={cn(
-            'w-0.5 mx-auto h-full',
-            isEditorResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
-          )}
-        ></div>
-      </div>
+          onMouseDown={onEditorDragStart}
+          className="w-2 h-full cursor-col-resize group shrink-0"
+          title={resizeHandleTitle}
+        >
+          <div
+            className={cn(
+              'w-0.5 mx-auto h-full',
+              isEditorResizing ? 'bg-[var(--theme)]' : 'group-hover:bg-[var(--theme)]'
+            )}
+          ></div>
+        </div>
+      )}
 
       {/* Markdown Viewer Panel */}
       <div
-        className="group relative border rounded-2xl flex shrink-0 overflow-hidden"
-        style={{ width: editorWidth }}
+        className={cn(
+          'group relative border rounded-2xl flex overflow-hidden',
+          isChatPanelVisible ? 'shrink-0' : 'flex-1 min-w-0'
+        )}
+        style={isChatPanelVisible ? { width: editorWidth } : undefined}
       >
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden">
             {!activeMarkdownFile ? (
-              <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                点击文件树中的 `.md` 文件后，会在这里直接显示内容
+              <div className="flex h-full items-center justify-center px-4">
+                <div className="rounded-2xl border border-dashed border-black/10 bg-black/[0.02] px-8 py-7 text-center dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-black/5 dark:bg-black/20 dark:ring-white/10">
+                    <FileText className="h-5 w-5 text-foreground/60" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    点击文件树中的 `.md` 文件后，会在这里直接显示内容
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="w-full h-full flex flex-col">
@@ -1672,11 +1586,21 @@ export function Chat() {
 // ── Welcome Screen ──────────────────────────────────────────────
 
 function WelcomeScreen() {
-  const { t } = useTranslation('chat');
-  const quickActions = [
-    { key: 'askQuestions', label: t('welcome.askQuestions') },
-    { key: 'creativeTasks', label: t('welcome.creativeTasks') },
-    { key: 'brainstorming', label: t('welcome.brainstorming') },
+  const featuredActions = [
+    {
+      key: 'book-breakdown',
+      label: '一键拆书',
+      desc: '章节结构拆解 · 核心要点提炼',
+      prompt:
+        '请帮我拆解一本书，输出：1）核心主题；2）章节结构；3）关键观点；4）可执行行动清单。并用清晰的小标题组织内容。',
+    },
+    {
+      key: 'novel-writing',
+      label: '小说创作',
+      desc: '角色设定扩展 · 情节推进灵感',
+      prompt:
+        '我们开始小说创作：先给出世界观与主角设定，再提供三幕式大纲，并写出第一章开头（有冲突、有悬念）。',
+    },
   ];
 
   return (
@@ -1685,16 +1609,32 @@ function WelcomeScreen() {
         className="text-4xl md:text-5xl font-serif text-foreground/80 mb-8 font-normal tracking-tight"
         style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
       >
-        {t('welcome.subtitle')}
+        写下一个脑洞，剩下交给我们
       </h1>
 
-      <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-lg w-full">
-        {quickActions.map(({ key, label }) => (
+      <div className="mt-4 grid w-full max-w-xl grid-cols-2 gap-3">
+        {featuredActions.map(({ key, label, desc, prompt }) => (
           <button
             key={key}
-            className="px-4 py-1.5 rounded-full border border-black/10 dark:border-white/10 text-[13px] font-medium text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5 transition-colors bg-black/[0.02]"
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent('chat:prefill-input', {
+                  detail: { prompt },
+                })
+              );
+            }}
+            className={cn(
+              'group relative overflow-hidden rounded-2xl border',
+              'px-4 py-3.5 text-left',
+              'border-black/10 bg-white/70 dark:border-white/10 dark:bg-white/[0.02]',
+              'shadow-[0_8px_24px_rgba(15,23,42,0.06)]',
+              'hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.1)] hover:bg-white dark:hover:bg-white/[0.05] transition-all duration-200'
+            )}
           >
-            {label}
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] font-semibold text-foreground/90">{label}</span>
+            </div>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-foreground/55">{desc}</p>
           </button>
         ))}
       </div>
