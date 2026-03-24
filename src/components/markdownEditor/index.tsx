@@ -3,6 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
+import { Marked } from 'marked';
 import { Table } from '@tiptap/extension-table';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -103,6 +104,8 @@ function HeadingLevelIcon({ level }: { level: HeadingLevelValue }) {
   return <Heading className="h-4 w-4" />;
 }
 
+const markedWithBreaks = new Marked({ breaks: true });
+
 export function MarkdownEditor({ value, mode, onModeChange, onChange, className }: MarkdownEditorProps) {
   const { t } = useTranslation('chat');
   const suppressNextUpdate = useRef(0);
@@ -116,7 +119,7 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
   }, [onChange]);
 
   const editor = useEditor({
-    extensions: [StarterKit, Table, TableRow, TableHeader, TableCell, Markdown, Mermaid],
+    extensions: [StarterKit, Table, TableRow, TableHeader, TableCell, Markdown.configure({ marked: markedWithBreaks }), Mermaid],
     content: value,
     contentType: 'markdown',
     editable: mode === 'rendered',
@@ -150,6 +153,12 @@ export function MarkdownEditor({ value, mode, onModeChange, onChange, className 
   useEffect(() => {
     if (!editor) return;
     editor.setEditable(mode === 'rendered');
+    if (mode === 'rendered') {
+      suppressNextUpdate.current += 1;
+      editor.commands.setContent(value, { contentType: 'markdown' } as Parameters<
+        typeof editor.commands.setContent
+      >[1]);
+    }
   }, [editor, mode]);
 
   useEffect(() => {
