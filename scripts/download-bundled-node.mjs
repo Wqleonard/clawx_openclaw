@@ -4,7 +4,8 @@ import 'zx/globals';
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const NODE_VERSION = '22.16.0';
-const BASE_URL = `https://nodejs.org/dist/v${NODE_VERSION}`;
+const BASE_URL = process.env.NODE_DOWNLOAD_BASE_URL?.trim()
+  || `https://nodejs.org/dist/v${NODE_VERSION}`;
 const OUTPUT_BASE = path.join(ROOT_DIR, 'resources', 'bin');
 
 const TARGETS = {
@@ -33,12 +34,17 @@ async function setupTarget(id) {
   const tempDir = path.join(ROOT_DIR, 'temp_node_extract');
   const archivePath = path.join(ROOT_DIR, target.filename);
   const downloadUrl = `${BASE_URL}/${target.filename}`;
+  const outputNode = path.join(targetDir, 'node.exe');
 
   echo(chalk.blue`\n📦 Setting up Node.js for ${id}...`);
 
+  if (!argv.force && await fs.pathExists(outputNode)) {
+    echo(chalk.green`✅ Found existing binary, skipping download: ${outputNode}`);
+    return;
+  }
+
   // Only remove the target binary, not the entire directory,
   // to avoid deleting uv.exe or other binaries placed by other download scripts.
-  const outputNode = path.join(targetDir, 'node.exe');
   if (await fs.pathExists(outputNode)) {
     await fs.remove(outputNode);
   }

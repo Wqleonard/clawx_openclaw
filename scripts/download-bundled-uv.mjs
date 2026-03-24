@@ -4,7 +4,8 @@ import 'zx/globals';
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const UV_VERSION = '0.10.0';
-const BASE_URL = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}`;
+const BASE_URL = process.env.UV_DOWNLOAD_BASE_URL?.trim()
+  || `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}`;
 const OUTPUT_BASE = path.join(ROOT_DIR, 'resources', 'bin');
 
 // Mapping Node platforms/archs to uv release naming
@@ -53,11 +54,21 @@ async function setupTarget(id) {
   const tempDir = path.join(ROOT_DIR, 'temp_uv_extract');
   const archivePath = path.join(ROOT_DIR, target.filename);
   const downloadUrl = `${BASE_URL}/${target.filename}`;
+  const destBin = path.join(targetDir, target.binName);
 
   echo(chalk.blue`\n📦 Setting up uv for ${id}...`);
 
+  if (!argv.force && await fs.pathExists(destBin)) {
+    echo(chalk.green`✅ Found existing binary, skipping download: ${destBin}`);
+    return;
+  }
+
   // Cleanup & Prep
-  await fs.remove(targetDir);
+  // Only remove uv binary itself, do not wipe the whole target directory.
+  // Other tooling binaries (e.g. boom-executor.exe) may co-locate here.
+  if (await fs.pathExists(destBin)) {
+    await fs.remove(destBin);
+  }
   await fs.remove(tempDir);
   await fs.ensureDir(targetDir);
   await fs.ensureDir(tempDir);
@@ -94,8 +105,6 @@ async function setupTarget(id) {
     // uv archives usually contain a folder named after the target
     const folderName = target.filename.replace('.tar.gz', '').replace('.zip', '');
     const sourceBin = path.join(tempDir, folderName, target.binName);
-    const destBin = path.join(targetDir, target.binName);
-
     if (await fs.pathExists(sourceBin)) {
       await fs.move(sourceBin, destBin, { overwrite: true });
     } else {
