@@ -55,8 +55,8 @@ export function ChatToolbar({
     <div className="flex items-center gap-2">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCreateSession}>
-            <Plus className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="size-7" onClick={onCreateSession}>
+            <Plus className="size-4 text-muted-foreground" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -68,8 +68,8 @@ export function ChatToolbar({
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <History className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="size-7">
+                <History className="size-4 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>
@@ -125,7 +125,7 @@ export function ChatToolbar({
                               'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
                             )}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="size-4 text-muted-foreground" />
                           </button>
                         </div>
                       );
@@ -145,11 +145,11 @@ export function ChatToolbar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="size-7"
             onClick={() => refresh()}
             disabled={loading}
           >
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            <RefreshCw className={cn('size-4 text-muted-foreground', loading && 'animate-spin')} />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -163,12 +163,12 @@ export function ChatToolbar({
             variant="ghost"
             size="icon"
             className={cn(
-              'h-8 w-8',
+              'size-7',
               showThinking && 'bg-primary/10 text-primary',
             )}
             onClick={toggleThinking}
           >
-            <Brain className="h-4 w-4" />
+            <Brain className="size-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>

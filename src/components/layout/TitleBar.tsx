@@ -20,6 +20,7 @@ import {
   Server,
   ServerOff,
   ChevronDown,
+  FolderClosed,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
@@ -294,18 +295,18 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
               </Button>
               <Popover open={projectMenuOpen} onOpenChange={setProjectMenuOpen}>
                 <PopoverTrigger asChild>
-                  <button
+                  <Button
                     type="button"
+                    variant='ghost'
                     className={cn(
-                      'h-8 max-w-[220px] rounded-md border border-[#77d18a]/70 bg-[#e9fbe8] px-2',
-                      'text-[12px] font-semibold text-[#157a2e] flex items-center justify-between gap-1',
-                      'hover:bg-[#dff7de] transition-colors'
+                      'h-8 max-w-[220px] border truncate',
                     )}
                     title={projectPath}
                   >
+                    <FolderClosed className="size-4 mr-1 shrink-0" />
                     <span className="truncate">{getWorkspaceName(projectPath)}</span>
                     <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                  </button>
+                  </Button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-64 p-1">
                   <button
@@ -358,7 +359,7 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
               >
                 <SlidersHorizontal className="h-4 w-4" />
               </Button>
-              <Button
+              {/* <Button
                 variant="ghost"
                 size="icon"
                 className="size-7 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
@@ -366,7 +367,7 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                 title="Open debug console"
               >
                 <Terminal className="h-4 w-4" />
-              </Button>
+              </Button> */}
             </div>
           )}
           <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>

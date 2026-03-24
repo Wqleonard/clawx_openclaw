@@ -7,7 +7,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
-  RefreshCcw,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -631,7 +631,7 @@ export function FileTree({ className }: FileTreeProps) {
               projectPath && openInputModal('new_file', projectPath, defaultNewMarkdownFileName)
             }
           >
-            <FilePlus className="h-3.5 w-3.5 text-muted-foreground" />
+            <FilePlus className="size-4 text-muted-foreground" />
           </Button>
           <Button
             type="button"
@@ -643,7 +643,7 @@ export function FileTree({ className }: FileTreeProps) {
               projectPath && openInputModal('new_folder', projectPath, defaultNewFolderName)
             }
           >
-            <FolderPlus className="h-3.5 w-3.5 text-muted-foreground" />
+            <FolderPlus className="size-4 text-muted-foreground" />
           </Button>
           <Button
             type="button"
@@ -655,7 +655,7 @@ export function FileTree({ className }: FileTreeProps) {
               void refreshTree();
             }}
           >
-            <RefreshCcw className="h-3.5 w-3.5 text-muted-foreground" />
+            <RefreshCw className="size-4 text-muted-foreground" />
           </Button>
         </div>
       </div>
