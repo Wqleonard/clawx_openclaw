@@ -135,6 +135,7 @@ export function Chat() {
   const fileTreePendingEditorWidthRef = useRef<number | null>(null);
   const initTaskVersionRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const delayedClampTimerRef = useRef<number | null>(null);
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
 
@@ -617,37 +618,66 @@ export function Chat() {
         fileTreeWidth: currentFileTreeWidth,
       } = panelWidthsRef.current;
       const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-      const maxSidePanelsTotal = Math.max(
-        0,
-        containerWidth - CHAT_PANEL_SIZE.chat.min - fixedNonPanelWidth
-      );
+      const minChatWidth = CHAT_PANEL_SIZE.chat.min;
+      const minEditorWidth = CHAT_PANEL_SIZE.editor.min;
 
       const listMin = isSessionListInlineVisible ? CHAT_PANEL_SIZE.session.min : 0;
       const fileTreeMin = isFileTreeInlineVisible ? CHAT_PANEL_SIZE.fileTree.min : 0;
-      const editorMin = CHAT_PANEL_SIZE.editor.min;
 
       let nextListWidth = isSessionListInlineVisible
         ? Math.max(listMin, currentListWidth)
         : 0;
-      let nextEditorWidth = Math.max(editorMin, currentEditorWidth);
+      let nextEditorWidth: number;
       let nextFileTreeWidth = isFileTreeInlineVisible
         ? Math.max(fileTreeMin, currentFileTreeWidth)
         : 0;
 
-      let overflow = nextListWidth + nextEditorWidth + nextFileTreeWidth - maxSidePanelsTotal;
-      if (overflow > 0) {
-        const editorReduction = Math.min(overflow, Math.max(0, nextEditorWidth - editorMin));
-        nextEditorWidth -= editorReduction;
-        overflow -= editorReduction;
+      // Keep side panel widths stable first, then redistribute the remaining
+      // area between Chat and Markdown panels by their current ratio.
+      let availableForChatAndEditor =
+        containerWidth - fixedNonPanelWidth - nextListWidth - nextFileTreeWidth;
+
+      const minChatAndEditorTotal = minChatWidth + minEditorWidth;
+      if (availableForChatAndEditor < minChatAndEditorTotal) {
+        let sideOverflow = minChatAndEditorTotal - availableForChatAndEditor;
+
+        if (sideOverflow > 0 && isFileTreeInlineVisible) {
+          const fileTreeReduction = Math.min(
+            sideOverflow,
+            Math.max(0, nextFileTreeWidth - fileTreeMin)
+          );
+          nextFileTreeWidth -= fileTreeReduction;
+          sideOverflow -= fileTreeReduction;
+        }
+
+        if (sideOverflow > 0 && isSessionListInlineVisible) {
+          const listReduction = Math.min(sideOverflow, Math.max(0, nextListWidth - listMin));
+          nextListWidth -= listReduction;
+        }
+
+        availableForChatAndEditor =
+          containerWidth - fixedNonPanelWidth - nextListWidth - nextFileTreeWidth;
       }
-      if (overflow > 0) {
-        const fileTreeReduction = Math.min(overflow, Math.max(0, nextFileTreeWidth - fileTreeMin));
-        nextFileTreeWidth -= fileTreeReduction;
-        overflow -= fileTreeReduction;
-      }
-      if (overflow > 0) {
-        const listReduction = Math.min(overflow, Math.max(0, nextListWidth - listMin));
-        nextListWidth -= listReduction;
+
+      const safeAvailableForChatAndEditor = Math.max(minChatAndEditorTotal, availableForChatAndEditor);
+      const currentChatWidth = Math.max(
+        minChatWidth,
+        containerWidth -
+          fixedNonPanelWidth -
+          (isSessionListInlineVisible ? currentListWidth : 0) -
+          currentEditorWidth -
+          (isFileTreeInlineVisible ? currentFileTreeWidth : 0)
+      );
+      const currentEditorSafe = Math.max(minEditorWidth, currentEditorWidth);
+      const totalCurrentMain = Math.max(1, currentChatWidth + currentEditorSafe);
+      const editorRatio = currentEditorSafe / totalCurrentMain;
+      const editorMax = Math.max(minEditorWidth, safeAvailableForChatAndEditor - minChatWidth);
+
+      if (editorMax <= minEditorWidth) {
+        nextEditorWidth = minEditorWidth;
+      } else {
+        const preferredEditorWidth = safeAvailableForChatAndEditor * editorRatio;
+        nextEditorWidth = Math.max(minEditorWidth, Math.min(editorMax, preferredEditorWidth));
       }
 
       if (isSessionListInlineVisible && Math.abs(nextListWidth - currentListWidth) > 0.5) {
@@ -661,9 +691,41 @@ export function Chat() {
       }
     };
 
+    const scheduleDelayedClamp = () => {
+      if (delayedClampTimerRef.current != null) {
+        window.clearTimeout(delayedClampTimerRef.current);
+      }
+      delayedClampTimerRef.current = window.setTimeout(() => {
+        delayedClampTimerRef.current = null;
+        clampPanelsForViewport();
+      }, 120);
+    };
+
+    const handleViewportResize = () => {
+      clampPanelsForViewport();
+      scheduleDelayedClamp();
+    };
+
     clampPanelsForViewport();
-    window.addEventListener('resize', clampPanelsForViewport);
-    return () => window.removeEventListener('resize', clampPanelsForViewport);
+    window.addEventListener('resize', handleViewportResize);
+
+    const observer = new ResizeObserver(() => {
+      clampPanelsForViewport();
+      scheduleDelayedClamp();
+    });
+    const target = containerRef.current;
+    if (target) {
+      observer.observe(target);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleViewportResize);
+      observer.disconnect();
+      if (delayedClampTimerRef.current != null) {
+        window.clearTimeout(delayedClampTimerRef.current);
+        delayedClampTimerRef.current = null;
+      }
+    };
   }, [
     isSessionListInlineVisible,
     isFileTreeInlineVisible,
