@@ -1441,7 +1441,7 @@ export function Chat() {
           )}
         >
           <div className="w-full px-4 min-w-0 overflow-x-auto">
-            <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-4xl space-y-4">
+            <div ref={contentRef} className="mx-auto w-full min-w-0 space-y-4">
               {isEmpty ? (
                 <WelcomeScreen />
               ) : (
