@@ -118,3 +118,32 @@ git merge-base --is-ancestor <commit> HEAD
 git show --name-only --oneline <commit>
 ```
 
+---
+
+## 8. 本地命名迁移补充（2026-03-24）
+
+为配合品牌命名统一，本地在不改变业务行为的前提下，将以下持久化文件从 `clawx-*` 迁移为 `storyclaw-*`：
+
+- 设备身份文件：`clawx-device-identity.json` -> `storyclaw-device-identity.json`
+- Provider 存储文件：`clawx-providers.json` -> `storyclaw-providers.json`
+
+### 8.1 等价性保证（功能不变，仅改文件名）
+
+1. **新用户路径**  
+   首次启动仅创建并读取 `storyclaw-*` 文件，不依赖旧文件。
+
+2. **老用户迁移路径**  
+   - 若存在旧文件且新文件缺失：先复制旧数据到新文件，再按原流程加载；
+   - 迁移完成后尝试删除旧文件，避免后续重复分叉。
+
+3. **已迁移用户路径**  
+   - 直接读取新文件；
+   - 不再为“检查迁移”而主动初始化旧 store，避免意外重建 `clawx-providers.json`；
+   - 若历史旧文件残留，启动时进行一次安全清理。
+
+### 8.2 风险控制点
+
+- 迁移/清理均为“尽力而为”（best effort）：清理失败不影响主流程可用性；
+- 仅在主流程成功建立新文件后执行旧文件删除，避免因清理动作影响正常启动；
+- `providerStore` 默认结构（`schemaVersion/providers/providerAccounts/apiKeys/providerSecrets/defaultProvider/defaultProviderAccountId`）保持不变，确保读写语义一致。
+

@@ -6,6 +6,8 @@ import { app } from 'electron';
 import path from 'path';
 import { EventEmitter } from 'events';
 import WebSocket from 'ws';
+import { access, copyFile, unlink } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import { PORTS } from '../utils/config';
 import { JsonRpcNotification, isNotification, isResponse } from './protocol';
 import { logger } from '../utils/logger';
@@ -150,9 +152,32 @@ export class GatewayManager extends EventEmitter {
   private async initDeviceIdentity(): Promise<void> {
     if (this.deviceIdentity) return; // already loaded
     try {
-      const identityPath = path.join(app.getPath('userData'), 'clawx-device-identity.json');
+      const userDataDir = app.getPath('userData');
+      const identityPath = path.join(userDataDir, 'storyclaw-device-identity.json');
+      const legacyIdentityPath = path.join(userDataDir, 'clawx-device-identity.json');
+
+      try {
+        await access(identityPath, fsConstants.F_OK);
+      } catch {
+        try {
+          await access(legacyIdentityPath, fsConstants.F_OK);
+          await copyFile(legacyIdentityPath, identityPath);
+          logger.info('Migrated legacy device identity file to storyclaw-device-identity.json');
+        } catch {
+          // Legacy file missing is expected for fresh installs.
+        }
+      }
+
       this.deviceIdentity = await loadOrCreateDeviceIdentity(identityPath);
       logger.debug(`Device identity loaded (deviceId=${this.deviceIdentity.deviceId})`);
+
+      try {
+        await access(legacyIdentityPath, fsConstants.F_OK);
+        await unlink(legacyIdentityPath);
+        logger.info('Removed legacy device identity file clawx-device-identity.json after migration');
+      } catch {
+        // Ignore cleanup failures; identity loading already succeeded.
+      }
     } catch (err) {
       logger.warn('Failed to load device identity, scopes will be limited:', err);
     }
