@@ -46,6 +46,11 @@ type FileSystemState = {
   clearError: () => void;
 };
 
+type PersistedProjectState = Pick<
+  FileSystemState,
+  'projectPath' | 'defaultProjectPath' | 'projectBindings' | 'projectShortcuts'
+>;
+
 let removeFsChangedListener: (() => void) | null = null;
 const HIDDEN_RUNTIME_FILES = new Set([
   'AGENTS.md',
@@ -63,6 +68,15 @@ const LEGACY_WORKSPACE_SHORTCUTS_KEY = 'clawx:workspace-shortcuts';
 
 function normalizeFsPath(path: string): string {
   return path.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function isPathInsideProject(targetPath: string, projectPath: string): boolean {
+  const normalizedTarget = normalizeFsPath(targetPath);
+  const normalizedProject = normalizeFsPath(projectPath);
+  return (
+    normalizedTarget === normalizedProject ||
+    normalizedTarget.startsWith(`${normalizedProject}/`)
+  );
 }
 
 function readLegacyProjectShortcuts(): string[] {
@@ -103,6 +117,24 @@ function sanitizeTreeForUi(
 function isWorkspaceNotSelectedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes('Workspace is not selected');
+}
+
+function selectPersistedProjectState(state: FileSystemState): PersistedProjectState {
+  return {
+    projectPath: state.projectPath,
+    defaultProjectPath: state.defaultProjectPath,
+    projectBindings: state.projectBindings,
+    projectShortcuts: state.projectShortcuts,
+  };
+}
+
+async function persistProjectStateBackup(state: FileSystemState): Promise<void> {
+  try {
+    await invokeIpc('fs:project-state:set', selectPersistedProjectState(state));
+  } catch (error) {
+    // Keep local persist as primary, but expose backup write failures for diagnostics.
+    console.warn('[filesystem-store] failed to persist project backup:', error);
+  }
 }
 
 async function ensureMainProjectSynced(
@@ -163,6 +195,7 @@ export const useFileSystemStore = create<FileSystemState>()(
           projectShortcuts: Array.from(new Set([...state.projectShortcuts, ...legacyShortcuts])),
         }));
         window.localStorage.removeItem(LEGACY_WORKSPACE_SHORTCUTS_KEY);
+        void persistProjectStateBackup(get());
       },
 
       addProjectShortcut: (path) => {
@@ -172,6 +205,7 @@ export const useFileSystemStore = create<FileSystemState>()(
             ? state.projectShortcuts
             : [path, ...state.projectShortcuts],
         }));
+        void persistProjectStateBackup(get());
       },
 
       replaceProjectShortcut: (fromPath, toPath) => {
@@ -188,6 +222,7 @@ export const useFileSystemStore = create<FileSystemState>()(
           ),
           defaultProjectPath: state.defaultProjectPath === fromPath ? toPath : state.defaultProjectPath,
         }));
+        void persistProjectStateBackup(get());
       },
 
       removeProjectShortcut: (path) => {
@@ -206,6 +241,7 @@ export const useFileSystemStore = create<FileSystemState>()(
             defaultProjectPath: nextDefaultProjectPath,
           };
         });
+        void persistProjectStateBackup(get());
       },
 
       bindProjectToSession: async (sessionKey, projectPath) => {
@@ -217,6 +253,7 @@ export const useFileSystemStore = create<FileSystemState>()(
           },
           defaultProjectPath: projectPath,
         }));
+        void persistProjectStateBackup(get());
       },
 
       applyProjectForSession: async (sessionKey) => {
@@ -244,6 +281,7 @@ export const useFileSystemStore = create<FileSystemState>()(
           contextFiles: [],
           lastError: null,
         });
+        void persistProjectStateBackup(get());
         await get().refreshTree();
       },
 
@@ -270,6 +308,7 @@ export const useFileSystemStore = create<FileSystemState>()(
           isWatching: false,
           lastError: null,
         });
+        void persistProjectStateBackup(get());
       },
 
       refreshTree: async (dirPath) => {
@@ -283,7 +322,10 @@ export const useFileSystemStore = create<FileSystemState>()(
           if (!projectPath) {
             return;
           }
-          const targetDirPath = dirPath ?? projectPath;
+          const targetDirPath =
+            dirPath && isPathInsideProject(dirPath, projectPath)
+              ? dirPath
+              : projectPath;
           const tree = await invokeIpc<FileNode>('fs:read-tree', targetDirPath);
           // Project may switch while refreshing; ignore stale result.
           if (get().projectPath !== projectPath) {
@@ -613,3 +655,63 @@ export const useFileSystemStore = create<FileSystemState>()(
     },
   ),
 );
+
+const restoreProjectStateFromBackup = async (): Promise<void> => {
+  try {
+    const backup = await invokeIpc<PersistedProjectState | null>('fs:project-state:get');
+    if (!backup) return;
+
+    const current = useFileSystemStore.getState();
+    const mergedShortcuts = Array.from(
+      new Set([...(current.projectShortcuts ?? []), ...(backup.projectShortcuts ?? [])]),
+    );
+    const mergedBindings = {
+      ...(backup.projectBindings ?? {}),
+      ...(current.projectBindings ?? {}),
+    };
+    const nextProjectPath = current.projectPath ?? backup.projectPath ?? null;
+    const nextDefaultProjectPath =
+      current.defaultProjectPath ?? backup.defaultProjectPath ?? null;
+
+    const changed =
+      nextProjectPath !== current.projectPath ||
+      nextDefaultProjectPath !== current.defaultProjectPath ||
+      mergedShortcuts.length !== current.projectShortcuts.length ||
+      Object.keys(mergedBindings).length !== Object.keys(current.projectBindings).length;
+
+    if (!changed) return;
+
+    useFileSystemStore.setState((state) => ({
+      ...state,
+      projectPath: nextProjectPath,
+      defaultProjectPath: nextDefaultProjectPath,
+      projectBindings: mergedBindings,
+      projectShortcuts: mergedShortcuts,
+    }));
+
+    void persistProjectStateBackup(useFileSystemStore.getState());
+  } catch {
+    // Ignore backup restore failures and rely on existing persist.
+  }
+};
+
+const storeWithPersist = useFileSystemStore as typeof useFileSystemStore & {
+  persist?: {
+    hasHydrated?: () => boolean;
+    onFinishHydration?: (callback: () => void) => () => void;
+  };
+};
+
+if (storeWithPersist.persist?.hasHydrated?.()) {
+  void restoreProjectStateFromBackup();
+  void persistProjectStateBackup(useFileSystemStore.getState());
+} else if (storeWithPersist.persist?.onFinishHydration) {
+  storeWithPersist.persist.onFinishHydration(() => {
+    void restoreProjectStateFromBackup();
+    void persistProjectStateBackup(useFileSystemStore.getState());
+  });
+} else {
+  // Fallback path for unexpected persist API shapes.
+  void restoreProjectStateFromBackup();
+  void persistProjectStateBackup(useFileSystemStore.getState());
+}

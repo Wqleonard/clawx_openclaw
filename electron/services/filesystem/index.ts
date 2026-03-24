@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron';
 import { watch, type FSWatcher } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -15,6 +15,7 @@ type FileNode = {
 const TREE_MAX_DEPTH = 6;
 const MAX_READ_FILE_BYTES = 2 * 1024 * 1024; // 2MB safety limit for initial phase
 const IGNORED_NAMES = new Set(['.git', 'node_modules', 'dist', 'build']);
+const PROJECT_STATE_BACKUP_FILE = 'filesystem-project-state.json';
 
 let workspaceRoot: string | null = null;
 let workspaceWatcher: FSWatcher | null = null;
@@ -77,6 +78,10 @@ function normalizeAgentId(input?: string): string {
 function resolveContextRoot(agentId?: string): string {
   const normalizedAgentId = normalizeAgentId(agentId);
   return path.join(getOpenClawConfigDir(), 'agents', normalizedAgentId, 'context', CONTEXT_MIRROR_DIR);
+}
+
+function getProjectStateBackupPath(): string {
+  return path.join(app.getPath('userData'), PROJECT_STATE_BACKUP_FILE);
 }
 
 function toContextFilePath(workspaceFilePath: string, agentId?: string): string {
@@ -187,6 +192,51 @@ export function registerFileSystemHandlers(mainWindow: BrowserWindow): void {
     workspaceRoot = target;
     return workspaceRoot;
   });
+
+  ipcMain.handle('fs:project-state:get', async () => {
+    try {
+      const backupPath = getProjectStateBackupPath();
+      const raw = await readFile(backupPath, 'utf-8');
+      const parsed = JSON.parse(raw) as Partial<{
+        projectPath: string | null;
+        defaultProjectPath: string | null;
+        projectBindings: Record<string, string>;
+        projectShortcuts: string[];
+      }>;
+      return {
+        projectPath: typeof parsed.projectPath === 'string' ? parsed.projectPath : null,
+        defaultProjectPath:
+          typeof parsed.defaultProjectPath === 'string' ? parsed.defaultProjectPath : null,
+        projectBindings:
+          parsed.projectBindings && typeof parsed.projectBindings === 'object'
+            ? parsed.projectBindings
+            : {},
+        projectShortcuts: Array.isArray(parsed.projectShortcuts)
+          ? parsed.projectShortcuts.filter((item): item is string => typeof item === 'string')
+          : [],
+      };
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle(
+    'fs:project-state:set',
+    async (
+      _,
+      payload: {
+        projectPath: string | null;
+        defaultProjectPath: string | null;
+        projectBindings: Record<string, string>;
+        projectShortcuts: string[];
+      },
+    ) => {
+      const backupPath = getProjectStateBackupPath();
+      await mkdir(path.dirname(backupPath), { recursive: true });
+      await writeFile(backupPath, JSON.stringify(payload, null, 2), 'utf-8');
+      return { success: true };
+    },
+  );
 
   ipcMain.handle('fs:read-tree', async (_, dirPath?: string) => {
     const root = assertWorkspaceSelected();

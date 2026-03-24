@@ -53,8 +53,11 @@ export function TitleBar({ showPanelToggles = true }: TitleBarProps) {
 
 function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const { t } = useTranslation('chat');
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
   const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
+  const gatewayStatus = useGatewayStore((s) => s.status);
+  const isGatewayRunning = gatewayStatus.state === 'running';
   const isFileTreeDrawerOpen = useChatLayoutStore((s) => s.isFileTreeDrawerOpen);
   const setSessionDrawerMode = useChatLayoutStore((s) => s.setSessionDrawerMode);
   const setFileTreeDrawerMode = useChatLayoutStore((s) => s.setFileTreeDrawerMode);
@@ -89,9 +92,48 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const isFileTreePanelOpen = isFileTreeDrawerMode ? isFileTreeDrawerOpen : isFileTreeDrawerOpen;
 
   return (
-    <div className="drag-region flex h-10 shrink-0 items-center justify-end border-b bg-background pl-20 pr-3">
-      {showPanelToggles && projectPath && (
-        <div className="no-drag flex items-center gap-1">
+    <div className="drag-region flex h-10 shrink-0 items-center justify-between border-b bg-background/95 backdrop-blur">
+      {/* Keep native traffic lights area clear on macOS */}
+      <div className="w-[86px] shrink-0" />
+      <div className="min-w-0 flex-1" />
+      <div className="no-drag flex items-center gap-1 pr-2">
+        <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'size-7 cursor-pointer relative',
+                isPopoverOpen ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
+              )}
+              title="Gateway status"
+            >
+              {isGatewayRunning ? (
+                <Server className="h-4 w-4" />
+              ) : (
+                <ServerOff className="h-4 w-4" />
+              )}
+              <span
+                className={cn(
+                  'absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-background',
+                  isGatewayRunning ? 'bg-green-500' : 'bg-red-500'
+                )}
+              />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-auto min-w-60">
+            <p className="text-xs text-muted-foreground">
+              {t('composer.gatewayStatus', {
+                state: isGatewayRunning ? t('composer.gatewayConnected') : gatewayStatus.state,
+                port: gatewayStatus.port,
+                pid: gatewayStatus.pid ? `| pid: ${gatewayStatus.pid}` : '',
+              })}
+            </p>
+          </PopoverContent>
+        </Popover>
+
+        {showPanelToggles && projectPath && (
+          <>
           <Button
             variant="ghost"
             size="icon"
@@ -124,8 +166,9 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
               <PanelRightOpen className="size-4" />
             )}
           </Button>
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
