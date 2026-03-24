@@ -36,6 +36,13 @@ type ProjectBadgeTheme = {
   border: string;
 };
 
+type PersistedProjectStateBackup = {
+  projectPath: string | null;
+  defaultProjectPath: string | null;
+  projectBindings: Record<string, string>;
+  projectShortcuts: string[];
+};
+
 const PROJECT_THEMES: ProjectBadgeTheme[] = [
   { bg: '#e1fbf4', text: '#147d7c', border: '#b9efe4' },
   { bg: '#e8f1ff', text: '#1d4ed8', border: '#c9dcff' },
@@ -146,6 +153,38 @@ export function ProjectsRail() {
   const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
 
+  const recoverWorkspaceRootFromDisk = useCallback(async (): Promise<string> => {
+    const currentRoot = useSettingsStore.getState().workspaceRoots.trim();
+    if (currentRoot) return currentRoot;
+
+    try {
+      const result = await hostApiFetch<{ value?: unknown }>('/api/settings/workspaceRoots');
+      const persistedRoot = typeof result?.value === 'string' ? result.value.trim() : '';
+      if (!persistedRoot) return '';
+      useSettingsStore.setState({ workspaceRoots: persistedRoot });
+      return persistedRoot;
+    } catch {
+      return '';
+    }
+  }, []);
+
+  const recoverProjectShortcutsFromDisk = useCallback(async () => {
+    const currentShortcuts = useFileSystemStore.getState().projectShortcuts;
+    if (currentShortcuts.length > 0) return;
+
+    try {
+      const backup = await invokeIpc<PersistedProjectStateBackup | null>('fs:project-state:get');
+      if (!backup?.projectShortcuts?.length) return;
+      backup.projectShortcuts.forEach((shortcutPath) => {
+        if (typeof shortcutPath === 'string' && shortcutPath.trim()) {
+          addProjectShortcut(shortcutPath);
+        }
+      });
+    } catch {
+      // Ignore restore errors and keep runtime state unchanged.
+    }
+  }, [addProjectShortcut]);
+
   const projectItems = useMemo<ProjectItem[]>(
     () =>
       projectShortcuts.map((path) => ({
@@ -161,6 +200,11 @@ export function ProjectsRail() {
   useEffect(() => {
     initProjectShortcuts();
   }, [initProjectShortcuts]);
+
+  useEffect(() => {
+    void recoverWorkspaceRootFromDisk();
+    void recoverProjectShortcutsFromDisk();
+  }, [recoverProjectShortcutsFromDisk, recoverWorkspaceRootFromDisk]);
 
   useEffect(() => {
     if (!projectPath) return;
@@ -271,7 +315,7 @@ export function ProjectsRail() {
   };
 
   const handleConfirmProjectName = async () => {
-    const allowedRoot = workspaceRoots?.trim() ?? '';
+    const allowedRoot = (await recoverWorkspaceRootFromDisk()) || workspaceRoots?.trim() || '';
     if (!allowedRoot) {
       toast.error('请先在设置中配置可用工作区');
       return;
@@ -302,7 +346,7 @@ export function ProjectsRail() {
     name: string,
     options: { templateId?: string; sourceAgentId?: string; workspacePath?: string }
   ) => {
-    const allowedRoot = workspaceRoots?.trim() ?? '';
+    const allowedRoot = (await recoverWorkspaceRootFromDisk()) || workspaceRoots?.trim() || '';
     if (!allowedRoot) {
       toast.error('请先在设置中配置可用工作区');
       return;

@@ -16,6 +16,12 @@ const TREE_MAX_DEPTH = 6;
 const MAX_READ_FILE_BYTES = 2 * 1024 * 1024; // 2MB safety limit for initial phase
 const IGNORED_NAMES = new Set(['.git', 'node_modules', 'dist', 'build']);
 const PROJECT_STATE_BACKUP_FILE = 'filesystem-project-state.json';
+const DEFAULT_PROJECT_STATE_BACKUP = {
+  projectPath: null,
+  defaultProjectPath: null,
+  projectBindings: {},
+  projectShortcuts: [],
+} as const;
 
 let workspaceRoot: string | null = null;
 let workspaceWatcher: FSWatcher | null = null;
@@ -84,6 +90,29 @@ function getProjectStateBackupPath(): string {
   return path.join(app.getPath('userData'), PROJECT_STATE_BACKUP_FILE);
 }
 
+async function ensureProjectStateBackupFile(): Promise<void> {
+  const backupPath = getProjectStateBackupPath();
+  try {
+    const content = await readFile(backupPath, 'utf-8');
+    const parsed = JSON.parse(content) as Partial<typeof DEFAULT_PROJECT_STATE_BACKUP>;
+    const hasValidShape = (
+      (parsed.projectPath === null || typeof parsed.projectPath === 'string') &&
+      (parsed.defaultProjectPath === null || typeof parsed.defaultProjectPath === 'string') &&
+      typeof parsed.projectBindings === 'object' &&
+      parsed.projectBindings !== null &&
+      Array.isArray(parsed.projectShortcuts)
+    );
+    if (hasValidShape) {
+      return;
+    }
+  } catch {
+    // Missing or unreadable file falls through to rewrite with defaults.
+  }
+
+  await mkdir(path.dirname(backupPath), { recursive: true });
+  await writeFile(backupPath, JSON.stringify(DEFAULT_PROJECT_STATE_BACKUP, null, 2), 'utf-8');
+}
+
 function toContextFilePath(workspaceFilePath: string, agentId?: string): string {
   const root = assertWorkspaceSelected();
   const rel = path.relative(root, workspaceFilePath);
@@ -150,6 +179,10 @@ async function readTreeRecursive(dirPath: string, depth = 0): Promise<FileNode> 
 }
 
 export function registerFileSystemHandlers(mainWindow: BrowserWindow): void {
+  void ensureProjectStateBackupFile().catch(() => {
+    // Keep runtime functional even if backup initialization fails.
+  });
+
   void syncWorkspaceRootFromSettings().catch(() => {
     workspaceRoot = null;
   });

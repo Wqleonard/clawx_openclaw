@@ -156,6 +156,8 @@ const electronAPI = {
         'fs:add-to-context',
         'fs:remove-from-context',
         'fs:list-context',
+        'fs:project-state:get',
+        'fs:project-state:set',
       ];
 
       if (validChannels.includes(channel)) {
@@ -307,6 +309,13 @@ const electronAPI = {
     addToContext: (filePath: string, agentId?: string) => ipcRenderer.invoke('fs:add-to-context', filePath, agentId),
     removeFromContext: (filePath: string, agentId?: string) => ipcRenderer.invoke('fs:remove-from-context', filePath, agentId),
     listContext: (agentId?: string) => ipcRenderer.invoke('fs:list-context', agentId),
+    getProjectState: () => ipcRenderer.invoke('fs:project-state:get'),
+    setProjectState: (payload: {
+      projectPath: string | null;
+      defaultProjectPath: string | null;
+      projectBindings: Record<string, string>;
+      projectShortcuts: string[];
+    }) => ipcRenderer.invoke('fs:project-state:set', payload),
     onChanged: (callback: (data: { event: string; path: string }) => void) => {
       const subscription = (_event: Electron.IpcRendererEvent, data: { event: string; path: string }) => {
         callback(data);
