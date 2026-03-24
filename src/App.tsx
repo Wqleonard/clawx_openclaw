@@ -3,7 +3,7 @@
  * Handles routing and global providers
  */
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Component, useCallback, useEffect, useState } from 'react';
+import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'sonner';
 import i18n from './i18n';
@@ -110,6 +110,7 @@ function normalizeComparePath(inputPath: string): string {
 function ProjectCreateDialogHost() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const projectPath = useFileSystemStore((state) => state.projectPath);
   const workspaceRoots = useSettingsStore((state) => state.workspaceRoots);
   const createAgent = useAgentsStore((state) => state.createAgent);
   const addProjectShortcut = useFileSystemStore((state) => state.addProjectShortcut);
@@ -119,7 +120,11 @@ function ProjectCreateDialogHost() {
   const [showAddProjectDialog, setShowAddProjectDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [pendingProjectBaseName, setPendingProjectBaseName] = useState('');
+  const [pendingOpenProjectPath, setPendingOpenProjectPath] = useState<string | null>(null);
   const [showAddAgentDialog, setShowAddAgentDialog] = useState(false);
+  const openingProjectPickerRef = useRef(false);
+  const openProjectAndCreateAgentRef = useRef<() => Promise<void>>(async () => {});
+  const openCreateProjectDialogRef = useRef<() => void>(() => {});
 
   const recoverWorkspaceRootFromDisk = useCallback(async (): Promise<string> => {
     const currentRoot = useSettingsStore.getState().workspaceRoots.trim();
@@ -192,18 +197,54 @@ function ProjectCreateDialogHost() {
     if (!isOnChatRoute) {
       navigate('/chat');
     }
+    setPendingOpenProjectPath(null);
     setShowAddProjectDialog(true);
   }, [navigate]);
 
+  const openProjectAndCreateAgent = useCallback(async () => {
+    if (openingProjectPickerRef.current) return;
+    openingProjectPickerRef.current = true;
+    try {
+      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
+        properties: ['openDirectory'],
+        defaultPath: projectPath || workspaceRoots || undefined,
+      });
+      if (result.canceled || !result.filePaths?.length) return;
+      const selected = result.filePaths[0];
+      const currentPath = window.location.pathname;
+      const isOnChatRoute = currentPath === '/' || currentPath === '/chat';
+      if (!isOnChatRoute) {
+        navigate('/chat');
+      }
+      setPendingProjectBaseName('');
+      setPendingOpenProjectPath(selected);
+      setShowAddProjectDialog(false);
+      setShowAddAgentDialog(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || '打开项目失败');
+    } finally {
+      openingProjectPickerRef.current = false;
+    }
+  }, [navigate, projectPath, workspaceRoots]);
+
+  // Keep refs in sync so the stable event listeners always call the latest version
+  openProjectAndCreateAgentRef.current = openProjectAndCreateAgent;
+  openCreateProjectDialogRef.current = openCreateProjectDialog;
+
   useEffect(() => {
-    const openViaBridge = () => openCreateProjectDialog();
-    window.addEventListener('project:create-request', openCreateProjectDialog);
-    window.addEventListener('project:create-dialog-open', openViaBridge);
+    const handleCreateRequest = () => openCreateProjectDialogRef.current();
+    const handleCreateDialogOpen = () => openCreateProjectDialogRef.current();
+    const handleOpenProjectRequest = () => { void openProjectAndCreateAgentRef.current(); };
+    window.addEventListener('project:create-request', handleCreateRequest);
+    window.addEventListener('project:create-dialog-open', handleCreateDialogOpen);
+    window.addEventListener('project:open-request', handleOpenProjectRequest);
     return () => {
-      window.removeEventListener('project:create-request', openCreateProjectDialog);
-      window.removeEventListener('project:create-dialog-open', openViaBridge);
+      window.removeEventListener('project:create-request', handleCreateRequest);
+      window.removeEventListener('project:create-dialog-open', handleCreateDialogOpen);
+      window.removeEventListener('project:open-request', handleOpenProjectRequest);
     };
-  }, [openCreateProjectDialog]);
+  }, []);
 
   const handleConfirmProjectName = async () => {
     const allowedRoot = (await recoverWorkspaceRootFromDisk()) || workspaceRoots?.trim() || '';
@@ -237,6 +278,47 @@ function ProjectCreateDialogHost() {
     name: string,
     options: { templateId?: string; sourceAgentId?: string; workspacePath?: string },
   ) => {
+    if (pendingOpenProjectPath) {
+      setIsAddingWorkspace(true);
+      try {
+        const selected = pendingOpenProjectPath;
+        const beforeIds = new Set(useAgentsStore.getState().agents.map((agent) => agent.id));
+        await createAgent(name, { ...options, workspacePath: selected });
+        const afterAgents = useAgentsStore.getState().agents;
+        const createdAgent =
+          afterAgents.find((agent) => !beforeIds.has(agent.id)) ??
+          afterAgents.find(
+            (agent) =>
+              normalizeComparePath(agent.workspace) === normalizeComparePath(selected) &&
+              agent.name === name,
+          );
+        if (!createdAgent) {
+          throw new Error('创建 Agent 后无法定位对应会话');
+        }
+
+        await useFileSystemStore
+          .getState()
+          .bindProjectToSession(createdAgent.mainSessionKey, selected);
+
+        addProjectShortcut(selected);
+        await invokeIpc<string>('fs:set-workspace', selected);
+        await switchToProjectSession(selected);
+        await initProject(selected);
+        setShowAddAgentDialog(false);
+        setPendingOpenProjectPath(null);
+        setPendingProjectBaseName('');
+        setNewProjectName('');
+        navigate('/chat');
+        toast.success(t('common:status.agentCreated'));
+      } catch (error) {
+        console.error(error);
+        toast.error(t('common:projectDialog.error'), { position: 'top-center' });
+      } finally {
+        setIsAddingWorkspace(false);
+      }
+      return;
+    }
+
     const allowedRoot = (await recoverWorkspaceRootFromDisk()) || workspaceRoots?.trim() || '';
     if (!allowedRoot) {
       toast.error('请先在设置中配置可用工作区');
@@ -321,6 +403,7 @@ function ProjectCreateDialogHost() {
       await initProject(selected);
       addProjectShortcut(selected);
       setShowAddAgentDialog(false);
+      setPendingOpenProjectPath(null);
       setPendingProjectBaseName('');
       setNewProjectName('');
       navigate('/chat');
@@ -339,6 +422,7 @@ function ProjectCreateDialogHost() {
         open={showAddAgentDialog}
         onClose={() => {
           setShowAddAgentDialog(false);
+          setPendingOpenProjectPath(null);
           setPendingProjectBaseName('');
         }}
         hideWorkspaceSelector
