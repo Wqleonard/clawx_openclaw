@@ -283,7 +283,7 @@ resources/preinstalled-skills/
 
 | 场景 | 行为 |
 |------|------|
-| `~/.openclaw/skills/{slug}/` 不存在 | 严格镜像复制 `resources/preinstalled-skills/{slug}/`，写 `.clawx-preinstalled.json` 标记 |
+| `~/.openclaw/skills/{slug}/` 不存在 | 严格镜像复制 `resources/preinstalled-skills/{slug}/`，写 `.storyclaw-preinstalled.json` 标记 |
 | 目标已有 `SKILL.md`，无标记文件 | **覆盖更新（严格镜像）**，先删目标目录再复制 |
 | 标记存在且版本 == 期望版本 | **跳过** |
 | 标记存在但版本不同 | **覆盖更新（严格镜像）**，先删目标目录再复制 |
