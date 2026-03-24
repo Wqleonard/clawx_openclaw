@@ -81,6 +81,10 @@ export class AppUpdater extends EventEmitter {
     
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
+    // Differential download can fall back to full download when blockmap
+    // does not match the final signed installer, causing double traffic.
+    // We disable it to keep update behavior deterministic.
+    (autoUpdater as typeof autoUpdater & { disableDifferentialDownload?: boolean }).disableDifferentialDownload = true;
     
     autoUpdater.logger = {
       info: (msg: string) => logger.info('[Updater]', msg),
@@ -96,6 +100,7 @@ export class AppUpdater extends EventEmitter {
     const feedUrl = `${UPDATE_BASE_URL}/${channel}`;
 
     logger.info(`[Updater] Version: ${version}, channel: ${channel}, feedUrl: ${feedUrl}`);
+    logger.info('[Updater] Differential download disabled');
 
     // Set channel so electron-updater requests the correct yml filename.
     // e.g. channel "alpha" → requests alpha-mac.yml, channel "latest" → requests latest-mac.yml

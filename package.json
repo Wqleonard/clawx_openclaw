@@ -1,6 +1,6 @@
 {
     "name": "storyclaw",
-    "version": "0.2.9",
+    "version": "0.3.1",
     "pnpm": {
         "onlyBuiltDependencies": [
             "@discordjs/opus",
@@ -62,7 +62,7 @@
         "node:download:win": "zx scripts/download-bundled-node.mjs --platform=win",
         "prep:win-binaries": "pnpm run uv:download:win && pnpm run node:download:win",
         "icons": "zx scripts/generate-icons.mjs",
-        "package": "vite build && zx scripts/bundle-openclaw.mjs && zx scripts/bundle-openclaw-plugins.mjs && zx scripts/bundle-preinstalled-skills.mjs",
+        "package": "vite build --mode prd && zx scripts/bundle-openclaw.mjs && zx scripts/bundle-openclaw-plugins.mjs && zx scripts/bundle-preinstalled-skills.mjs",
         "package:mac": "pnpm run package && electron-builder --mac --publish never",
         "package:mac:local": "SKIP_PREINSTALLED_SKILLS=1 pnpm run package && electron-builder --mac --publish never",
         "package:win": "pnpm run prep:win-binaries && pnpm run package && electron-builder --win --publish never",
