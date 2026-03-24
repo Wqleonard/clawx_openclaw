@@ -37,7 +37,6 @@ import { toast } from 'sonner';
 import { useLoginStore } from '@/stores/loginStore';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { VisuallyHidden } from '@/components/ui/dialog';
-import { ProjectsRail } from '@/pages/Chat/ProjectsRail.tsx';
 
 const INITIAL_NOW_MS = Date.now();
 const PROJECTS_RAIL_WIDTH = 12;
@@ -174,7 +173,6 @@ export function Chat() {
   const bindProjectToSession = useFileSystemStore((s) => s.bindProjectToSession);
   const projectBindings = useFileSystemStore((s) => s.projectBindings);
   const projectShortcuts = useFileSystemStore((s) => s.projectShortcuts);
-  const addProjectShortcut = useFileSystemStore((s) => s.addProjectShortcut);
   const removeProjectShortcut = useFileSystemStore((s) => s.removeProjectShortcut);
   const clearProject = useFileSystemStore((s) => s.clearProject);
   const refreshTree = useFileSystemStore((s) => s.refreshTree);
@@ -1007,22 +1005,6 @@ export function Chat() {
     [initProject, navigate, switchToProjectSession]
   );
 
-  const handleOpenProject = useCallback(async () => {
-    try {
-      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
-        properties: ['openDirectory'],
-        defaultPath: projectPath || workspaceRoots || undefined,
-      });
-      if (result.canceled || !result.filePaths?.length) return;
-      const selected = result.filePaths[0];
-      addProjectShortcut(selected);
-      await handleActivateProject(selected);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(message || '打开项目失败');
-    }
-  }, [addProjectShortcut, handleActivateProject, projectPath, workspaceRoots]);
-
   useEffect(() => {
     const handleSwitchProject = (event: Event) => {
       const customEvent = event as CustomEvent<{ path?: string }>;
@@ -1035,16 +1017,6 @@ export function Chat() {
       window.removeEventListener('project:switch-request', handleSwitchProject as EventListener);
     };
   }, [handleActivateProject]);
-
-  useEffect(() => {
-    const handleOpenProjectRequest = () => {
-      void handleOpenProject();
-    };
-    window.addEventListener('project:open-request', handleOpenProjectRequest as EventListener);
-    return () => {
-      window.removeEventListener('project:open-request', handleOpenProjectRequest as EventListener);
-    };
-  }, [handleOpenProject]);
 
   const handleOpenProjectInFileExplorer = useCallback(async () => {
     if (!projectPath) return;
@@ -1300,7 +1272,7 @@ export function Chat() {
     <div
       ref={containerRef}
       className={cn(
-        'w-full min-w-0 max-w-full overflow-hidden px-3 py-3 flex h-full transition-colors duration-500 dark:bg-background',
+        'w-full min-w-0 max-w-full overflow-hidden px-3 py-3 pt-0 flex h-full transition-colors duration-500 dark:bg-background',
         isSessionDrawerMode ? 'pl-3' : 'pl-0'
       )}
     >

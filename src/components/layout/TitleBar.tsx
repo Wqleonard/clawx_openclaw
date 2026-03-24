@@ -265,38 +265,10 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
     setProjectMenuOpen(false);
   }, [location.pathname, navigate]);
 
-  const handleOpenProject = useCallback(async () => {
-    try {
-      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
-        properties: ['openDirectory'],
-        defaultPath: projectPath || undefined,
-      });
-      if (result.canceled || !result.filePaths?.length) return;
-      const selected = result.filePaths[0];
-      const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
-      if (!isOnChatRoute) {
-        navigate('/chat');
-        window.setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('project:switch-request', {
-              detail: { path: selected },
-            }),
-          );
-        }, 0);
-      } else {
-        window.dispatchEvent(
-          new CustomEvent('project:switch-request', {
-            detail: { path: selected },
-          }),
-        );
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(message || '打开项目失败');
-    } finally {
-      setProjectMenuOpen(false);
-    }
-  }, [location.pathname, navigate, projectPath]);
+  const handleOpenProject = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('project:open-request'));
+    setProjectMenuOpen(false);
+  }, []);
 
   return (
     <>
@@ -346,7 +318,7 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                   <button
                     type="button"
                     className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
-                    onClick={() => void handleOpenProject()}
+                    onClick={handleOpenProject}
                   >
                     {isZh ? '打开项目' : 'Open Project'}
                   </button>
