@@ -198,6 +198,24 @@ export function ChatInput({
   }, [disabled]);
 
   useEffect(() => {
+    const handlePrefillInput = (event: Event) => {
+      const customEvent = event as CustomEvent<{ prompt?: string }>;
+      const prompt = customEvent.detail?.prompt?.trim();
+      if (!prompt) return;
+      setInput(prompt);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const end = prompt.length;
+        textareaRef.current.setSelectionRange(end, end);
+      }
+    };
+    window.addEventListener('chat:prefill-input', handlePrefillInput as EventListener);
+    return () => {
+      window.removeEventListener('chat:prefill-input', handlePrefillInput as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!targetAgentId) return;
     if (targetAgentId === currentAgentId) {
       setTargetAgentId(null);

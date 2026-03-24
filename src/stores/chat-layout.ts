@@ -26,6 +26,7 @@ type ChatLayoutState = {
   editorWidth: number;
   fileTreeWidth: number;
   isFileTreeDrawerOpen: boolean;
+  isChatPanelCollapsed: boolean;
   isProjectSwitching: boolean;
   isSessionListCollapsed: boolean;
   isSessionDrawerOpen: boolean;
@@ -42,6 +43,7 @@ type ChatLayoutState = {
   setSessionDrawerMode: (enabled: boolean) => void;
   setFileTreeDrawerMode: (enabled: boolean) => void;
   toggleFileTreeDrawer: () => void;
+  toggleChatPanelCollapsed: () => void;
   toggleSessionListCollapsed: () => void;
   toggleSessionDrawer: () => void;
 };
@@ -91,6 +93,7 @@ export const useChatLayoutStore = create<ChatLayoutState>()(
       editorWidth: legacyPanelWidths.editorWidth,
       fileTreeWidth: legacyPanelWidths.fileTreeWidth,
       isFileTreeDrawerOpen: true,
+      isChatPanelCollapsed: false,
       isProjectSwitching: false,
       isSessionListCollapsed: false,
       isSessionDrawerOpen: false,
@@ -139,6 +142,9 @@ export const useChatLayoutStore = create<ChatLayoutState>()(
       toggleFileTreeDrawer: () => {
         set((state) => ({ isFileTreeDrawerOpen: !state.isFileTreeDrawerOpen }));
       },
+      toggleChatPanelCollapsed: () => {
+        set((state) => ({ isChatPanelCollapsed: !state.isChatPanelCollapsed }));
+      },
       toggleSessionListCollapsed: () => {
         set((state) => ({ isSessionListCollapsed: !state.isSessionListCollapsed }));
       },
@@ -148,12 +154,13 @@ export const useChatLayoutStore = create<ChatLayoutState>()(
     }),
     {
       name: 'chat-layout-store',
-      version: 2,
+      version: 3,
       partialize: (state) => ({
         listWidth: state.listWidth,
         editorWidth: state.editorWidth,
         fileTreeWidth: state.fileTreeWidth,
         isFileTreeDrawerOpen: state.isFileTreeDrawerOpen,
+        isChatPanelCollapsed: state.isChatPanelCollapsed,
         isSessionListCollapsed: state.isSessionListCollapsed,
       }),
     }
