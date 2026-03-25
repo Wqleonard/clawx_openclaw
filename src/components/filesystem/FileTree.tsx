@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -10,6 +18,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -221,6 +230,29 @@ function FileTreeNode({
           />
         ))}
     </div>
+  );
+}
+
+function TooltipIconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-7" type="button" onClick={onClick}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{label}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -621,42 +653,30 @@ export function FileTree({ className }: FileTreeProps) {
     >
       <div className="flex items-center justify-end border-b px-2 py-2 h-11">
         <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title={labels.newFile}
+          <TooltipIconButton
+            label={labels.newFile}
             onClick={() =>
               projectPath && openInputModal('new_file', projectPath, defaultNewMarkdownFileName)
             }
           >
             <FilePlus className="size-4 text-muted-foreground" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title={labels.newFolder}
+          </TooltipIconButton>
+          <TooltipIconButton
+            label={labels.newFolder}
             onClick={() =>
               projectPath && openInputModal('new_folder', projectPath, defaultNewFolderName)
             }
           >
             <FolderPlus className="size-4 text-muted-foreground" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title={labels.refresh}
+          </TooltipIconButton>
+          <TooltipIconButton
+            label={labels.refresh}
             onClick={() => {
               void refreshTree();
             }}
           >
             <RefreshCw className="size-4 text-muted-foreground" />
-          </Button>
+          </TooltipIconButton>
         </div>
       </div>
 
