@@ -59,4 +59,4 @@ if apparmor_status --enabled > /dev/null 2>&1; then
     fi
 fi
 
-echo "ClawX has been installed successfully."
+echo "StoryClaw has been installed successfully."
