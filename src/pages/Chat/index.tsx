@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Ellipsis, FileText, Loader2 } from 'lucide-react';
+import { AlertCircle, FileText, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -30,7 +30,6 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FileTree } from '@/components/filesystem';
 import { MarkdownEditor } from '@/components/markdownEditor';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useSettingsStore } from '@/stores/settings';
 import { invokeIpc } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -43,6 +42,7 @@ const PROJECTS_RAIL_WIDTH = 12;
 const RESIZE_HANDLE_WIDTH = 8;
 const CONTAINER_HORIZONTAL_PADDING_INLINE = 12;
 const CONTAINER_HORIZONTAL_PADDING_DRAWER = 24;
+const EMERGENCY_EDITOR_MIN_WIDTH = 200;
 let hasCheckedWorkspaceOnStartup = false;
 
 type SessionBucketKey =
@@ -201,7 +201,6 @@ export function Chat() {
 
   const [isEditorResizing, setIsEditorResizing] = useState(false);
   const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
-  const [isProjectActionsOpen, setIsProjectActionsOpen] = useState(false);
   const [projectToClose, setProjectToClose] = useState<string | null>(null);
   const [showWorkspaceSetupDialog, setShowWorkspaceSetupDialog] = useState(false);
   const minLoading = useMinLoading(loading && messages.length > 0);
@@ -605,73 +604,107 @@ export function Chat() {
     (isFileTreeInlineVisible ? RESIZE_HANDLE_WIDTH : 0) +
     containerHorizontalPadding;
 
-  useEffect(() => {
-    const clampPanelsForViewport = () => {
-      if (isListDragging.current || isEditorDragging.current || isFileTreeDragging.current) return;
-      const {
-        listWidth: currentListWidth,
-        editorWidth: currentEditorWidth,
-        fileTreeWidth: currentFileTreeWidth,
-      } = panelWidthsRef.current;
-      const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-      const maxSidePanelsTotal = Math.max(
+  const clampPanelsForViewport = useCallback(() => {
+    if (isListDragging.current || isEditorDragging.current || isFileTreeDragging.current) return;
+    const {
+      listWidth: currentListWidth,
+      editorWidth: currentEditorWidth,
+      fileTreeWidth: currentFileTreeWidth,
+    } = panelWidthsRef.current;
+    const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
+    const maxSidePanelsTotal = Math.max(
+      0,
+      containerWidth - (isChatPanelVisible ? CHAT_PANEL_SIZE.chat.min : 0) - fixedNonPanelWidth
+    );
+
+    const listMin = isSessionListInlineVisible ? CHAT_PANEL_SIZE.session.min : 0;
+    const fileTreeMin = isFileTreeInlineVisible ? CHAT_PANEL_SIZE.fileTree.min : 0;
+    const editorMin = CHAT_PANEL_SIZE.editor.min;
+
+    let nextListWidth = isSessionListInlineVisible ? Math.max(listMin, currentListWidth) : 0;
+    let nextEditorWidth = Math.max(editorMin, currentEditorWidth);
+    let nextFileTreeWidth = isFileTreeInlineVisible ? Math.max(fileTreeMin, currentFileTreeWidth) : 0;
+
+    let overflow = nextListWidth + nextEditorWidth + nextFileTreeWidth - maxSidePanelsTotal;
+    if (overflow > 0) {
+      const editorReduction = Math.min(overflow, Math.max(0, nextEditorWidth - editorMin));
+      nextEditorWidth -= editorReduction;
+      overflow -= editorReduction;
+    }
+    if (overflow > 0) {
+      const fileTreeReduction = Math.min(overflow, Math.max(0, nextFileTreeWidth - fileTreeMin));
+      nextFileTreeWidth -= fileTreeReduction;
+      overflow -= fileTreeReduction;
+    }
+    if (overflow > 0) {
+      const listReduction = Math.min(overflow, Math.max(0, nextListWidth - listMin));
+      nextListWidth -= listReduction;
+      overflow -= listReduction;
+    }
+
+    // Extreme viewport shrink fallback: hide inline file tree first, then
+    // allow editor to shrink below normal min to avoid horizontal overflow.
+    if (overflow > 0 && isFileTreeInlineVisible) {
+      setFileTreeDrawerOpen(false);
+      const maxAfterHideFileTree = Math.max(
         0,
         containerWidth -
           (isChatPanelVisible ? CHAT_PANEL_SIZE.chat.min : 0) -
-          fixedNonPanelWidth
+          (fixedNonPanelWidth - RESIZE_HANDLE_WIDTH)
       );
-
-      const listMin = isSessionListInlineVisible ? CHAT_PANEL_SIZE.session.min : 0;
-      const fileTreeMin = isFileTreeInlineVisible ? CHAT_PANEL_SIZE.fileTree.min : 0;
-      const editorMin = CHAT_PANEL_SIZE.editor.min;
-
-      let nextListWidth = isSessionListInlineVisible
-        ? Math.max(listMin, currentListWidth)
-        : 0;
-      let nextEditorWidth = Math.max(editorMin, currentEditorWidth);
-      let nextFileTreeWidth = isFileTreeInlineVisible
-        ? Math.max(fileTreeMin, currentFileTreeWidth)
-        : 0;
-
-      let overflow = nextListWidth + nextEditorWidth + nextFileTreeWidth - maxSidePanelsTotal;
+      nextFileTreeWidth = 0;
+      overflow = nextListWidth + nextEditorWidth - maxAfterHideFileTree;
       if (overflow > 0) {
-        const editorReduction = Math.min(overflow, Math.max(0, nextEditorWidth - editorMin));
-        nextEditorWidth -= editorReduction;
-        overflow -= editorReduction;
-      }
-      if (overflow > 0) {
-        const fileTreeReduction = Math.min(overflow, Math.max(0, nextFileTreeWidth - fileTreeMin));
-        nextFileTreeWidth -= fileTreeReduction;
-        overflow -= fileTreeReduction;
+        const emergencyEditorReduction = Math.min(
+          overflow,
+          Math.max(0, nextEditorWidth - EMERGENCY_EDITOR_MIN_WIDTH)
+        );
+        nextEditorWidth -= emergencyEditorReduction;
+        overflow -= emergencyEditorReduction;
       }
       if (overflow > 0) {
         const listReduction = Math.min(overflow, Math.max(0, nextListWidth - listMin));
         nextListWidth -= listReduction;
       }
+    }
 
-      if (isSessionListInlineVisible && Math.abs(nextListWidth - currentListWidth) > 0.5) {
-        setListWidth(nextListWidth);
-      }
-      if (Math.abs(nextEditorWidth - currentEditorWidth) > 0.5) {
-        setEditorWidth(nextEditorWidth);
-      }
-      if (isFileTreeInlineVisible && Math.abs(nextFileTreeWidth - currentFileTreeWidth) > 0.5) {
-        setFileTreeWidth(nextFileTreeWidth);
-      }
-    };
-
-    clampPanelsForViewport();
-    window.addEventListener('resize', clampPanelsForViewport);
-    return () => window.removeEventListener('resize', clampPanelsForViewport);
+    if (isSessionListInlineVisible && Math.abs(nextListWidth - currentListWidth) > 0.5) {
+      setListWidth(nextListWidth);
+    }
+    if (Math.abs(nextEditorWidth - currentEditorWidth) > 0.5) {
+      setEditorWidth(nextEditorWidth);
+    }
+    if (isFileTreeInlineVisible && Math.abs(nextFileTreeWidth - currentFileTreeWidth) > 0.5) {
+      setFileTreeWidth(nextFileTreeWidth);
+    }
   }, [
     isSessionListInlineVisible,
     isChatPanelVisible,
     isFileTreeInlineVisible,
     fixedNonPanelWidth,
+    setFileTreeDrawerOpen,
   ]);
 
+  useEffect(() => {
+    clampPanelsForViewport();
+    window.addEventListener('resize', clampPanelsForViewport);
+    const observerTarget = containerRef.current;
+    const observer =
+      observerTarget != null
+        ? new ResizeObserver(() => {
+            clampPanelsForViewport();
+          })
+        : null;
+    if (observer && observerTarget) {
+      observer.observe(observerTarget);
+    }
+    return () => {
+      window.removeEventListener('resize', clampPanelsForViewport);
+      observer?.disconnect();
+    };
+  }, [clampPanelsForViewport]);
+
   const isEmpty = messages.length === 0 && !sending;
-  const projectName = projectPath ? getWorkspaceName(projectPath) : '';
   const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
   const activeMarkdownContent = activeMarkdownFile ? (fileContents[activeMarkdownFile] ?? '') : '';
   const handleMarkdownChange = useCallback(
@@ -696,19 +729,22 @@ export function Chat() {
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (listRafRef.current != null) {
-        window.cancelAnimationFrame(listRafRef.current);
-      }
-      if (editorRafRef.current != null) {
-        window.cancelAnimationFrame(editorRafRef.current);
-      }
-      if (fileTreeRafRef.current != null) {
-        window.cancelAnimationFrame(fileTreeRafRef.current);
-      }
-    };
+  const cancelPendingRafs = useCallback(() => {
+    const listRaf = listRafRef.current;
+    const editorRaf = editorRafRef.current;
+    const fileTreeRaf = fileTreeRafRef.current;
+    if (listRaf != null) {
+      window.cancelAnimationFrame(listRaf);
+    }
+    if (editorRaf != null) {
+      window.cancelAnimationFrame(editorRaf);
+    }
+    if (fileTreeRaf != null) {
+      window.cancelAnimationFrame(fileTreeRaf);
+    }
   }, []);
+
+  useEffect(() => cancelPendingRafs, [cancelPendingRafs]);
 
   const handleImportToEditor = useCallback(
     (content: string) => {
@@ -944,23 +980,6 @@ export function Chat() {
     };
   }, [handleActivateProject]);
 
-  const handleOpenProjectInFileExplorer = useCallback(async () => {
-    if (!projectPath) return;
-    setIsProjectActionsOpen(false);
-    try {
-      await invokeIpc('shell:openPath', projectPath);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(message || 'Failed to open project folder');
-    }
-  }, [projectPath]);
-
-  const handleCloseCurrentProject = useCallback(() => {
-    if (!projectPath) return;
-    setIsProjectActionsOpen(false);
-    setProjectToClose(projectPath);
-  }, [projectPath]);
-
   const handleConfirmCloseCurrentProject = useCallback(async () => {
     if (!projectToClose) return;
     const target = projectToClose;
@@ -1166,7 +1185,7 @@ export function Chat() {
       {/* Chat Panel */}
       <div
         className={cn(
-          'rounded-2xl border relative flex flex-col overflow-hidden',
+          'rounded-2xl border relative flex flex-col overflow-hidden min-w-0',
           isChatPanelVisible ? 'flex-1' : 'w-0 border-none pointer-events-none'
         )}
       >
@@ -1326,7 +1345,7 @@ export function Chat() {
       {/* Markdown Viewer Panel */}
       <div
         className={cn(
-          'group relative border rounded-2xl flex overflow-hidden',
+          'group relative border rounded-2xl flex overflow-hidden min-w-0',
           isChatPanelVisible ? 'shrink-0' : 'flex-1 min-w-0'
         )}
         style={isChatPanelVisible ? { width: editorWidth } : undefined}
