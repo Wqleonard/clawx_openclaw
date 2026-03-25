@@ -105,9 +105,7 @@ dmg:
 
 # Windows Configuration
 win:
-  # Skip update signature verification: we ship via OSS + GitHub without a
-  # code-signing certificate, so verifying would always fail on the updater.
-  verifyUpdateCodeSignature: false
+  verifyUpdateCodeSignature: true
   extraResources:
     - from: resources/bin/win32-${arch}
       to: bin
@@ -132,7 +130,10 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   license: LICENSE
-  include: scripts/installer.nsh
+  # include: scripts/installer.nsh
+  # Temporarily disabled due to Kaspersky false positive
+  # (HEUR:Trojan-Downloader.Win32.Bitser.gen).
+  # Re-enable only after minimizing high-risk installer behaviors.
   installerIcon: resources/icons/icon.ico
   uninstallerIcon: resources/icons/icon.ico
 
