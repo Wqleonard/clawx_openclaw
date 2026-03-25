@@ -75,6 +75,7 @@ interface ChatState {
   messages: RawMessage[];
   loading: boolean;
   error: string | null;
+  warning: string | null;
 
   // Streaming
   sending: boolean;
@@ -117,6 +118,7 @@ interface ChatState {
   toggleThinking: () => void;
   refresh: () => Promise<void>;
   clearError: () => void;
+  clearWarning: () => void;
 }
 
 // Module-level timestamp tracking the last chat event received.
@@ -771,6 +773,41 @@ function normalizeAgentId(value: string | undefined | null): string {
   return (value ?? '').trim().toLowerCase() || 'main';
 }
 
+function normalizeInstallIntentText(text: string): string {
+  return text.replace(/\s+/g, '').toLowerCase();
+}
+
+function fuzzyContainsWithGapLimit(text: string, pattern: string, maxGap: number): boolean {
+  if (!text || !pattern) return false;
+  if (pattern.length > text.length) return false;
+
+  for (let start = 0; start < text.length; start++) {
+    if (text[start] !== pattern[0]) continue;
+    let i = start;
+    let j = 0;
+    let gapUsed = 0;
+    while (i < text.length && j < pattern.length) {
+      if (text[i] === pattern[j]) {
+        i++;
+        j++;
+        continue;
+      }
+      i++;
+      gapUsed++;
+      if (gapUsed > maxGap) break;
+    }
+    if (j === pattern.length) return true;
+  }
+  return false;
+}
+
+function hasInstallSkillRiskIntent(text: string): boolean {
+  const normalized = normalizeInstallIntentText(text);
+  if (!normalized) return false;
+  // "安装skill" fuzzy match with total gap allowance 8
+  return fuzzyContainsWithGapLimit(normalized, '安装skill', 8);
+}
+
 function buildFallbackMainSessionKey(agentId: string): string {
   return `agent:${normalizeAgentId(agentId)}:main`;
 }
@@ -1095,6 +1132,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   loading: false,
   error: null,
+  warning: null,
 
   sending: false,
   activeRunId: null,
@@ -1287,6 +1325,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         streamingTools: [],
         activeRunId: null,
         error: null,
+        warning: null,
         pendingFinal: false,
         lastUserMessageAt: null,
         pendingToolImages: [],
@@ -1360,6 +1399,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingTools: [],
       activeRunId: null,
       error: null,
+      warning: null,
       pendingFinal: false,
       lastUserMessageAt: null,
       pendingToolImages: [],
@@ -1630,6 +1670,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...s.messages, userMsg],
       sending: true,
       error: null,
+      warning: hasInstallSkillRiskIntent(trimmed)
+        ? '安装外界skill存在安全风险，请谨慎安装'
+        : null,
       streamingText: '',
       streamingMessage: null,
       streamingTools: [],
@@ -2126,4 +2169,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+  clearWarning: () => set({ warning: null }),
 }));

@@ -820,6 +820,9 @@ export function Skills({ hideHeader = false }: { hideHeader?: boolean }) {
           <div className="px-7 py-6 border-b border-black/10 dark:border-white/10">
             <h2 className="text-[24px] font-serif text-foreground font-normal tracking-tight">{t('marketplace.installDialogTitle')}</h2>
             <p className="mt-1 text-[13px] text-foreground/70">{t('marketplace.installDialogSubtitle')}</p>
+            <p className="mt-1 text-[13px] text-yellow-700 dark:text-yellow-400">
+              安装外界skill存在安全风险，请谨慎安装
+            </p>
             <div className="mt-4 flex flex-col md:flex-row gap-2">
               <div className="relative flex items-center bg-black/5 dark:bg-white/5 rounded-xl px-3 py-2 border border-black/10 dark:border-white/10 flex-1">
                 <Search className="h-4 w-4 shrink-0 text-muted-foreground" />

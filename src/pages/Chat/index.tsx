@@ -147,6 +147,7 @@ export function Chat() {
   const loading = useChatStore((s) => s.loading);
   const sending = useChatStore((s) => s.sending);
   const error = useChatStore((s) => s.error);
+  const warning = useChatStore((s) => s.warning);
   const showThinking = useChatStore((s) => s.showThinking);
   const streamingMessage = useChatStore((s) => s.streamingMessage);
   const streamingTools = useChatStore((s) => s.streamingTools);
@@ -154,6 +155,7 @@ export function Chat() {
   const sendMessage = useChatStore((s) => s.sendMessage);
   const abortRun = useChatStore((s) => s.abortRun);
   const clearError = useChatStore((s) => s.clearError);
+  const clearWarning = useChatStore((s) => s.clearWarning);
   const switchSession = useChatStore((s) => s.switchSession);
   const newSession = useChatStore((s) => s.newSession);
   const deleteSession = useChatStore((s) => s.deleteSession);
@@ -220,6 +222,7 @@ export function Chat() {
       loading: false,
       sending: false,
       error: null,
+      warning: null,
       streamingText: '',
       streamingMessage: null,
       streamingTools: [],
@@ -1493,6 +1496,24 @@ export function Chat() {
             </div>
           </div>
         </div>
+
+        {/* Error bar */}
+        {warning && (
+          <div className="px-4 py-2 bg-yellow-500/10 border-t border-yellow-500/20">
+            <div className="max-w-2xl mx-auto flex items-center justify-between">
+              <p className="text-sm text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {warning}
+              </p>
+              <button
+                onClick={clearWarning}
+                className="text-xs text-yellow-700/70 dark:text-yellow-400/70 hover:text-yellow-700 dark:hover:text-yellow-400 underline"
+              >
+                {t('common:actions.dismiss')}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Error bar */}
         {error && (
