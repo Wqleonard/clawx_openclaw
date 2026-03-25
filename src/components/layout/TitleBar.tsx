@@ -175,16 +175,16 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
 
   return (
     <>
-      <div className="drag-region flex h-10 shrink-0 items-center justify-end border-b bg-background pl-20 pr-3">
-        <div className="no-drag flex items-center gap-1">
+      <div className="drag-region flex h-10 shrink-0 items-center justify-between border-b bg-background pl-20 pr-3">
+        <div className="no-drag flex h-full items-center justify-center px-1">
           {showPanelToggles && projectPath && (
-            <>
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
                 className={cn(
                   'size-7 cursor-pointer',
-                  isChatPanelOpen ? 'bg-accent' : 'text-muted-foreground'
+                  isChatPanelOpen ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
                 )}
                 onClick={handleToggleChatPanel}
                 title={isChatPanelOpen ? t('common:actions.close') : t('common:actions.open')}
@@ -195,36 +195,20 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                   <PanelLeftOpen className="size-4" />
                 )}
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  'size-7 cursor-pointer',
-                  isFileTreePanelOpen ? 'bg-accent' : 'text-muted-foreground'
-                )}
-                onClick={handleOpenFolder}
-                title={isFileTreePanelOpen ? t('common:actions.close') : t('fileTree.openFolder')}
-              >
-                {isFileTreePanelOpen ? (
-                  <PanelRightClose className="size-4" />
-                ) : (
-                  <PanelRightOpen className="size-4" />
-                )}
-              </Button>
               <Popover open={projectMenuOpen} onOpenChange={setProjectMenuOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
-                    variant='ghost'
+                    variant="ghost"
                     className="h-8 max-w-[220px] border truncate"
-                    title={projectPath || (isZh ? '打开项目' : 'Open Project')}
+                    title={projectPath}
                   >
                     <FolderClosed className="size-4 mr-1 shrink-0" />
-                    <span className="truncate">{projectPath ? getWorkspaceName(projectPath) : (isZh ? '打开项目' : 'Open Project')}</span>
+                    <span className="truncate">{getWorkspaceName(projectPath)}</span>
                     <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-64 p-1">
+                <PopoverContent align="start" className="w-64 p-1">
                   <button
                     type="button"
                     className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
@@ -265,6 +249,13 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                   </div>
                 </PopoverContent>
               </Popover>
+            </div>
+          )}
+        </div>
+
+        <div className="no-drag flex h-full items-center gap-1">
+          {showPanelToggles && projectPath && (
+            <>
               <Button
                 variant="ghost"
                 size="icon"
@@ -315,6 +306,24 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
               </p>
             </PopoverContent>
           </Popover>
+          {showPanelToggles && projectPath && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'size-7 cursor-pointer',
+                isFileTreePanelOpen ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
+              )}
+              onClick={handleOpenFolder}
+              title={isFileTreePanelOpen ? t('common:actions.close') : t('fileTree.openFolder')}
+            >
+              {isFileTreePanelOpen ? (
+                <PanelRightClose className="size-4" />
+              ) : (
+                <PanelRightOpen className="size-4" />
+              )}
+            </Button>
+          )}
         </div>
       </div>
       <Dialog open={preferencesOpen} onOpenChange={setPreferencesOpen}>
