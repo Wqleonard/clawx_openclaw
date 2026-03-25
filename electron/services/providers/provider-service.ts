@@ -11,7 +11,6 @@ import type {
 import { BUILTIN_PROVIDER_TYPES } from '../../shared/providers/types';
 import { ensureProviderStoreMigrated } from './provider-migration';
 import {
-  deleteProviderAccount,
   getDefaultProviderAccountId,
   getProviderAccount,
   listProviderAccounts,
@@ -28,8 +27,7 @@ import {
   setDefaultProvider,
   storeApiKey,
 } from '../../utils/secure-storage';
-import { getActiveOpenClawProviders, getOpenClawProvidersConfig } from '../../utils/openclaw-auth';
-import { getAliasSourceTypes, getOpenClawProviderKeyForType } from '../../utils/provider-keys';
+import { getAliasSourceTypes } from '../../utils/provider-keys';
 import type { ProviderWithKeyInfo } from '../../shared/providers/types';
 import { logger } from '../../utils/logger';
 
@@ -61,78 +59,77 @@ export class ProviderService {
   async listAccounts(): Promise<ProviderAccount[]> {
     await ensureProviderStoreMigrated();
 
-    // ── openclaw.json is the ONLY source of truth ──
-    // The provider list is derived entirely from openclaw.json.
-    // The electron-store is only used as a metadata cache (label, authMode, etc.).
+    // 旧方案：账号列表以 providerAccounts（electron-store）为唯一展示源。
+    // 这样可以避免运行时根据 openclaw.json 反推并自动删重带来的副作用。
+    const accounts = await listProviderAccounts();
+    return accounts;
 
-    const { providers: openClawProviders, defaultModel } = await getOpenClawProvidersConfig();
-    const activeProviders = await getActiveOpenClawProviders();
-
-    if (activeProviders.size === 0) {
-      return [];
-    }
-
-    // Read store accounts as a lookup cache (NOT as the source of what to display).
-    const allStoreAccounts = await listProviderAccounts();
-
-    // Index store accounts by their openclaw runtime key for fast lookup.
-    const storeByKey = new Map<string, ProviderAccount[]>();
-    for (const account of allStoreAccounts) {
-      const ock = getOpenClawProviderKeyForType(account.vendorId, account.id);
-      const group = storeByKey.get(ock) ?? [];
-      group.push(account);
-      storeByKey.set(ock, group);
-    }
-
-    const result: ProviderAccount[] = [];
-    const processedKeys = new Set<string>();
-
-    // For each active provider in openclaw.json, produce exactly ONE account.
-    for (const key of activeProviders) {
-      if (processedKeys.has(key)) continue;
-      processedKeys.add(key);
-
-      const storeGroup = storeByKey.get(key) ?? [];
-
-      if (storeGroup.length > 0) {
-        // Pick the best store account for this key:
-        // 1. Prefer alias variants (e.g. minimax-portal-cn over minimax-portal)
-        // 2. Among equal variants, prefer the most recently updated
-        const aliasAccounts = storeGroup.filter((a) => a.vendorId !== key);
-        const candidates = aliasAccounts.length > 0 ? aliasAccounts : storeGroup;
-        candidates.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-        result.push(candidates[0]);
-
-        // Clean up orphaned duplicates from the store.
-        const kept = candidates[0];
-        for (const account of storeGroup) {
-          if (account.id !== kept.id) {
-            logger.info(
-              `[provider-sync] Removing orphaned account "${account.id}" for key "${key}" (keeping "${kept.id}")`,
-            );
-            await deleteProviderAccount(account.id);
-          }
-        }
-      } else {
-        // No store account for this key — create a seed from openclaw.json.
-        const entry = openClawProviders[key];
-        if (entry) {
-          const seeded = ProviderService.buildAccountsFromOpenClawEntries(
-            { [key]: entry },
-            new Set(),
-            new Set(),
-            defaultModel,
-          );
-          for (const account of seeded) {
-            await saveProviderAccount(account);
-            result.push(account);
-            logger.info(`[provider-sync] Seeded provider account "${account.id}" from openclaw.json`);
-          }
-        }
-      }
-    }
-
-    return result;
+    /*
+     * 新方案（已停用，保留备用）：
+     * 1) openclaw.json 作为唯一真源；
+     * 2) providerAccounts 仅作为元数据缓存；
+     * 3) 运行时按 key 反推账号，并清理重复/孤儿记录。
+     *
+     * 如需恢复新方案，请取消下方整段注释并改回返回 result。
+     *
+     * const { providers: openClawProviders, defaultModel } = await getOpenClawProvidersConfig();
+     * const activeProviders = await getActiveOpenClawProviders();
+     *
+     * if (activeProviders.size === 0) {
+     *   return [];
+     * }
+     *
+     * const allStoreAccounts = await listProviderAccounts();
+     * const storeByKey = new Map<string, ProviderAccount[]>();
+     * for (const account of allStoreAccounts) {
+     *   const ock = getOpenClawProviderKeyForType(account.vendorId, account.id);
+     *   const group = storeByKey.get(ock) ?? [];
+     *   group.push(account);
+     *   storeByKey.set(ock, group);
+     * }
+     *
+     * const result: ProviderAccount[] = [];
+     * const processedKeys = new Set<string>();
+     * for (const key of activeProviders) {
+     *   if (processedKeys.has(key)) continue;
+     *   processedKeys.add(key);
+     *
+     *   const storeGroup = storeByKey.get(key) ?? [];
+     *   if (storeGroup.length > 0) {
+     *     const aliasAccounts = storeGroup.filter((a) => a.vendorId !== key);
+     *     const candidates = aliasAccounts.length > 0 ? aliasAccounts : storeGroup;
+     *     candidates.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+     *     result.push(candidates[0]);
+     *
+     *     const kept = candidates[0];
+     *     for (const account of storeGroup) {
+     *       if (account.id !== kept.id) {
+     *         logger.info(
+     *           `[provider-sync] Removing orphaned account "${account.id}" for key "${key}" (keeping "${kept.id}")`,
+     *         );
+     *         await deleteProviderAccount(account.id);
+     *       }
+     *     }
+     *   } else {
+     *     const entry = openClawProviders[key];
+     *     if (entry) {
+     *       const seeded = ProviderService.buildAccountsFromOpenClawEntries(
+     *         { [key]: entry },
+     *         new Set(),
+     *         new Set(),
+     *         defaultModel,
+     *       );
+     *       for (const account of seeded) {
+     *         await saveProviderAccount(account);
+     *         result.push(account);
+     *         logger.info(`[provider-sync] Seeded provider account "${account.id}" from openclaw.json`);
+     *       }
+     *     }
+     *   }
+     * }
+     *
+     * return result;
+     */
   }
 
 
