@@ -161,7 +161,7 @@ const visitorPost = () => {
     headers['X-Visitor-Id'] = visitorId;
   }
 
-  return apiClient.post('/api/visitor/report', undefined, {
+  return apiClient.post('/visitor/report', undefined, {
     headers,
     skipAutoAuthHeader: true,
   });

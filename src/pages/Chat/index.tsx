@@ -1530,11 +1530,14 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
         {/* <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div> */}
         <h1 className="mt-[12%] bg-gradient-to-b from-zinc-400 via-zinc-700 to-black bg-clip-text text-[62px] font-bold text-transparent dark:from-zinc-200 dark:via-zinc-100 dark:to-white">
-          Story Claw
+          Story 
+          <span className="inline-block ml-2 bg-gradient-to-b from-[#ed4141] to-[#c02b2b] bg-clip-text text-transparent">
+            Claw
+          </span>
         </h1>
         <p className='text-[22px] text-muted-foreground'>世界正在等待你的故事</p>
-        <Button className="mt-[32px] flex items-center gap-1" onClick={onCreateProject}>
-          <FolderPlus className='size-4'/> {t('common:projectDialog.title')}
+        <Button className="relative mt-[32px] flex w-fit items-center gap-4 rounded-lg border border-[#c02b2b]/40 bg-gradient-to-r from-[#ed4141] to-[#c02b2b] px-8 py-7 text-xl font-bold text-white shadow-[0_10px_30px_rgba(192,43,43,0.28)] transition-all duration-300 hover:border-[#ed4141]/80 hover:from-[#f05555] hover:to-[#cf3838] hover:shadow-[0_14px_36px_rgba(192,43,43,0.36)]" onClick={onCreateProject}>
+          <FolderPlus className='size-6'/> 立即创作
         </Button>
       </div>
     </div>
