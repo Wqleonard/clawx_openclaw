@@ -563,7 +563,7 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
               >
                 <SlidersHorizontal className="h-4 w-4" />
               </Button>
-              <Button
+              {/* <Button
                 variant="ghost"
                 size="icon"
                 className="size-7 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
@@ -571,7 +571,7 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                 title="Open OpenClaw"
               >
                 <Terminal className="h-4 w-4" />
-              </Button>
+              </Button> */}
             </div>
           )}
           <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
