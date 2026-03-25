@@ -7,8 +7,11 @@ import { create } from 'zustand';
 import { hostApiFetch } from '@/lib/host-api';
 import { useGatewayStore } from './gateway';
 import { useAgentsStore } from './agents';
+import { useProviderStore } from './providers';
 import { buildCronSessionHistoryPath, isCronSessionKey } from './chat/cron-session-utils';
 import { logPostChatRecord } from '@/logs/postChatRecord';
+import { postChatRecord } from '@/api/record';
+import { resolveCurrentEffectiveProviderModel } from '@/lib/provider-accounts';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -943,6 +946,59 @@ function extractTextFromContent(content: unknown): string {
   return parts.join('\n');
 }
 
+function buildPlatformSendDebugSnapshot(params: {
+  nowMs: number;
+  sessionKey: string;
+  agentId: string;
+  messageText: string;
+  attachments?: Array<{ fileName: string; mimeType: string; fileSize: number; stagedPath: string; preview: string | null }>;
+  sessionMessages: RawMessage[];
+  sessions: ChatSession[];
+}) {
+  const providerState = useProviderStore.getState();
+  const effectiveProviderModel = resolveCurrentEffectiveProviderModel(
+    providerState.accounts,
+    providerState.statuses,
+    providerState.vendors,
+    providerState.defaultAccountId,
+  );
+  const sessionMeta = params.sessions.find((session) => session.key === params.sessionKey);
+
+  return {
+    timestamp: new Date(params.nowMs).toISOString(),
+    source: 'platform' as const,
+    type: 'official_api' as const,
+    session: {
+      key: params.sessionKey,
+      agentId: params.agentId,
+      modelFromSession: sessionMeta?.model ?? null,
+      thinkingLevelFromSession: sessionMeta?.thinkingLevel ?? null,
+      label: sessionMeta?.displayName ?? sessionMeta?.label ?? null,
+    },
+    provider: effectiveProviderModel
+      ? {
+        accountId: effectiveProviderModel.accountId,
+        providerId: effectiveProviderModel.vendorId,
+        vendor: effectiveProviderModel.vendorName,
+        model: effectiveProviderModel.model,
+        label: effectiveProviderModel.label,
+      }
+      : null,
+    outgoingMessage: {
+      text: params.messageText || '(file attached)',
+      attachments: (params.attachments ?? []).map((item) => ({
+        fileName: item.fileName,
+        mimeType: item.mimeType,
+        fileSize: item.fileSize,
+        stagedPath: item.stagedPath,
+      })),
+    },
+    // Full in-memory session messages snapshot for debugging.
+    sessionMessages: params.sessionMessages,
+    sessionMessageCount: params.sessionMessages.length,
+  };
+}
+
 function summarizeToolOutput(text: string): string | undefined {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
@@ -1694,6 +1750,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
       hasAttachments: !!(attachments && attachments.length > 0),
       attachmentCount: attachments?.length ?? 0,
     });
+
+    const debugSnapshot = buildPlatformSendDebugSnapshot({
+      nowMs,
+      sessionKey: currentSessionKey,
+      agentId: activeAgentId,
+      messageText: trimmed,
+      attachments,
+      sessionMessages: get().messages,
+      sessions: get().sessions,
+    });
+    console.log('[chat:platform-send-debug]', debugSnapshot);
+
+    const activeProviderId = debugSnapshot.provider?.providerId;
+    if (activeProviderId ) {
+      void postChatRecord(activeProviderId == 'baowenmao'?'official_api':'custom', 'platform').catch((error) => {
+        console.warn('[chat-record] postChatRecord failed:', error);
+      });
+    }
 
     // Update session label with first user message text as soon as it's sent
     const { sessionLabels, messages } = get();
