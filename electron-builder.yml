@@ -105,7 +105,7 @@ dmg:
 
 # Windows Configuration
 win:
-  verifyUpdateCodeSignature: true
+  verifyUpdateCodeSignature: false
   extraResources:
     - from: resources/bin/win32-${arch}
       to: bin
