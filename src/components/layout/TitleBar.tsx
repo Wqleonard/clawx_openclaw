@@ -21,6 +21,9 @@ import {
   ServerOff,
   ChevronDown,
   FolderClosed,
+  Ellipsis,
+  FolderOpen,
+  FolderPlus,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invokeIpc } from '@/lib/api-client';
@@ -349,6 +352,8 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [hoveredProjectPath, setHoveredProjectPath] = useState<string | null>(null);
+  const [projectActionMenuPath, setProjectActionMenuPath] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
@@ -474,6 +479,28 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
     window.dispatchEvent(new CustomEvent('project:open-request'));
     setProjectMenuOpen(false);
   }, []);
+  const handleRequestCloseProject = useCallback((targetPath: string) => {
+    if (!targetPath) return;
+    const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+    if (!isOnChatRoute) {
+      navigate('/chat');
+      window.setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent('project:close-request', {
+            detail: { path: targetPath },
+          }),
+        );
+      }, 0);
+      setProjectMenuOpen(false);
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent('project:close-request', {
+        detail: { path: targetPath },
+      }),
+    );
+    setProjectMenuOpen(false);
+  }, [location.pathname, navigate]);
 
   return (
     <>
@@ -515,35 +542,77 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                 <PopoverContent align="start" className="w-64 p-1">
                   <button
                     type="button"
-                    className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
+                    className="w-full flex items-center rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
                     onClick={handleCreateProject}
                   >
-                    + {t('common:projectDialog.title')}
+                    <FolderPlus className='size-4 mr-1'/> {t('common:projectDialog.title')}
                   </button>
                   <button
                     type="button"
-                    className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
+                    className="w-full flex items-center rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
                     onClick={handleOpenProject}
                   >
-                    {isZh ? '打开项目' : 'Open Project'}
+                    <FolderOpen className='size-4 mr-1'/>{isZh ? '打开项目' : 'Open Project'}
                   </button>
                   <div className="my-1 border-t"></div>
-                  <div className="max-h-[420px] overflow-y-auto space-y-1 scrollbar-hover">
+                  <div className="max-h-[420px] overflow-y-auto space-y-1">
                     {projectItems.map((project) => (
-                      <button
+                      <div
                         key={project.path}
-                        type="button"
-                        title={project.path}
-                        onClick={() => handleSwitchProject(project.path)}
                         className={cn(
                           'w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                           'hover:bg-black/5 dark:hover:bg-white/10',
+                          'flex items-center justify-between',
                           project.isActive ? 'bg-black/5 dark:bg-white/10 font-medium' : 'text-foreground/80'
                         )}
+                        onMouseEnter={() => setHoveredProjectPath(project.path)}
+                        onMouseLeave={() => setHoveredProjectPath((current) => (
+                          current === project.path ? null : current
+                        ))}
                       >
-                        <div className="truncate">{project.name}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">{project.path}</div>
-                      </button>
+                        <button
+                          type="button"
+                          title={project.path}
+                          onClick={() => handleSwitchProject(project.path)}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <div className="truncate">{project.name}</div>
+                          <div className="truncate text-[11px] text-muted-foreground">{project.path}</div>
+                        </button>
+                        <Popover
+                          open={projectActionMenuPath === project.path}
+                          onOpenChange={(open) => setProjectActionMenuPath(open ? project.path : null)}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              className={cn(
+                                'shrink-0 !p-0 size-6 flex items-center justify-center transition-opacity',
+                                hoveredProjectPath === project.path || projectActionMenuPath === project.path
+                                  ? 'opacity-100'
+                                  : 'pointer-events-none opacity-0'
+                              )}
+                              onPointerDown={(event) => event.stopPropagation()}
+                            >
+                              <Ellipsis className="size-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="w-64 p-1">
+                            <button
+                              type="button"
+                              className="w-full rounded-md px-2 py-1.5 text-left text-sm font-medium text-red-600 hover:bg-black/5 dark:text-red-400 dark:hover:bg-white/10"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                handleRequestCloseProject(project.path);
+                                setProjectActionMenuPath(null);
+                              }}
+                            >
+                              {isZh ? '删除项目' : 'Delete Project'}
+                            </button>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     ))}
                   </div>
                 </PopoverContent>

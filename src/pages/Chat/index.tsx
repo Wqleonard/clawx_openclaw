@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, FileText, Loader2 } from 'lucide-react';
+import { AlertCircle, FileText, FolderPlus, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -628,7 +628,9 @@ export function Chat() {
     const editorMin = CHAT_PANEL_SIZE.editor.min;
 
     let nextEditorWidth = Math.max(editorMin, currentEditorWidth);
-    let nextFileTreeWidth = isFileTreeInlineVisible ? Math.max(fileTreeMin, currentFileTreeWidth) : 0;
+    let nextFileTreeWidth = isFileTreeInlineVisible
+      ? Math.max(fileTreeMin, currentFileTreeWidth)
+      : 0;
 
     let overflow = nextEditorWidth + nextFileTreeWidth - maxSidePanelsTotal;
     if (overflow > 0) {
@@ -668,12 +670,7 @@ export function Chat() {
     if (isFileTreeInlineVisible && Math.abs(nextFileTreeWidth - currentFileTreeWidth) > 0.5) {
       setFileTreeWidth(nextFileTreeWidth);
     }
-  }, [
-    isChatPanelVisible,
-    isFileTreeInlineVisible,
-    fixedNonPanelWidth,
-    setFileTreeDrawerOpen,
-  ]);
+  }, [isChatPanelVisible, isFileTreeInlineVisible, fixedNonPanelWidth, setFileTreeDrawerOpen]);
 
   useEffect(() => {
     clampPanelsForViewport();
@@ -741,7 +738,6 @@ export function Chat() {
     [activeFile, updateFileContent]
   );
 
-
   const onEditorDragStart = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (!isChatPanelVisible) return;
@@ -751,10 +747,7 @@ export function Chat() {
       editorDragStartWidth.current = editorWidth;
       const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
       editorDragStartChatWidth.current =
-        containerWidth -
-        fixedNonPanelWidth -
-        editorWidth -
-        effectiveFileTreeWidth;
+        containerWidth - fixedNonPanelWidth - editorWidth - effectiveFileTreeWidth;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
@@ -801,13 +794,7 @@ export function Chat() {
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [
-      isChatPanelVisible,
-      editorWidth,
-      effectiveFileTreeWidth,
-      commitEditorWidth,
-      fixedNonPanelWidth,
-    ]
+    [isChatPanelVisible, editorWidth, effectiveFileTreeWidth, commitEditorWidth, fixedNonPanelWidth]
   );
 
   const onFileTreeDragStart = useCallback(
@@ -964,6 +951,19 @@ export function Chat() {
     };
   }, [handleActivateProject]);
 
+  useEffect(() => {
+    const handleCloseProject = (event: Event) => {
+      const customEvent = event as CustomEvent<{ path?: string }>;
+      const targetPath = customEvent.detail?.path;
+      if (!targetPath) return;
+      setProjectToClose(targetPath);
+    };
+    window.addEventListener('project:close-request', handleCloseProject as EventListener);
+    return () => {
+      window.removeEventListener('project:close-request', handleCloseProject as EventListener);
+    };
+  }, []);
+
   const handleConfirmCloseCurrentProject = useCallback(async () => {
     if (!projectToClose) return;
     const target = projectToClose;
@@ -996,12 +996,17 @@ export function Chat() {
       await deleteSession(sessionKey);
     }
 
+    const isClosingCurrentProject = !!projectPath && workspacePathMatches(projectPath, target);
     const nextShortcuts = projectShortcuts.filter((item) => item !== target);
     removeProjectShortcut(target);
-    if (nextShortcuts.length > 0) {
+    if (isClosingCurrentProject && nextShortcuts.length > 0) {
       const nextProject = nextShortcuts[0];
       await switchToProjectSession(nextProject);
       await initProject(nextProject);
+      return;
+    }
+
+    if (!isClosingCurrentProject) {
       return;
     }
 
@@ -1015,6 +1020,7 @@ export function Chat() {
     projectToClose,
     deleteAgent,
     deleteSession,
+    projectPath,
     projectShortcuts,
     removeProjectShortcut,
     switchToProjectSession,
@@ -1153,19 +1159,16 @@ export function Chat() {
   }, []);
 
   if (!projectPath) {
-    return (
-      <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />
-    );
+    return <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />;
   }
 
   return (
     <div
       ref={containerRef}
       className={cn(
-        'w-full min-w-0 max-w-full overflow-hidden px-3 py-3 pt-0 flex h-full transition-colors duration-500 dark:bg-background',
+        'w-full min-w-0 max-w-full overflow-hidden px-3 py-3 pt-0 flex h-full transition-colors duration-500 dark:bg-background'
       )}
     >
-
       {/* Chat Panel */}
       <div
         className={cn(
@@ -1522,12 +1525,16 @@ function WelcomeScreen() {
 function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => void }) {
   const { t } = useTranslation('chat');
   return (
-    <div className="flex w-full h-full p-4 pl-0 justify-center text-center">
+    <div className="flex w-full h-full p-4 justify-center text-center">
       <div className="flex flex-col w-full rounded-2xl border items-center justify-start">
-        <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
-        <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div>
-        <Button className="mt-5" onClick={onCreateProject}>
-          + {t('common:projectDialog.title')}
+        {/* <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
+        <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div> */}
+        <h1 className="mt-[12%] bg-gradient-to-b from-zinc-400 via-zinc-700 to-black bg-clip-text text-[62px] font-bold text-transparent dark:from-zinc-200 dark:via-zinc-100 dark:to-white">
+          Story Claw
+        </h1>
+        <p className='text-[22px] text-muted-foreground'>世界正在等待你的故事</p>
+        <Button className="mt-[32px] flex items-center gap-1" onClick={onCreateProject}>
+          <FolderPlus className='size-4'/> {t('common:projectDialog.title')}
         </Button>
       </div>
     </div>
