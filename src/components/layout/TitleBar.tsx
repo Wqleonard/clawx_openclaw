@@ -528,7 +528,7 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                     {isZh ? '打开项目' : 'Open Project'}
                   </button>
                   <div className="my-1 border-t"></div>
-                  <div className="max-h-[420px] overflow-y-auto space-y-1">
+                  <div className="max-h-[420px] overflow-y-auto space-y-1 scrollbar-hover">
                     {projectItems.map((project) => (
                       <button
                         key={project.path}
