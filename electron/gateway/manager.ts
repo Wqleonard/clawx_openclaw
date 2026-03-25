@@ -6,16 +6,24 @@ import { app } from 'electron';
 import path from 'path';
 import { EventEmitter } from 'events';
 import WebSocket from 'ws';
-import { access, copyFile, unlink } from 'node:fs/promises';
+import { access, copyFile, readFile, unlink } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { PORTS } from '../utils/config';
 import { JsonRpcNotification, isNotification, isResponse } from './protocol';
 import { logger } from '../utils/logger';
+import {
+  normalizeChatRecordSource,
+  resolveChatRecordTypeBySource,
+  writeGatewayRawMessage,
+  writeChatRecord,
+  type ChatRecordSource,
+} from '../utils/chat-record-logger';
 import { captureTelemetryEvent, trackMetric } from '../utils/telemetry';
 import {
   loadOrCreateDeviceIdentity,
   type DeviceIdentity,
 } from '../utils/device-identity';
+import { getOpenClawConfigDir } from '../utils/paths';
 import {
   DEFAULT_RECONNECT_CONFIG,
   type ReconnectConfig,
@@ -111,10 +119,16 @@ export class GatewayManager extends EventEmitter {
   private externalShutdownSupported: boolean | null = null;
   private reconnectAttemptsTotal = 0;
   private reconnectSuccessTotal = 0;
+  private recentUserRecordKeys: Map<string, number> = new Map();
+  private sessionSourceHints: Map<string, ChatRecordSource> = new Map();
+  private sessionFallbackInflight: Set<string> = new Set();
+  private readonly userRecordStartAtMs = Date.now();
   private static readonly RELOAD_POLICY_REFRESH_MS = 15_000;
   private static readonly HEARTBEAT_INTERVAL_MS = 30_000;
   private static readonly HEARTBEAT_TIMEOUT_MS = 12_000;
   private static readonly HEARTBEAT_MAX_MISSES = 3;
+  private static readonly USER_RECORD_DEDUPE_TTL_MS = 5 * 60_000;
+  private static readonly USER_RECORD_CLOCK_SKEW_MS = 60_000;
   public static readonly RESTART_COOLDOWN_MS = 5_000;
   private lastRestartAt = 0;
 
@@ -813,11 +827,476 @@ export class GatewayManager extends EventEmitter {
     });
   }
 
+  /** Extract text from mixed message content structures. */
+  private extractMessageText(content: unknown, depth = 0): string {
+    if (depth > 3) return '';
+    if (typeof content === 'string') return content;
+    if (content == null) return '';
+    if (Array.isArray(content)) {
+      const parts = content
+        .map((item) => this.extractMessageText(item, depth + 1))
+        .filter(Boolean);
+      return parts.join('\n');
+    }
+    if (typeof content === 'object') {
+      const obj = content as Record<string, unknown>;
+      const textKeys = ['text', 'content', 'message', 'query', 'prompt'];
+      for (const key of textKeys) {
+        if (key in obj) {
+          const extracted = this.extractMessageText(obj[key], depth + 1);
+          if (extracted) return extracted;
+        }
+      }
+      try {
+        return JSON.stringify(content);
+      } catch {
+        return String(content);
+      }
+    }
+    return String(content);
+  }
+
+  private toIsoTime(value: unknown): string {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const ms = value < 1e12 ? value * 1000 : value;
+      return new Date(ms).toISOString();
+    }
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Date.parse(value);
+      if (Number.isFinite(parsed)) {
+        return new Date(parsed).toISOString();
+      }
+    }
+    return new Date().toISOString();
+  }
+
+  private toEpochMs(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value < 1e12 ? value * 1000 : value;
+    }
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Date.parse(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+  }
+
+  private shouldRecordByTimestamp(timestampIso: string): boolean {
+    const tsMs = this.toEpochMs(timestampIso);
+    if (!tsMs) return true;
+    return tsMs >= (this.userRecordStartAtMs - GatewayManager.USER_RECORD_CLOCK_SKEW_MS);
+  }
+
+  private pruneRecentUserRecordKeys(now: number): void {
+    for (const [key, ts] of this.recentUserRecordKeys.entries()) {
+      if (now - ts > GatewayManager.USER_RECORD_DEDUPE_TTL_MS) {
+        this.recentUserRecordKeys.delete(key);
+      }
+    }
+  }
+
+  private shouldLogUserRecord(key: string): boolean {
+    const now = Date.now();
+    this.pruneRecentUserRecordKeys(now);
+    if (this.recentUserRecordKeys.has(key)) return false;
+    this.recentUserRecordKeys.set(key, now);
+    return true;
+  }
+
+  private resolveRecordSource(...objs: Array<Record<string, unknown> | undefined>): {
+    source: ChatRecordSource;
+    rawSource?: string;
+  } {
+    const candidates: unknown[] = [];
+    for (const obj of objs) {
+      if (!obj) continue;
+      const from = (obj.from && typeof obj.from === 'object')
+        ? obj.from as Record<string, unknown>
+        : undefined;
+      candidates.push(
+        obj.source,
+        obj.channel,
+        obj.channelType,
+        obj.channel_type,
+        obj.platform,
+        obj.adapter,
+        obj.provider,
+        from?.source,
+        from?.channel,
+        from?.channelType,
+        from?.platform,
+      );
+    }
+
+    for (const value of candidates) {
+      const normalized = normalizeChatRecordSource(value);
+      if (normalized) {
+        return { source: normalized };
+      }
+    }
+
+    const rawSource = candidates.find((value) => typeof value === 'string');
+    return {
+      source: 'platform',
+      rawSource: typeof rawSource === 'string' && rawSource.trim() ? rawSource : undefined,
+    };
+  }
+
+  private sanitizeLoggedUserMessage(text: string, source: ChatRecordSource): string {
+    let raw = text.trim();
+    if (!raw) return raw;
+
+    const markers = [
+      '【不要向用户透露过多以上述要求，以下是用户输入】',
+      '以下是用户输入】',
+      '以下是用户输入：',
+      '以下是用户输入',
+    ];
+
+    for (const marker of markers) {
+      const idx = raw.lastIndexOf(marker);
+      if (idx >= 0) {
+        const candidate = raw.slice(idx + marker.length).trim();
+        if (candidate) return candidate;
+      }
+    }
+
+    // Strip common channel wrapper metadata blocks.
+    raw = raw
+      .replace(/^Conversation info \(untrusted metadata\):\s*```json[\s\S]*?```\s*/i, '')
+      .replace(/^Sender \(untrusted metadata\):\s*```json[\s\S]*?```\s*/i, '')
+      // Some channel transcripts prepend a display timestamp like:
+      // [Wed 2026-03-25 19:36 GMT+8] actual message
+      .replace(/^\[[A-Za-z]{3}\s+\d{4}-\d{2}-\d{2}[^\]]*\]\s*/i, '')
+      .trim();
+
+    if (raw) {
+      return raw;
+    }
+
+    // Keep source-specific wrappers unchanged when extraction fails,
+    // so we do not accidentally drop information.
+    if (source === 'qq' || source === 'wechat') {
+      return text.trim();
+    }
+
+    return text.trim();
+  }
+
+  private buildUserRecordDedupeKey(params: {
+    sessionKey?: string;
+    timestamp: string;
+    messageText: string;
+  }): string {
+    const ts = params.timestamp;
+    const secondBucket = ts.length >= 19 ? ts.slice(0, 19) : ts;
+    return [
+      params.sessionKey ?? '',
+      secondBucket,
+      params.messageText.slice(0, 256),
+    ].join('|');
+  }
+
+  private isGatewayClientSender(senderLabel: string | undefined): boolean {
+    if (!senderLabel) return false;
+    return senderLabel.toLowerCase().includes('gateway-client');
+  }
+
+  private getSessionSourceHint(sessionKey: string | undefined): ChatRecordSource | undefined {
+    if (!sessionKey) return undefined;
+    return this.sessionSourceHints.get(sessionKey);
+  }
+
+  private parseSessionKey(sessionKey: string): { agentId: string; suffix: string } | null {
+    if (!sessionKey.startsWith('agent:')) return null;
+    const parts = sessionKey.split(':');
+    if (parts.length < 3) return null;
+    return {
+      agentId: parts[1] || 'main',
+      suffix: parts.slice(2).join(':'),
+    };
+  }
+
+  private async fallbackLogLatestSessionUserMessage(params: {
+    sessionKey: string;
+    runId?: string;
+  }): Promise<void> {
+    const { sessionKey, runId } = params;
+    const inflightKey = `${sessionKey}|${runId ?? ''}`;
+    if (this.sessionFallbackInflight.has(inflightKey)) return;
+    this.sessionFallbackInflight.add(inflightKey);
+
+    try {
+      const parsed = this.parseSessionKey(sessionKey);
+      if (!parsed) return;
+
+      const sessionsJsonPath = path.join(
+        getOpenClawConfigDir(),
+        'agents',
+        parsed.agentId,
+        'sessions',
+        'sessions.json',
+      );
+      const sessionsRaw = await readFile(sessionsJsonPath, 'utf8');
+      const sessionsJson = JSON.parse(sessionsRaw) as Record<string, unknown>;
+      const entry = sessionsJson[sessionKey];
+      if (!entry || typeof entry !== 'object') return;
+      const entryObj = entry as Record<string, unknown>;
+
+      const source = this.inferSourceFromObject(entryObj) ?? this.getSessionSourceHint(sessionKey);
+      if (!source || source === 'platform') return;
+
+      const sessionFileRaw = entryObj.sessionFile;
+      const sessionFile = typeof sessionFileRaw === 'string' && sessionFileRaw.trim()
+        ? sessionFileRaw
+        : path.join(
+          getOpenClawConfigDir(),
+          'agents',
+          parsed.agentId,
+          'sessions',
+          `${parsed.suffix}.jsonl`,
+        );
+      const jsonlRaw = await readFile(sessionFile, 'utf8');
+      const lines = jsonlRaw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i -= 1) {
+        const line = lines[i];
+        if (!line) continue;
+        let record: unknown;
+        try {
+          record = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (typeof record !== 'object' || record === null) continue;
+        const rec = record as Record<string, unknown>;
+        if (rec.type !== 'message' || typeof rec.message !== 'object' || rec.message == null) continue;
+        const msg = rec.message as Record<string, unknown>;
+        const role = typeof msg.role === 'string' ? msg.role.toLowerCase() : '';
+        if (role !== 'user') continue;
+        const senderLabel = typeof msg.senderLabel === 'string' ? msg.senderLabel : undefined;
+        if (this.isGatewayClientSender(senderLabel)) {
+          // Desktop-originated messages are already logged via renderer -> IPC;
+          // skip gateway replay path to avoid duplicate records.
+          return;
+        }
+        const text = this.extractMessageText(msg.content);
+        if (!text.trim()) return;
+        const cleanedText = this.sanitizeLoggedUserMessage(text, source) || text;
+        const timestamp = this.toIsoTime(msg.timestamp ?? rec.timestamp);
+        if (!this.shouldRecordByTimestamp(timestamp)) {
+          return;
+        }
+        const dedupeKey = this.buildUserRecordDedupeKey({
+          sessionKey,
+          timestamp,
+          messageText: cleanedText,
+        });
+        if (!this.shouldLogUserRecord(dedupeKey)) return;
+        writeChatRecord({
+          timestamp,
+          type: resolveChatRecordTypeBySource(source),
+          source,
+          sessionKey,
+          agentId: parsed.agentId,
+          runId,
+          messageText: cleanedText,
+          extra: 'fallback=session-jsonl',
+        });
+        return;
+      }
+    } catch {
+      // Fallback logging failure should never affect chat flow.
+    } finally {
+      this.sessionFallbackInflight.delete(inflightKey);
+    }
+  }
+
+  private inferSourceFromObject(obj: Record<string, unknown>): ChatRecordSource | null {
+    const origin = (obj.origin && typeof obj.origin === 'object')
+      ? obj.origin as Record<string, unknown>
+      : undefined;
+    const deliveryContext = (obj.deliveryContext && typeof obj.deliveryContext === 'object')
+      ? obj.deliveryContext as Record<string, unknown>
+      : undefined;
+    const candidates: unknown[] = [
+      obj.source,
+      obj.channel,
+      obj.channelType,
+      obj.channel_type,
+      obj.lastChannel,
+      obj.provider,
+      obj.surface,
+      origin?.provider,
+      origin?.surface,
+      deliveryContext?.channel,
+    ];
+    for (const value of candidates) {
+      const normalized = normalizeChatRecordSource(value);
+      if (normalized) return normalized;
+    }
+    const displayName = typeof obj.displayName === 'string' ? obj.displayName.toLowerCase() : '';
+    if (displayName.startsWith('qqbot:')) return 'qq';
+    if (displayName.includes('@im.wechat')) return 'wechat';
+    return null;
+  }
+
+  private ingestSessionSourceHints(node: unknown, depth = 0): void {
+    if (depth > 8 || node == null) return;
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        this.ingestSessionSourceHints(item, depth + 1);
+      }
+      return;
+    }
+    if (typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    const sessionKey = typeof obj.sessionKey === 'string'
+      ? obj.sessionKey
+      : (typeof obj.key === 'string' ? obj.key : null);
+    if (sessionKey) {
+      const source = this.inferSourceFromObject(obj);
+      if (source) {
+        this.sessionSourceHints.set(sessionKey, source);
+      }
+    }
+    for (const value of Object.values(obj)) {
+      if (typeof value === 'object' && value !== null) {
+        this.ingestSessionSourceHints(value, depth + 1);
+      }
+    }
+  }
+
+  private extractUserCandidates(
+    node: unknown,
+    ancestors: Record<string, unknown>[] = [],
+    out: Array<{
+      timestamp: string;
+      source: ChatRecordSource;
+      rawSource?: string;
+      sessionKey?: string;
+      agentId?: string;
+      runId?: string;
+      messageText: string;
+      extra?: string;
+    }> = [],
+    depth = 0,
+  ): Array<{
+    timestamp: string;
+    source: ChatRecordSource;
+    rawSource?: string;
+    sessionKey?: string;
+    agentId?: string;
+    runId?: string;
+    messageText: string;
+    extra?: string;
+  }> {
+    if (depth > 8 || node == null) return out;
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        this.extractUserCandidates(item, ancestors, out, depth + 1);
+      }
+      return out;
+    }
+    if (typeof node !== 'object') return out;
+
+    const obj = node as Record<string, unknown>;
+    const role = typeof obj.role === 'string' ? obj.role.toLowerCase() : '';
+    if (role === 'user') {
+      const text = this.extractMessageText(obj.content);
+      if (text.trim()) {
+        const contexts = [obj, ...ancestors];
+        const sourceResolved = this.resolveRecordSource(...contexts);
+        const sessionCtx = contexts.find((ctx) => ctx.sessionKey != null);
+        const runCtx = contexts.find((ctx) => ctx.runId != null);
+        const agentCtx = contexts.find((ctx) => ctx.agentId != null);
+        const tsCtx = contexts.find((ctx) => ctx.timestamp != null || ctx.ts != null);
+        const eventCtx = contexts.find((ctx) => ctx.event != null || ctx.method != null || ctx.stream != null);
+        const senderLabel = typeof obj.senderLabel === 'string' ? obj.senderLabel : undefined;
+        if (this.isGatewayClientSender(senderLabel)) {
+          // Desktop-originated messages are logged by the renderer path.
+          // Skipping them here prevents platform + channel duplicate lines.
+          return out;
+        }
+        const sessionKey = sessionCtx?.sessionKey != null ? String(sessionCtx.sessionKey) : undefined;
+        const hintedSource = sessionKey ? this.sessionSourceHints.get(sessionKey) : undefined;
+        const source = sourceResolved.source === 'platform' && hintedSource
+          ? hintedSource
+          : sourceResolved.source;
+        const rawSource = source === sourceResolved.source ? sourceResolved.rawSource : 'sessionHint';
+
+        const cleanedText = this.sanitizeLoggedUserMessage(text, source) || text;
+        out.push({
+          timestamp: this.toIsoTime(obj.timestamp ?? tsCtx?.timestamp ?? tsCtx?.ts),
+          source,
+          rawSource,
+          sessionKey,
+          runId: runCtx?.runId != null ? String(runCtx.runId) : undefined,
+          agentId: agentCtx?.agentId != null ? String(agentCtx.agentId) : undefined,
+          messageText: cleanedText,
+          extra: [
+            eventCtx?.event != null ? `event=${String(eventCtx.event)}` : null,
+            eventCtx?.method != null ? `method=${String(eventCtx.method)}` : null,
+            eventCtx?.stream != null ? `stream=${String(eventCtx.stream)}` : null,
+            senderLabel ? `sender=${senderLabel}` : null,
+            rawSource ? `rawSource=${rawSource}` : null,
+          ].filter(Boolean).join(','),
+        });
+      }
+    }
+
+    const nextAncestors = [obj, ...ancestors].slice(0, 6);
+    for (const value of Object.values(obj)) {
+      if (typeof value === 'object' && value !== null) {
+        this.extractUserCandidates(value, nextAncestors, out, depth + 1);
+      }
+    }
+    return out;
+  }
+
+  private logUserRoleMessage(message: unknown): void {
+    const candidates = this.extractUserCandidates(message);
+    for (const c of candidates) {
+      if (!this.shouldRecordByTimestamp(c.timestamp)) {
+        continue;
+      }
+      const dedupeKey = this.buildUserRecordDedupeKey({
+        sessionKey: c.sessionKey,
+        timestamp: c.timestamp,
+        messageText: c.messageText,
+      });
+      if (!this.shouldLogUserRecord(dedupeKey)) {
+        continue;
+      }
+      writeChatRecord({
+        timestamp: c.timestamp,
+        type: resolveChatRecordTypeBySource(c.source),
+        source: c.source,
+        sessionKey: c.sessionKey,
+        agentId: c.agentId,
+        runId: c.runId,
+        messageText: c.messageText,
+        extra: c.extra,
+      });
+    }
+  }
+
   /**
    * Handle incoming WebSocket message
    */
   private handleMessage(message: unknown): void {
     this.connectionMonitor.markAlive('message');
+
+    // Raw traffic capture for channel payload debugging.
+    writeGatewayRawMessage(message);
+
+    // Keep an in-memory mapping of sessionKey -> channel source (qq/wechat/...).
+    this.ingestSessionSourceHints(message);
+
+    // ── postChatRecord: intercept user-role messages from all sources ──
+    this.logUserRoleMessage(message);
 
     if (typeof message !== 'object' || message === null) {
       logger.debug('Received non-object Gateway message');
@@ -825,6 +1304,22 @@ export class GatewayManager extends EventEmitter {
     }
 
     const msg = message as Record<string, unknown>;
+
+    if (msg.type === 'event' && msg.event === 'agent' && typeof msg.payload === 'object' && msg.payload !== null) {
+      const payload = msg.payload as Record<string, unknown>;
+      const stream = typeof payload.stream === 'string' ? payload.stream : '';
+      const data = (payload.data && typeof payload.data === 'object')
+        ? payload.data as Record<string, unknown>
+        : undefined;
+      const phase = typeof data?.phase === 'string' ? data.phase : '';
+      const sessionKey = typeof payload.sessionKey === 'string' ? payload.sessionKey : '';
+      const runId = typeof payload.runId === 'string' ? payload.runId : undefined;
+      // QQ inbound user turns are not always present in realtime WS events.
+      // On lifecycle start, read latest user turn from the authoritative session jsonl.
+      if (stream === 'lifecycle' && phase === 'start' && sessionKey) {
+        void this.fallbackLogLatestSessionUserMessage({ sessionKey, runId });
+      }
+    }
 
     // Handle OpenClaw protocol response format: { type: "res", id: "...", ok: true/false, ... }
     if (msg.type === 'res' && typeof msg.id === 'string') {

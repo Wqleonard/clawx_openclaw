@@ -34,6 +34,7 @@ export interface AppSettings {
   telemetryEnabled: boolean;
   machineId: string;
   hasReportedInstall: boolean;
+  businessAuthToken: string;
 
   // Gateway
   gatewayAutoStart: boolean;
@@ -98,6 +99,7 @@ function createDefaultSettings(): AppSettings {
     telemetryEnabled: true,
     machineId: '',
     hasReportedInstall: false,
+    businessAuthToken: '',
 
     // Gateway
     gatewayAutoStart: true,

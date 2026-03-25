@@ -65,6 +65,7 @@ import { appUpdater } from './updater';
 import { registerFileSystemHandlers, syncWorkspaceRootFromSettings } from '../services/filesystem';
 
 import { registerHostApiProxyHandlers } from './ipc/host-api-proxy';
+import { writeChatRecord } from '../utils/chat-record-logger';
 import {
   isLaunchAtStartupKey,
   isProxyKey,
@@ -1118,6 +1119,28 @@ function registerLogHandlers(): void {
   // List all log files
   ipcMain.handle('log:listFiles', async () => {
     return await logger.listLogFiles();
+  });
+
+  // Write a chat record entry from the renderer (platform messages)
+  ipcMain.handle('log:chatRecord', async (_, entry?: {
+    timestamp?: string;
+    type?: 'official_api' | 'custom';
+    source?: string;
+    sessionKey?: string;
+    agentId?: string;
+    messageText?: string;
+    attachmentCount?: number;
+  }) => {
+    if (!entry?.messageText) return;
+    writeChatRecord({
+      timestamp: entry.timestamp ?? new Date().toISOString(),
+      type: entry.type,
+      source: entry.source ?? 'platform',
+      sessionKey: entry.sessionKey,
+      agentId: entry.agentId,
+      messageText: entry.messageText,
+      attachmentCount: entry.attachmentCount,
+    });
   });
 }
 
