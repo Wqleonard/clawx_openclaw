@@ -64,12 +64,14 @@ import { appUpdater } from './updater';
 import { PORTS } from '../utils/config';
 import { registerFileSystemHandlers, syncWorkspaceRootFromSettings } from '../services/filesystem';
 
-type AppRequest = {
-  id?: string;
-  module: string;
-  action: string;
-  payload?: unknown;
-};
+import { registerHostApiProxyHandlers } from './ipc/host-api-proxy';
+import {
+  isLaunchAtStartupKey,
+  isProxyKey,
+  mapAppErrorCode,
+  type AppRequest,
+  type AppResponse,
+} from './ipc/request-helpers';
 
 type AppErrorCode = 'VALIDATION' | 'PERMISSION' | 'TIMEOUT' | 'GATEWAY' | 'INTERNAL' | 'UNSUPPORTED';
 
@@ -1094,6 +1096,28 @@ function registerLogHandlers(): void {
   // List all log files
   ipcMain.handle('log:listFiles', async () => {
     return await logger.listLogFiles();
+  });
+
+  // Write a chat record entry from the renderer (platform messages)
+  ipcMain.handle('log:chatRecord', async (_, entry?: {
+    timestamp?: string;
+    type?: 'official_api' | 'custom';
+    source?: string;
+    sessionKey?: string;
+    agentId?: string;
+    messageText?: string;
+    attachmentCount?: number;
+  }) => {
+    if (!entry?.messageText) return;
+    writeChatRecord({
+      timestamp: entry.timestamp ?? new Date().toISOString(),
+      type: entry.type,
+      source: entry.source ?? 'platform',
+      sessionKey: entry.sessionKey,
+      agentId: entry.agentId,
+      messageText: entry.messageText,
+      attachmentCount: entry.attachmentCount,
+    });
   });
 }
 

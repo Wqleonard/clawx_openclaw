@@ -79,6 +79,15 @@ function ensureAuthEnvConsistency(): void {
   saveAuthEnvFingerprint(current)
 }
 
+function syncBusinessTokenToMainProcess(token: string | null): void {
+  const nextToken = (token ?? '').trim()
+  window.electron?.ipcRenderer
+    .invoke('settings:set', 'businessAuthToken', nextToken)
+    .catch(() => {
+      // Best-effort sync only; auth flow in renderer should not be interrupted.
+    })
+}
+
 function extractAuthToken(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null
   const obj = payload as Record<string, unknown>
@@ -219,6 +228,7 @@ function getAvatarDataUrl(userInfo: UserInfo | null): string {
 
 export const useLoginStore = create<LoginStore>((set, get) => {
   ensureAuthEnvConsistency()
+  syncBusinessTokenToMainProcess(localStorage.getItem('token'))
 
   const readedIds = loadReadedMessageIdsFromStorage()
   let savedUserInfo: UserInfo | null = null
@@ -253,7 +263,9 @@ export const useLoginStore = create<LoginStore>((set, get) => {
     },
 
     updateLoginStatus: () => {
-      const hasToken = !!localStorage.getItem('token')
+      const token = localStorage.getItem('token')
+      const hasToken = !!token
+      syncBusinessTokenToMainProcess(token)
       set({ isLoggedIn: hasToken })
     },
 
@@ -388,6 +400,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
         }
 
         localStorage.setItem('token', token)
+        syncBusinessTokenToMainProcess(token)
         try {
           await useProviderStore.getState().ensureBaowenmaoPresetAccounts(token)
           useSettingsStore.getState().markSetupComplete()
@@ -453,6 +466,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
       })
       get().saveUserInfo(null)
       localStorage.removeItem('token')
+      syncBusinessTokenToMainProcess(null)
       localStorage.removeItem('___first_in_editor___')
       get().updateLoginStatus()
       get().clearInterceptedActions()

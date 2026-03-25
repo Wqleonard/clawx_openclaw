@@ -8,6 +8,7 @@ import { hostApiFetch } from '@/lib/host-api';
 import { useGatewayStore } from './gateway';
 import { useAgentsStore } from './agents';
 import { buildCronSessionHistoryPath, isCronSessionKey } from './chat/cron-session-utils';
+import { logPostChatRecord } from '@/logs/postChatRecord';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -1679,6 +1680,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       pendingFinal: false,
       lastUserMessageAt: nowMs,
     }));
+
+    // ── postChatRecord debug log ──
+    // 桌面端用户发送消息时记录，source 固定为 'platform'
+    // TODO: type 需要根据当前 provider 判断 official_api / custom
+    logPostChatRecord({
+      timestamp: new Date(nowMs).toISOString(),
+      type: 'official_api',
+      source: 'platform',
+      sessionKey: currentSessionKey,
+      agentId: activeAgentId,
+      messageText: trimmed || '(file attached)',
+      hasAttachments: !!(attachments && attachments.length > 0),
+      attachmentCount: attachments?.length ?? 0,
+    });
 
     // Update session label with first user message text as soon as it's sent
     const { sessionLabels, messages } = get();
