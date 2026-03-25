@@ -18,6 +18,11 @@ export interface ApiResponse<T = unknown> {
 export interface RequestConfig extends AxiosRequestConfig {
   showLoading?: boolean;
   showError?: boolean;
+  /**
+   * If true, request interceptor will not auto-apply Authorization/X-Visitor-Id.
+   * Caller is responsible for providing final auth headers.
+   */
+  skipAutoAuthHeader?: boolean;
 }
 
 export interface PostStreamData {
@@ -43,7 +48,7 @@ function defaultBaseURL() {
   return raw.replace(/\/+$/, '');
 }
 
-function defaultGetToken() {
+export function defaultGetToken() {
   try {
     return localStorage.getItem("token") || '';
   } catch {
@@ -125,8 +130,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
     (config) => {
       // Vue 版里设置了该 header，这里保留但通常无意义（CORS 是响应头）
       (config.headers as any)["Access-Control-Allow-Origin"] = "*";
-      const token = getToken?.();
-      applyAuthOrVisitorHeader(config.headers as Record<string, string>, token);
+      const requestConfig = config as RequestConfig;
+      if (!requestConfig.skipAutoAuthHeader) {
+        const token = getToken?.();
+        applyAuthOrVisitorHeader(config.headers as Record<string, string>, token);
+      }
       return config;
     },
     (error) => Promise.reject(error)

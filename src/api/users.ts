@@ -1,5 +1,6 @@
 import apiClient from './index';
 import { hostApiFetch } from '@/lib/host-api';
+import { getOrCreateVisitorId } from '@/utils/visitorId';
 
 interface RegisterInfo {
   phone: string | number;
@@ -147,6 +148,25 @@ const completeNewbieMissionReq = (taskId: number) => {
   return apiClient.post(`/api/users/guide/tasks/${taskId}/complete`);
 };
 
+const vistorPost = () => {
+  const token = localStorage.getItem('token')?.trim() || '';
+  const visitorId = getOrCreateVisitorId();
+  const headers: Record<string, string> = {};
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+    delete headers['X-Visitor-Id'];
+  } else if (visitorId) {
+    delete headers.Authorization;
+    headers['X-Visitor-Id'] = visitorId;
+  }
+
+  return apiClient.post('/api/vistor/report', undefined, {
+    headers,
+    skipAutoAuthHeader: true,
+  });
+};
+
 export {
   getUserBalanceReq,
   createNewUserReq,
@@ -163,6 +183,7 @@ export {
   getFrozenUserEmailReq,
   getNewbieMission,
   completeNewbieMissionReq,
+  vistorPost,
   loginWithTestReq,
   postRedeemPointsReq,
 };

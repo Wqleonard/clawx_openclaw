@@ -19,6 +19,7 @@ import { useProviderStore } from './stores/providers';
 import { useAgentsStore } from './stores/agents';
 import { useFileSystemStore } from './stores/filesystem';
 import { useChatStore } from './stores/chat';
+import { vistorPost } from './api/users';
 import { applyGatewayTransportPreference } from './lib/api-client';
 import { invokeIpc } from '@/lib/api-client';
 import { hostApiFetch } from '@/lib/host-api';
@@ -28,6 +29,8 @@ import { AddAgentDialog } from './components/layout/AddAgentDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+
+let hasReportedVisitorOnAppBoot = false;
 
 /**
  * Error Boundary to catch and display React rendering errors
@@ -601,6 +604,15 @@ function App() {
 
   useEffect(() => {
     applyGatewayTransportPreference();
+  }, []);
+
+  // Report visitor once on app boot (best-effort, non-blocking).
+  useEffect(() => {
+    if (hasReportedVisitorOnAppBoot) return;
+    hasReportedVisitorOnAppBoot = true;
+    void vistorPost().catch((error) => {
+      console.warn('Visitor report on app boot failed:', error);
+    });
   }, []);
 
   return (
