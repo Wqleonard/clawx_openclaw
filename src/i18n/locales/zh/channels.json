@@ -162,7 +162,7 @@
         },
         "wechat": {
             "description": "通过腾讯官方 OpenClaw 插件扫码连接个人微信",
-            "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/GHYZwuPCriF0gWkXwkFcJ9zon3b",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/UFHBw0qdEi4wdwkgKktcfvkonkf",
             "instructions": [
                 "点击生成二维码，StoryClaw 会在 OpenClaw 中安装并启用官方微信插件",
                 "使用微信扫描下方二维码，并在手机上确认连接",

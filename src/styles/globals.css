@@ -114,43 +114,36 @@
 
 @layer utilities {
     /* Reusable utility: show scrollbar thumb only when hovered. */
-    .scrollbar-hover,
-    .chat-messages-scroll {
+    .scrollbar-hover{
         /* Keep a stable scrollbar gutter to avoid layout shift. */
         scrollbar-gutter: stable;
         scrollbar-width: thin;
         scrollbar-color: transparent transparent;
     }
 
-    .scrollbar-hover::-webkit-scrollbar,
-    .chat-messages-scroll::-webkit-scrollbar {
+    .scrollbar-hover::-webkit-scrollbar{
         width: 8px;
         height: 8px;
     }
 
-    .scrollbar-hover:hover,
-    .chat-messages-scroll:hover {
+    .scrollbar-hover:hover {
         scrollbar-color: hsl(var(--border)) transparent;
     }
 
-    .scrollbar-hover::-webkit-scrollbar-track,
-    .chat-messages-scroll::-webkit-scrollbar-track {
+    .scrollbar-hover::-webkit-scrollbar-track {
         background: transparent;
     }
 
-    .scrollbar-hover::-webkit-scrollbar-thumb,
-    .chat-messages-scroll::-webkit-scrollbar-thumb {
+    .scrollbar-hover::-webkit-scrollbar-thumb {
         background: transparent;
         border-radius: 9999px;
     }
 
-    .scrollbar-hover:hover::-webkit-scrollbar-thumb,
-    .chat-messages-scroll:hover::-webkit-scrollbar-thumb {
+    .scrollbar-hover:hover::-webkit-scrollbar-thumb{
         background: hsl(var(--border));
     }
 
-    .scrollbar-hover:hover::-webkit-scrollbar-thumb:hover,
-    .chat-messages-scroll:hover::-webkit-scrollbar-thumb:hover {
+    .scrollbar-hover:hover::-webkit-scrollbar-thumb:hover{
         background: hsl(var(--muted-foreground) / 0.3);
     }
 }
