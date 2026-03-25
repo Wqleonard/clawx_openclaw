@@ -64,13 +64,13 @@ import { appUpdater } from './updater';
 import { PORTS } from '../utils/config';
 import { registerFileSystemHandlers, syncWorkspaceRootFromSettings } from '../services/filesystem';
 
-import { registerHostApiProxyHandlers } from './ipc/host-api-proxy';
+// import { registerHostApiProxyHandlers } from './ipc/host-api-proxy';
 import {
-  isLaunchAtStartupKey,
-  isProxyKey,
-  mapAppErrorCode,
+//   isLaunchAtStartupKey,
+//   isProxyKey,
+//   mapAppErrorCode,
   type AppRequest,
-  type AppResponse,
+//   type AppResponse,
 } from './ipc/request-helpers';
 
 type AppErrorCode = 'VALIDATION' | 'PERMISSION' | 'TIMEOUT' | 'GATEWAY' | 'INTERNAL' | 'UNSUPPORTED';
@@ -1109,15 +1109,15 @@ function registerLogHandlers(): void {
     attachmentCount?: number;
   }) => {
     if (!entry?.messageText) return;
-    writeChatRecord({
-      timestamp: entry.timestamp ?? new Date().toISOString(),
-      type: entry.type,
-      source: entry.source ?? 'platform',
-      sessionKey: entry.sessionKey,
-      agentId: entry.agentId,
-      messageText: entry.messageText,
-      attachmentCount: entry.attachmentCount,
-    });
+    // writeChatRecord({
+    //   timestamp: entry.timestamp ?? new Date().toISOString(),
+    //   type: entry.type,
+    //   source: entry.source ?? 'platform',
+    //   sessionKey: entry.sessionKey,
+    //   agentId: entry.agentId,
+    //   messageText: entry.messageText,
+    //   attachmentCount: entry.attachmentCount,
+    // });
   });
 }
 

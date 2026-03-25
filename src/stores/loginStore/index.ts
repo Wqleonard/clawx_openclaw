@@ -10,7 +10,7 @@ import type {
   Message,
   LoginStore,
 } from './types'
-
+import { invokeIpc } from '@/lib/api-client';
 export type { UserInfo, AvatarData, Message, InterceptedAction, LoginStore } from './types'
 
 const NEWBIE_TOUR_STORAGE_KEY = 'hasNewbieTourShowed'
@@ -81,8 +81,7 @@ function ensureAuthEnvConsistency(): void {
 
 function syncBusinessTokenToMainProcess(token: string | null): void {
   const nextToken = (token ?? '').trim()
-  window.electron?.ipcRenderer
-    .invoke('settings:set', 'businessAuthToken', nextToken)
+  invokeIpc('settings:set', 'businessAuthToken', nextToken)
     .catch(() => {
       // Best-effort sync only; auth flow in renderer should not be interrupted.
     })
