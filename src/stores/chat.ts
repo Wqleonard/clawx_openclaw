@@ -8,6 +8,118 @@ import { hostApiFetch } from '@/lib/host-api';
 import { useGatewayStore } from './gateway';
 import { useAgentsStore } from './agents';
 import { buildCronSessionHistoryPath, isCronSessionKey } from './chat/cron-session-utils';
+
+// ── Types ────────────────────────────────────────────────────────
+
+/** Metadata for locally-attached files (not from Gateway) */
+export interface AttachedFileMeta {
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  preview: string | null;
+  filePath?: string;
+}
+
+/** Raw message from OpenClaw chat.history */
+export interface RawMessage {
+  role: 'user' | 'assistant' | 'system' | 'toolresult';
+  content: unknown; // string | ContentBlock[]
+  timestamp?: number;
+  id?: string;
+  toolCallId?: string;
+  toolName?: string;
+  details?: unknown;
+  isError?: boolean;
+  /** Local-only: file metadata for user-uploaded attachments (not sent to/from Gateway) */
+  _attachedFiles?: AttachedFileMeta[];
+}
+
+/** Content block inside a message */
+export interface ContentBlock {
+  type: 'text' | 'image' | 'thinking' | 'tool_use' | 'tool_result' | 'toolCall' | 'toolResult';
+  text?: string;
+  thinking?: string;
+  source?: { type: string; media_type?: string; data?: string; url?: string };
+  /** Flat image format from Gateway tool results (no source wrapper) */
+  data?: string;
+  mimeType?: string;
+  id?: string;
+  name?: string;
+  input?: unknown;
+  arguments?: unknown;
+  content?: unknown;
+}
+
+/** Session from sessions.list */
+export interface ChatSession {
+  key: string;
+  label?: string;
+  displayName?: string;
+  thinkingLevel?: string;
+  model?: string;
+  updatedAt?: number;
+}
+
+export interface ToolStatus {
+  id?: string;
+  toolCallId?: string;
+  name: string;
+  status: 'running' | 'completed' | 'error';
+  durationMs?: number;
+  summary?: string;
+  updatedAt: number;
+}
+
+interface ChatState {
+  // Messages
+  messages: RawMessage[];
+  loading: boolean;
+  error: string | null;
+  warning: string | null;
+
+  // Streaming
+  sending: boolean;
+  activeRunId: string | null;
+  streamingText: string;
+  streamingMessage: unknown | null;
+  streamingTools: ToolStatus[];
+  pendingFinal: boolean;
+  lastUserMessageAt: number | null;
+  /** Images collected from tool results, attached to the next assistant message */
+  pendingToolImages: AttachedFileMeta[];
+
+  // Sessions
+  sessions: ChatSession[];
+  currentSessionKey: string;
+  currentAgentId: string;
+  /** First user message text per session key, used as display label */
+  sessionLabels: Record<string, string>;
+  /** Last message timestamp (ms) per session key, used for sorting */
+  sessionLastActivity: Record<string, number>;
+
+  // Thinking
+  showThinking: boolean;
+  thinkingLevel: string | null;
+
+  // Actions
+  loadSessions: () => Promise<void>;
+  switchSession: (key: string) => void;
+  newSession: () => void;
+  deleteSession: (key: string) => Promise<void>;
+  cleanupEmptySession: () => void;
+  loadHistory: (quiet?: boolean) => Promise<void>;
+  sendMessage: (
+    text: string,
+    attachments?: Array<{ fileName: string; mimeType: string; fileSize: number; stagedPath: string; preview: string | null }>,
+    targetAgentId?: string | null,
+  ) => Promise<void>;
+  abortRun: () => Promise<void>;
+  handleChatEvent: (event: Record<string, unknown>) => void;
+  toggleThinking: () => void;
+  refresh: () => Promise<void>;
+  clearError: () => void;
+  clearWarning: () => void;
+}
 import {
   DEFAULT_CANONICAL_PREFIX,
   DEFAULT_SESSION_KEY,
@@ -676,6 +788,41 @@ function normalizeAgentId(value: string | undefined | null): string {
   return (value ?? '').trim().toLowerCase() || 'main';
 }
 
+function normalizeInstallIntentText(text: string): string {
+  return text.replace(/\s+/g, '').toLowerCase();
+}
+
+function fuzzyContainsWithGapLimit(text: string, pattern: string, maxGap: number): boolean {
+  if (!text || !pattern) return false;
+  if (pattern.length > text.length) return false;
+
+  for (let start = 0; start < text.length; start++) {
+    if (text[start] !== pattern[0]) continue;
+    let i = start;
+    let j = 0;
+    let gapUsed = 0;
+    while (i < text.length && j < pattern.length) {
+      if (text[i] === pattern[j]) {
+        i++;
+        j++;
+        continue;
+      }
+      i++;
+      gapUsed++;
+      if (gapUsed > maxGap) break;
+    }
+    if (j === pattern.length) return true;
+  }
+  return false;
+}
+
+function hasInstallSkillRiskIntent(text: string): boolean {
+  const normalized = normalizeInstallIntentText(text);
+  if (!normalized) return false;
+  // "安装skill" fuzzy match with total gap allowance 8
+  return fuzzyContainsWithGapLimit(normalized, '安装skill', 8);
+}
+
 function buildFallbackMainSessionKey(agentId: string): string {
   return `agent:${normalizeAgentId(agentId)}:main`;
 }
@@ -1000,6 +1147,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   loading: false,
   error: null,
+  warning: null,
 
   sending: false,
   activeRunId: null,
@@ -1192,6 +1340,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         streamingTools: [],
         activeRunId: null,
         error: null,
+        warning: null,
         pendingFinal: false,
         lastUserMessageAt: null,
         pendingToolImages: [],
@@ -1265,6 +1414,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingTools: [],
       activeRunId: null,
       error: null,
+      warning: null,
       pendingFinal: false,
       lastUserMessageAt: null,
       pendingToolImages: [],
@@ -1535,6 +1685,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...s.messages, userMsg],
       sending: true,
       error: null,
+      warning: hasInstallSkillRiskIntent(trimmed)
+        ? '安装外界skill存在安全风险，请谨慎安装'
+        : null,
       streamingText: '',
       streamingMessage: null,
       streamingTools: [],
@@ -2031,4 +2184,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+  clearWarning: () => set({ warning: null }),
 }));
