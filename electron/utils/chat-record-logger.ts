@@ -1,7 +1,7 @@
 /**
  * Chat Record Logger
- * Writes all user chat messages (from any source) to a single debug log file:
- *   <userData>/logs/chat-record.log
+ * Writes all user chat messages (from any source) to JSONL debug logs:
+ *   <userData>/logs/chat-record.jsonl
  *
  * Called from two places:
  *   1. electron/gateway/manager.ts  — channel messages (wechat, qq, feishu, wecom, …)
@@ -20,7 +20,7 @@ function getLogFilePath(): string {
   if (logFilePath) return logFilePath;
   const logDir = join(app.getPath('userData'), 'logs');
   if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  logFilePath = join(logDir, 'chat-record.log');
+  logFilePath = join(logDir, 'chat-record.jsonl');
   return logFilePath;
 }
 
@@ -30,8 +30,16 @@ function getRawLogFilePath(): string {
   if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
   // Per-process raw log file to keep only current app-start data
   // and avoid unbounded growth from historical app sessions.
-  rawLogFilePath = join(logDir, `chat-record-raw-${rawLogSessionId}.log`);
+  rawLogFilePath = join(logDir, `chat-record-raw-${rawLogSessionId}.jsonl`);
   return rawLogFilePath;
+}
+
+export interface ChatRecordProviderInfo {
+  accountId?: string | null;
+  providerId?: string | null;
+  vendor?: string | null;
+  model?: string | null;
+  label?: string | null;
 }
 
 export interface ChatRecordEntry {
@@ -44,6 +52,7 @@ export interface ChatRecordEntry {
   messageText: string;
   attachmentCount?: number;
   extra?: string;        // 自由格式附加信息
+  provider?: ChatRecordProviderInfo;
 }
 
 export type ChatRecordType = 'official_api' | 'custom';
@@ -88,6 +97,17 @@ export function resolveChatRecordTypeBySource(source: ChatRecordSource): ChatRec
   return source === 'platform' ? 'official_api' : 'custom';
 }
 
+function resolveChatRecordType(entry: ChatRecordEntry, source: ChatRecordSource): ChatRecordType {
+  const providerId = entry.provider?.providerId?.trim().toLowerCase();
+  if (providerId) {
+    return providerId === 'baowenmao' ? 'official_api' : 'custom';
+  }
+  if (entry.type) {
+    return entry.type;
+  }
+  return resolveChatRecordTypeBySource(source);
+}
+
 function safeJsonStringify(input: unknown): string {
   const seen = new WeakSet<object>();
   return JSON.stringify(input, (_key, value) => {
@@ -104,22 +124,23 @@ function safeJsonStringify(input: unknown): string {
 export function writeChatRecord(entry: ChatRecordEntry): void {
   const normalizedSource = normalizeChatRecordSource(entry.source);
   const source = normalizedSource ?? 'platform';
-  const type = entry.type ?? resolveChatRecordTypeBySource(source);
-  const line = [
-    `[${entry.timestamp}]`,
-    `type=${type}`,
-    `source=${source}`,
-    entry.sessionKey ? `session=${entry.sessionKey}` : null,
-    entry.agentId    ? `agent=${entry.agentId}`       : null,
-    entry.runId      ? `runId=${entry.runId}`          : null,
-    entry.attachmentCount ? `attachments=${entry.attachmentCount}` : null,
-    normalizedSource ? null : `rawSource=${entry.source}`,
-    entry.extra      ? `extra=${entry.extra}`          : null,
-    `msg=${entry.messageText.length > 200 ? entry.messageText.slice(0, 200) + '…' : entry.messageText}`,
-  ].filter(Boolean).join(' | ');
+  const type = resolveChatRecordType(entry, source);
+  const payload = {
+    timestamp: entry.timestamp,
+    type,
+    source,
+    rawSource: normalizedSource ? undefined : entry.source,
+    sessionKey: entry.sessionKey,
+    agentId: entry.agentId,
+    runId: entry.runId,
+    attachmentCount: entry.attachmentCount,
+    extra: entry.extra,
+    provider: entry.provider ?? null,
+    messageText: entry.messageText,
+  };
 
   try {
-    appendFileSync(getLogFilePath(), line + '\n');
+    appendFileSync(getLogFilePath(), `${safeJsonStringify(payload)}\n`);
   } catch {
     // 写入失败不影响主流程
   }
@@ -139,7 +160,10 @@ export function writeGatewayRawMessage(message: unknown): void {
 
   const MAX_LEN = 16_000;
   const truncated = payload.length > MAX_LEN ? `${payload.slice(0, MAX_LEN)}...<truncated>` : payload;
-  const line = `[${timestamp}] | raw=${truncated}`;
+  const line = safeJsonStringify({
+    timestamp,
+    raw: truncated,
+  });
   try {
     appendFileSync(getRawLogFilePath(), line + '\n');
   } catch {

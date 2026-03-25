@@ -19,7 +19,7 @@ import { useProviderStore } from './stores/providers';
 import { useAgentsStore } from './stores/agents';
 import { useFileSystemStore } from './stores/filesystem';
 import { useChatStore } from './stores/chat';
-import { vistorPost } from './api/users';
+import { visitorPost } from './api/users';
 import { applyGatewayTransportPreference } from './lib/api-client';
 import { invokeIpc } from '@/lib/api-client';
 import { hostApiFetch } from '@/lib/host-api';
@@ -610,7 +610,7 @@ function App() {
   useEffect(() => {
     if (hasReportedVisitorOnAppBoot) return;
     hasReportedVisitorOnAppBoot = true;
-    void vistorPost().catch((error) => {
+    void visitorPost().catch((error) => {
       console.warn('Visitor report on app boot failed:', error);
     });
   }, []);

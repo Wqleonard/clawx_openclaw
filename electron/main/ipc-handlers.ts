@@ -23,6 +23,7 @@ import {
 import { syncProxyConfigToOpenClaw } from '../utils/openclaw-proxy';
 import { buildOpenClawControlUiUrl } from '../utils/openclaw-control-ui';
 import { logger } from '../utils/logger';
+import { writeChatRecord } from '../utils/chat-record-logger';
 import {
   saveChannelConfig,
   getChannelConfig,
@@ -1107,17 +1108,25 @@ function registerLogHandlers(): void {
     agentId?: string;
     messageText?: string;
     attachmentCount?: number;
+    provider?: {
+      accountId?: string | null;
+      providerId?: string | null;
+      vendor?: string | null;
+      model?: string | null;
+      label?: string | null;
+    };
   }) => {
     if (!entry?.messageText) return;
-    // writeChatRecord({
-    //   timestamp: entry.timestamp ?? new Date().toISOString(),
-    //   type: entry.type,
-    //   source: entry.source ?? 'platform',
-    //   sessionKey: entry.sessionKey,
-    //   agentId: entry.agentId,
-    //   messageText: entry.messageText,
-    //   attachmentCount: entry.attachmentCount,
-    // });
+    writeChatRecord({
+      timestamp: entry.timestamp ?? new Date().toISOString(),
+      type: entry.type,
+      source: entry.source ?? 'platform',
+      sessionKey: entry.sessionKey,
+      agentId: entry.agentId,
+      messageText: entry.messageText,
+      attachmentCount: entry.attachmentCount,
+      provider: entry.provider,
+    });
   });
 }
 

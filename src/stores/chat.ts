@@ -1737,6 +1737,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       lastUserMessageAt: nowMs,
     }));
 
+    const debugSnapshot = buildPlatformSendDebugSnapshot({
+      nowMs,
+      sessionKey: currentSessionKey,
+      agentId: activeAgentId,
+      messageText: trimmed,
+      attachments,
+      sessionMessages: get().messages,
+      sessions: get().sessions,
+    });
+
     // ── postChatRecord debug log ──
     // 桌面端用户发送消息时记录，source 固定为 'platform'
     // TODO: type 需要根据当前 provider 判断 official_api / custom
@@ -1749,16 +1759,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messageText: trimmed || '(file attached)',
       hasAttachments: !!(attachments && attachments.length > 0),
       attachmentCount: attachments?.length ?? 0,
-    });
-
-    const debugSnapshot = buildPlatformSendDebugSnapshot({
-      nowMs,
-      sessionKey: currentSessionKey,
-      agentId: activeAgentId,
-      messageText: trimmed,
-      attachments,
-      sessionMessages: get().messages,
-      sessions: get().sessions,
+      provider: debugSnapshot.provider ?? undefined,
     });
     console.log('[chat:platform-send-debug]', debugSnapshot);
 

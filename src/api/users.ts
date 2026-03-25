@@ -148,7 +148,7 @@ const completeNewbieMissionReq = (taskId: number) => {
   return apiClient.post(`/api/users/guide/tasks/${taskId}/complete`);
 };
 
-const vistorPost = () => {
+const visitorPost = () => {
   const token = localStorage.getItem('token')?.trim() || '';
   const visitorId = getOrCreateVisitorId();
   const headers: Record<string, string> = {};
@@ -161,7 +161,7 @@ const vistorPost = () => {
     headers['X-Visitor-Id'] = visitorId;
   }
 
-  return apiClient.post('/api/vistor/report', undefined, {
+  return apiClient.post('/api/visitor/report', undefined, {
     headers,
     skipAutoAuthHeader: true,
   });
@@ -183,7 +183,7 @@ export {
   getFrozenUserEmailReq,
   getNewbieMission,
   completeNewbieMissionReq,
-  vistorPost,
+  visitorPost,
   loginWithTestReq,
   postRedeemPointsReq,
 };

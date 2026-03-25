@@ -15,6 +15,13 @@ export interface ChatRecordLogEntry {
   messageText: string;
   hasAttachments: boolean;
   attachmentCount: number;
+  provider?: {
+    accountId?: string | null;
+    providerId?: string | null;
+    vendor?: string | null;
+    model?: string | null;
+    label?: string | null;
+  };
 }
 
 export function logPostChatRecord(entry: ChatRecordLogEntry): void {
@@ -29,6 +36,7 @@ export function logPostChatRecord(entry: ChatRecordLogEntry): void {
       agentId: entry.agentId,
       messageText: entry.messageText,
       attachmentCount: entry.attachmentCount,
+      provider: entry.provider,
     })
     .catch(() => {
       if (import.meta.env.DEV) {

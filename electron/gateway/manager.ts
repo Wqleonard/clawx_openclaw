@@ -17,6 +17,7 @@ import {
   writeGatewayRawMessage,
   writeChatRecord,
   type ChatRecordSource,
+  type ChatRecordProviderInfo,
 } from '../utils/chat-record-logger';
 import { captureTelemetryEvent, trackMetric } from '../utils/telemetry';
 import {
@@ -121,6 +122,7 @@ export class GatewayManager extends EventEmitter {
   private reconnectSuccessTotal = 0;
   private recentUserRecordKeys: Map<string, number> = new Map();
   private sessionSourceHints: Map<string, ChatRecordSource> = new Map();
+  private sessionProviderHints: Map<string, ChatRecordProviderInfo> = new Map();
   private sessionFallbackInflight: Set<string> = new Set();
   private readonly userRecordStartAtMs = Date.now();
   private static readonly RELOAD_POLICY_REFRESH_MS = 15_000;
@@ -1007,6 +1009,48 @@ export class GatewayManager extends EventEmitter {
     return this.sessionSourceHints.get(sessionKey);
   }
 
+  private getSessionProviderHint(sessionKey: string | undefined): ChatRecordProviderInfo | undefined {
+    if (!sessionKey) return undefined;
+    return this.sessionProviderHints.get(sessionKey);
+  }
+
+  private inferProviderInfoFromObject(obj: Record<string, unknown>): ChatRecordProviderInfo | null {
+    const origin = (obj.origin && typeof obj.origin === 'object')
+      ? obj.origin as Record<string, unknown>
+      : undefined;
+    const deliveryContext = (obj.deliveryContext && typeof obj.deliveryContext === 'object')
+      ? obj.deliveryContext as Record<string, unknown>
+      : undefined;
+
+    const providerIdRaw = obj.modelProvider ?? obj.model_provider ?? obj.modelProviderId;
+    const modelRaw = obj.model ?? obj.modelName ?? obj.model_name;
+    const accountIdRaw =
+      obj.lastAccountId
+      ?? obj.accountId
+      ?? origin?.accountId
+      ?? deliveryContext?.accountId;
+
+    const providerId = typeof providerIdRaw === 'string' && providerIdRaw.trim()
+      ? providerIdRaw.trim()
+      : null;
+    const model = typeof modelRaw === 'string' && modelRaw.trim()
+      ? modelRaw.trim()
+      : null;
+    const accountId = typeof accountIdRaw === 'string' && accountIdRaw.trim()
+      ? accountIdRaw.trim()
+      : null;
+
+    if (!providerId && !model && !accountId) return null;
+
+    return {
+      accountId,
+      providerId,
+      vendor: providerId,
+      model,
+      label: providerId && model ? `${providerId}:${model}` : (providerId ?? model ?? null),
+    };
+  }
+
   private parseSessionKey(sessionKey: string): { agentId: string; suffix: string } | null {
     if (!sessionKey.startsWith('agent:')) return null;
     const parts = sessionKey.split(':');
@@ -1045,6 +1089,7 @@ export class GatewayManager extends EventEmitter {
 
       const source = this.inferSourceFromObject(entryObj) ?? this.getSessionSourceHint(sessionKey);
       if (!source || source === 'platform') return;
+      const provider = this.inferProviderInfoFromObject(entryObj) ?? this.getSessionProviderHint(sessionKey);
 
       const sessionFileRaw = entryObj.sessionFile;
       const sessionFile = typeof sessionFileRaw === 'string' && sessionFileRaw.trim()
@@ -1104,6 +1149,7 @@ export class GatewayManager extends EventEmitter {
           runId,
           messageText: cleanedText,
           extra: 'fallback=session-jsonl',
+          provider,
         });
         return;
       }
@@ -1161,6 +1207,10 @@ export class GatewayManager extends EventEmitter {
       if (source) {
         this.sessionSourceHints.set(sessionKey, source);
       }
+      const provider = this.inferProviderInfoFromObject(obj);
+      if (provider) {
+        this.sessionProviderHints.set(sessionKey, provider);
+      }
     }
     for (const value of Object.values(obj)) {
       if (typeof value === 'object' && value !== null) {
@@ -1181,6 +1231,7 @@ export class GatewayManager extends EventEmitter {
       runId?: string;
       messageText: string;
       extra?: string;
+      provider?: ChatRecordProviderInfo;
     }> = [],
     depth = 0,
   ): Array<{
@@ -1192,6 +1243,7 @@ export class GatewayManager extends EventEmitter {
     runId?: string;
     messageText: string;
     extra?: string;
+    provider?: ChatRecordProviderInfo;
   }> {
     if (depth > 8 || node == null) return out;
     if (Array.isArray(node)) {
@@ -1226,6 +1278,7 @@ export class GatewayManager extends EventEmitter {
           ? hintedSource
           : sourceResolved.source;
         const rawSource = source === sourceResolved.source ? sourceResolved.rawSource : 'sessionHint';
+        const provider = this.getSessionProviderHint(sessionKey);
 
         const cleanedText = this.sanitizeLoggedUserMessage(text, source) || text;
         out.push({
@@ -1236,6 +1289,7 @@ export class GatewayManager extends EventEmitter {
           runId: runCtx?.runId != null ? String(runCtx.runId) : undefined,
           agentId: agentCtx?.agentId != null ? String(agentCtx.agentId) : undefined,
           messageText: cleanedText,
+          provider,
           extra: [
             eventCtx?.event != null ? `event=${String(eventCtx.event)}` : null,
             eventCtx?.method != null ? `method=${String(eventCtx.method)}` : null,
@@ -1279,6 +1333,7 @@ export class GatewayManager extends EventEmitter {
         runId: c.runId,
         messageText: c.messageText,
         extra: c.extra,
+        provider: c.provider,
       });
     }
   }
