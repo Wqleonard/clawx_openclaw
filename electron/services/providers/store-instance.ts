@@ -6,6 +6,7 @@ import path from 'path';
 type ProviderStoreLike = {
   get: (key: string) => unknown;
   set: (key: string, value: unknown) => void;
+  delete: (key: string) => void;
   path?: string;
 };
 

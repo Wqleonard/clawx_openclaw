@@ -12,6 +12,7 @@ export interface AgentTemplate {
 interface AgentsState {
   agents: AgentSummary[];
   defaultAgentId: string;
+  defaultModelRef: string | null;
   configuredChannelTypes: string[];
   channelOwners: Record<string, string>;
   templates: AgentTemplate[];
@@ -20,8 +21,17 @@ interface AgentsState {
   error: string | null;
   fetchAgents: () => Promise<void>;
   fetchTemplates: () => Promise<void>;
-  createAgent: (name: string, options?: { templateId?: string; sourceAgentId?: string; workspacePath?: string }) => Promise<void>;
+  createAgent: (
+    name: string,
+    options?: {
+      templateId?: string;
+      sourceAgentId?: string;
+      workspacePath?: string;
+      inheritWorkspace?: boolean;
+    }
+  ) => Promise<void>;
   updateAgent: (agentId: string, name: string) => Promise<void>;
+  updateAgentModel: (agentId: string, modelRef: string | null) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
   assignChannel: (agentId: string, channelType: ChannelType) => Promise<void>;
   removeChannel: (agentId: string, channelType: ChannelType) => Promise<void>;
@@ -29,18 +39,22 @@ interface AgentsState {
 }
 
 function applySnapshot(snapshot: AgentsSnapshot | undefined) {
-  return snapshot ? {
-    agents: snapshot.agents ?? [],
-    defaultAgentId: snapshot.defaultAgentId ?? 'main',
-    configuredChannelTypes: snapshot.configuredChannelTypes ?? [],
-    channelOwners: snapshot.channelOwners ?? {},
-    channelAccountOwners: snapshot.channelAccountOwners ?? {},
-  } : {};
+  return snapshot
+    ? {
+        agents: snapshot.agents ?? [],
+        defaultAgentId: snapshot.defaultAgentId ?? 'main',
+        defaultModelRef: snapshot.defaultModelRef ?? null,
+        configuredChannelTypes: snapshot.configuredChannelTypes ?? [],
+        channelOwners: snapshot.channelOwners ?? {},
+        channelAccountOwners: snapshot.channelAccountOwners ?? {},
+      }
+    : {};
 }
 
 export const useAgentsStore = create<AgentsState>((set) => ({
   agents: [],
   defaultAgentId: 'main',
+  defaultModelRef: null,
   configuredChannelTypes: [],
   channelOwners: {},
   templates: [],
@@ -63,7 +77,9 @@ export const useAgentsStore = create<AgentsState>((set) => ({
 
   fetchTemplates: async () => {
     try {
-      const result = await hostApiFetch<{ success?: boolean; templates: AgentTemplate[] }>('/api/agents/templates');
+      const result = await hostApiFetch<{ success?: boolean; templates: AgentTemplate[] }>(
+        '/api/agents/templates'
+      );
       set({ templates: result.templates ?? [] });
     } catch {
       // non-fatal: templates remain empty
@@ -72,7 +88,12 @@ export const useAgentsStore = create<AgentsState>((set) => ({
 
   createAgent: async (
     name: string,
-    options?: { templateId?: string; sourceAgentId?: string; workspacePath?: string }
+    options?: {
+      templateId?: string;
+      sourceAgentId?: string;
+      workspacePath?: string;
+      inheritWorkspace?: boolean;
+    }
   ) => {
     set({ error: null });
     try {
@@ -95,6 +116,23 @@ export const useAgentsStore = create<AgentsState>((set) => ({
         {
           method: 'PUT',
           body: JSON.stringify({ name }),
+        }
+      );
+      set(applySnapshot(snapshot));
+    } catch (error) {
+      set({ error: String(error) });
+      throw error;
+    }
+  },
+
+  updateAgentModel: async (agentId: string, modelRef: string | null) => {
+    set({ error: null });
+    try {
+      const snapshot = await hostApiFetch<AgentsSnapshot & { success?: boolean }>(
+        `/api/agents/${encodeURIComponent(agentId)}/model`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ modelRef }),
         }
       );
       set(applySnapshot(snapshot));

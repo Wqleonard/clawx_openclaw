@@ -5,15 +5,15 @@ import {
   createAgent,
   deleteAgentConfig,
   listAgentsSnapshot,
-
   listAgentTemplates,
   removeAgentWorkspaceDirectory,
   resolveAccountIdForAgent,
   updateAgentWorkspace,
+  updateAgentModel,
   updateAgentName,
 } from '../../utils/agent-config';
 import { deleteChannelAccountConfig } from '../../utils/channel-config';
-import { syncAllProviderAuthToRuntime } from '../../services/providers/provider-runtime-sync';
+import { syncAgentModelOverrideToRuntime, syncAllProviderAuthToRuntime } from '../../services/providers/provider-runtime-sync';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
 
@@ -131,12 +131,12 @@ export async function handleAgentRoutes(
 
   if (url.pathname === '/api/agents' && req.method === 'POST') {
     try {
-
-      const body = await parseJsonBody<{ name: string; templateId?: string; sourceAgentId?: string; workspacePath?: string }>(req);
+      const body = await parseJsonBody<{ name: string; templateId?: string; sourceAgentId?: string; workspacePath?: string, inheritWorkspace?: boolean }>(req);
       const snapshot = await createAgent(body.name, {
         templateId: body.templateId,
         sourceAgentId: body.sourceAgentId,
         workspacePath: body.workspacePath,
+        inheritWorkspace: body.inheritWorkspace,
       });
       // const body = await parseJsonBody<{ name: string }>(req);
       // const snapshot = await createAgent(body.name);
@@ -174,6 +174,26 @@ export async function handleAgentRoutes(
 
         const snapshot = await updateAgentName(agentId, body.name || '');
         scheduleGatewayReload(ctx, 'update-agent-name');
+        sendJson(res, 200, { success: true, ...snapshot });
+      } catch (error) {
+        sendJson(res, 500, { success: false, error: String(error) });
+      }
+      return true;
+    }
+
+    if (parts.length === 2 && parts[1] === 'model') {
+      try {
+        const body = await parseJsonBody<{ modelRef?: string | null }>(req);
+        const agentId = decodeURIComponent(parts[0]);
+        const snapshot = await updateAgentModel(agentId, body.modelRef ?? null);
+        try {
+          await syncAllProviderAuthToRuntime();
+          // Ensure this agent's runtime model registry reflects the new model override.
+          await syncAgentModelOverrideToRuntime(agentId);
+        } catch (syncError) {
+          console.warn('[agents] Failed to sync runtime after updating agent model:', syncError);
+        }
+        scheduleGatewayReload(ctx, 'update-agent-model');
         sendJson(res, 200, { success: true, ...snapshot });
       } catch (error) {
         sendJson(res, 500, { success: false, error: String(error) });
