@@ -710,19 +710,6 @@ function ProviderCard({
 
       {isEditing && (
         <div className="space-y-6 mt-4 pt-4 border-t border-black/5 dark:border-white/5">
-          {effectiveDocsUrl && (
-            <div className="flex justify-end -mt-2 mb-2">
-              <a
-                href={effectiveDocsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[12px] text-foreground/40 hover:text-primary font-medium inline-flex items-center gap-1 transition-colors"
-              >
-                {t('aiProviders.dialog.customDoc')}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          )}
           {canEditModelConfig && (
             <div className="space-y-3">
               <p className={currentSectionLabelClasses}>{t('aiProviders.sections.model')}</p>
@@ -1408,20 +1395,6 @@ function AddProviderDialog({
                       >
                         {t('aiProviders.dialog.change')}
                       </button>
-                      {effectiveDocsUrl && (
-                        <>
-                          <span className="mx-2 text-foreground/20">|</span>
-                          <a
-                            href={effectiveDocsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[13px] text-foreground/40 hover:text-primary font-medium inline-flex items-center gap-1 transition-colors"
-                          >
-                            {t('aiProviders.dialog.customDoc')}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </>
-                      )}
                     </div>
                   </div>
 
