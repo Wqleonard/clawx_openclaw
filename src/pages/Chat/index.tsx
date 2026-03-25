@@ -108,18 +108,13 @@ export function Chat() {
   const persistedListWidth = useChatLayoutStore((s) => s.listWidth);
   const persistedEditorWidth = useChatLayoutStore((s) => s.editorWidth);
   const persistedFileTreeWidth = useChatLayoutStore((s) => s.fileTreeWidth);
-  const commitListWidth = useChatLayoutStore((s) => s.setListWidth);
   const commitEditorWidth = useChatLayoutStore((s) => s.setEditorWidth);
   const commitFileTreeWidth = useChatLayoutStore((s) => s.setFileTreeWidth);
   const [listWidth, setListWidth] = useState(persistedListWidth);
   const [editorWidth, setEditorWidth] = useState(persistedEditorWidth);
   const [fileTreeWidth, setFileTreeWidth] = useState(persistedFileTreeWidth);
   const isListDragging = useRef(false);
-  const listDragStartX = useRef(0);
-  const listDragStartWidth = useRef(0);
-  const listDragStartChatWidth = useRef(0);
   const listRafRef = useRef<number | null>(null);
-  const listPendingWidthRef = useRef<number | null>(null);
   const isEditorDragging = useRef(false);
   const editorDragStartX = useRef(0);
   const editorDragStartWidth = useRef(0);
@@ -186,7 +181,6 @@ export function Chat() {
   const setFileTreeDrawerOpen = useChatLayoutStore((s) => s.setFileTreeDrawerOpen);
   const isChatPanelCollapsed = useChatLayoutStore((s) => s.isChatPanelCollapsed);
   const isSessionListCollapsed = useChatLayoutStore((s) => s.isSessionListCollapsed);
-  const isSessionDrawerOpen = useChatLayoutStore((s) => s.isSessionDrawerOpen);
   const isSessionDrawerMode = useChatLayoutStore((s) => s.isSessionDrawerMode);
   const isFileTreeDrawerMode = useChatLayoutStore((s) => s.isFileTreeDrawerMode);
   const isProjectSwitching = useChatLayoutStore((s) => s.isProjectSwitching);
@@ -205,7 +199,6 @@ export function Chat() {
   const prevFileTreeDrawerModeRef = useRef(isFileTreeDrawerMode);
   const lastTreeRefreshProjectRef = useRef<string | null>(null);
 
-  const [isListResizing, setIsListResizing] = useState(false);
   const [isEditorResizing, setIsEditorResizing] = useState(false);
   const [isFileTreeResizing, setIsFileTreeResizing] = useState(false);
   const [isProjectActionsOpen, setIsProjectActionsOpen] = useState(false);
@@ -726,73 +719,6 @@ export function Chat() {
     [activeFile, updateFileContent]
   );
 
-  const onListDragStart = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!isSessionListInlineVisible) return;
-      isListDragging.current = true;
-      setIsListResizing(true);
-      listDragStartX.current = event.clientX;
-      listDragStartWidth.current = listWidth;
-      const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth;
-      listDragStartChatWidth.current =
-        containerWidth - fixedNonPanelWidth - listWidth - editorWidth - effectiveFileTreeWidth;
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-
-      const onMove = (ev: MouseEvent) => {
-        if (!isListDragging.current) return;
-        const delta = ev.clientX - listDragStartX.current;
-        const minDelta = CHAT_PANEL_SIZE.session.min - listDragStartWidth.current;
-        const maxDeltaByChat =
-          listDragStartChatWidth.current - (isChatPanelVisible ? CHAT_PANEL_SIZE.chat.min : 0);
-        const maxDelta = maxDeltaByChat;
-        const clampedDelta = Math.max(minDelta, Math.min(maxDelta, delta));
-        const nextWidth = listDragStartWidth.current + clampedDelta;
-        listPendingWidthRef.current = nextWidth;
-        if (listRafRef.current == null) {
-          listRafRef.current = window.requestAnimationFrame(() => {
-            listRafRef.current = null;
-            if (listPendingWidthRef.current != null) {
-              setListWidth(listPendingWidthRef.current);
-            }
-          });
-        }
-      };
-
-      const onUp = () => {
-        isListDragging.current = false;
-        setIsListResizing(false);
-        if (listRafRef.current != null) {
-          window.cancelAnimationFrame(listRafRef.current);
-          listRafRef.current = null;
-        }
-        const finalWidth = listPendingWidthRef.current;
-        if (finalWidth != null) {
-          setListWidth(finalWidth);
-          commitListWidth(finalWidth);
-          listPendingWidthRef.current = null;
-        } else {
-          commitListWidth(listWidth);
-        }
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-      };
-
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    },
-    [
-      listWidth,
-      editorWidth,
-      effectiveFileTreeWidth,
-      isSessionListInlineVisible,
-      isChatPanelVisible,
-      fixedNonPanelWidth,
-      commitListWidth,
-    ]
-  );
 
   const onEditorDragStart = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -1222,45 +1148,6 @@ export function Chat() {
       window.removeEventListener('project:create-request', handleProjectCreateRequest);
     };
   }, []);
-
-  const sessionListContent = (
-    <>
-      <div className="mb-3 rounded-lg pl-2 py-2">
-        <div className="flex flex-col">
-          <div className="flex gap-1 items-center justify-between">
-            <div className="truncate text-sm font-semibold text-foreground">{projectName}</div>
-            <Popover open={isProjectActionsOpen} onOpenChange={setIsProjectActionsOpen}>
-              <PopoverTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                  <Ellipsis className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-52 p-1">
-                <button
-                  type="button"
-                  onClick={() => void handleOpenProjectInFileExplorer()}
-                  className="w-full rounded px-2 py-1.5 text-left text-sm font-bold hover:bg-black/5 dark:hover:bg-white/10"
-                >
-                  {t('common:actions.openInFileExplorer')}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloseCurrentProject}
-                  className="w-full rounded px-2 py-1.5 text-left text-sm font-bold hover:bg-black/5 dark:hover:bg-white/10"
-                >
-                  {t('common:actions.close')}
-                </button>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="truncate text-xs text-muted-foreground" title={projectPath || undefined}>
-            {projectPath}
-          </div>
-        </div>
-      </div>
-    </>
-  );
 
   if (!projectPath) {
     return (
