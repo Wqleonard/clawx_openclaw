@@ -486,6 +486,29 @@ export function Chat() {
     applyProjectForSession,
   ]);
 
+  useEffect(() => {
+    if (!projectPath || agents.length === 0) return;
+    const matchedAgent = agents.find((agent) => workspacePathMatches(agent.workspace, projectPath));
+    if (!matchedAgent) return;
+
+    const chatState = useChatStore.getState();
+    const expectedPrefix = `agent:${matchedAgent.id}:`;
+    if (chatState.currentSessionKey.startsWith(expectedPrefix)) return;
+
+    const alignedSessionKey =
+      [...chatState.sessions]
+        .filter((session) => session.key.startsWith(expectedPrefix))
+        .sort(
+          (a, b) =>
+            (chatState.sessionLastActivity[b.key] ?? 0) -
+            (chatState.sessionLastActivity[a.key] ?? 0)
+        )[0]?.key ?? `${expectedPrefix}main`;
+
+    if (alignedSessionKey !== chatState.currentSessionKey) {
+      switchSession(alignedSessionKey);
+    }
+  }, [projectPath, agents, switchSession]);
+
   // Update timestamp when sending starts
   useEffect(() => {
     if (sending && streamingTimestamp === 0) {
