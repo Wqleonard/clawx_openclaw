@@ -64,7 +64,7 @@ const HIDDEN_RUNTIME_FILES = new Set([
   'BOOTSRAP.md',
   'README.md',
 ]);
-const LEGACY_WORKSPACE_SHORTCUTS_KEY = 'clawx:workspace-shortcuts';
+const LEGACY_WORKSPACE_SHORTCUTS_KEY = 'storyclaw:workspace-shortcuts';
 
 function normalizeFsPath(path: string): string {
   return path.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
