@@ -1361,7 +1361,7 @@ export function Chat() {
             >
               <DrawerContent
                 hideOverlay
-                className="max-w-none py-3 !border-none !rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:h-auto"
+                className="max-w-none py-3 pt-0 !border-none !rounded-none data-[vaul-drawer-direction=right]:top-10 data-[vaul-drawer-direction=right]:h-auto"
                 style={{ width: `min(86vw, ${fileTreeWidth}px)` }}
               >
                 <VisuallyHidden>
