@@ -808,8 +808,11 @@ function fuzzyContainsWithGapLimit(text: string, pattern: string, maxGap: number
 function hasInstallSkillRiskIntent(text: string): boolean {
   const normalized = normalizeInstallIntentText(text);
   if (!normalized) return false;
-  // "安装skill" fuzzy match with total gap allowance 8
-  return fuzzyContainsWithGapLimit(normalized, '安装skill', 8);
+  // Install-skill intent fuzzy match with total gap allowance 8.
+  const installSkillRiskPatterns = ['安装skill', '安skill', '装skill', '加skill', '整skill', '增skill'];
+  return installSkillRiskPatterns.some((pattern) =>
+    fuzzyContainsWithGapLimit(normalized, pattern, 8),
+  );
 }
 
 function buildFallbackMainSessionKey(agentId: string): string {
