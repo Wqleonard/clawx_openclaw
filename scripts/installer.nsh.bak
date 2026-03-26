@@ -4,11 +4,14 @@
 ;   REMOVED: nsProcess FindProcess/KillProcess
 ;   REMOVED: nsExec PowerShell execution
 ;   REMOVED: EnumRegKey all-user profile enumeration
-;   REMOVED: WriteRegDWORD LongPathsEnabled (HKLM write, potential AV trigger)
+;   KEPT: WriteRegDWORD LongPathsEnabled
 ;   KEPT: PATH update via native NSIS registry ops (no PowerShell/plugins)
 ;   KEPT: Session data cleanup on uninstall (current user only)
 
 !macro customInstall
+  ; Enable Windows long path support (Windows 10 1607+ / Windows 11).
+  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Control\FileSystem" "LongPathsEnabled" 1
+
   ; Add resources\cli to current user PATH via registry (no PowerShell needed).
   ReadRegStr $0 HKCU "Environment" "PATH"
   StrCmp $0 "" _addPath
@@ -23,31 +26,16 @@
 
 !macro customUnInstall
   ; Remove resources\cli from current user PATH via registry.
-  ; Use StrCpy/StrLen to strip the entry without WordFunc.nsh dependency.
   ReadRegStr $0 HKCU "Environment" "PATH"
-  StrLen $1 "$INSTDIR\resources\cli"
+  StrCpy $2 "$INSTDIR\resources\cli"
 
-  ; Try removing ";$INSTDIR\resources\cli" (entry in middle or end)
-  StrCpy $2 "$0" "" -$1
-  StrCmp $2 "$INSTDIR\resources\cli" _stripEnd
-  Goto _tryStart
-  _stripEnd:
-    StrLen $3 "$0"
-    IntOp $3 $3 - $1
-    IntOp $3 $3 - 1
-    StrCpy $0 "$0" $3
-    Goto _writePath
+  ; Remove ";$INSTDIR\resources\cli" (middle/end of PATH)
+  ${WordReplace} "$0" ";$2" "" "+" $0
+  ; Remove "$INSTDIR\resources\cli;" (start of PATH)
+  ${WordReplace} "$0" "$2;" "" "+" $0
+  ; Remove "$INSTDIR\resources\cli" (only entry)
+  ${WordReplace} "$0" "$2" "" "+" $0
 
-  _tryStart:
-  ; Try removing "$INSTDIR\resources\cli;" (entry at start)
-  StrCpy $2 "$0" $1
-  StrCmp $2 "$INSTDIR\resources\cli" _stripStart
-  Goto _writePath
-  _stripStart:
-    IntOp $3 $1 + 1
-    StrCpy $0 "$0" "" $3
-
-  _writePath:
   WriteRegExpandStr HKCU "Environment" "PATH" "$0"
   SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
 
