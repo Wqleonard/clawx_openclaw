@@ -64,6 +64,7 @@ import { validateApiKeyWithProvider } from '../services/providers/provider-valid
 import { appUpdater } from './updater';
 import { PORTS } from '../utils/config';
 import { registerFileSystemHandlers, syncWorkspaceRootFromSettings } from '../services/filesystem';
+import { getActiveHostApiPort } from '../api/server';
 
 // import { registerHostApiProxyHandlers } from './ipc/host-api-proxy';
 import {
@@ -189,7 +190,8 @@ function registerHostApiProxyHandlers(): void {
         }
       }
 
-      const response = await proxyAwareFetch(`http://127.0.0.1:${PORTS.CLAWX_HOST_API}${path}`, {
+      const hostApiPort = getActiveHostApiPort();
+      const response = await proxyAwareFetch(`http://127.0.0.1:${hostApiPort}${path}`, {
         method,
         headers,
         body,

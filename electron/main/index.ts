@@ -354,13 +354,18 @@ async function initialize(): Promise<void> {
   // Register IPC handlers
   registerIpcHandlers(gatewayManager, clawHubService, window);
 
-  hostApiServer = startHostApiServer({
-    gatewayManager,
-    clawHubService,
-    skillHubService,
-    eventBus: hostEventBus,
-    mainWindow: window,
-  });
+  try {
+    hostApiServer = await startHostApiServer({
+      gatewayManager,
+      clawHubService,
+      skillHubService,
+      eventBus: hostEventBus,
+      mainWindow: window,
+    });
+  } catch (error) {
+    hostApiServer = null;
+    logger.error('Failed to start Host API server; app will continue without local host-api bridge:', error);
+  }
 
   // Register update handlers
   registerUpdateHandlers(appUpdater, window);
