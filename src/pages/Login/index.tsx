@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useLoginStore } from '@/stores/loginStore';
@@ -41,7 +41,7 @@ export function Login() {
         toast.error('登录失败，请重试');
       }
     },
-    [loginWithTicket, executeInterceptedActions, navigate]
+    [loginWithTicket, executeInterceptedActions, navigate],
   );
 
   useEffect(() => {
@@ -93,6 +93,11 @@ export function Login() {
     setIframeLoadFailed(false);
   }, []);
 
+  const iframe_url = useMemo(() => {
+    return IFRAME_URL + '?agreement=' + encodeURIComponent('https://www.baowenmao.com/claw-user-agreement')
+      + '&privacyPolicy=' + encodeURIComponent('https://www.baowenmao.com/claw-privacy-policy');
+  }, []);
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
       <TitleBar showPanelToggles={false} />
@@ -104,13 +109,13 @@ export function Login() {
           <div
             className={cn(
               'relative overflow-hidden rounded-xl bg-card shadow-lg',
-              'h-[520px] w-full'
+              'h-[520px] w-full',
             )}
           >
             {!iframeLoadFailed ? (
               <iframe
                 ref={iframeRef}
-                src={IFRAME_URL}
+                src={iframe_url}
                 title="登录"
                 sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
                 allow="camera; microphone"
@@ -127,7 +132,7 @@ export function Login() {
                 </Button>
               </div>
             )}
-            </div>
+          </div>
         </div>
       </div>
     </div>
