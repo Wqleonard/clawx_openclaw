@@ -157,10 +157,25 @@ function cleanupNativePlatformPackages(nodeModulesDir, platform, arch) {
 
       const pkgPlatform = PLATFORM_ALIASES[match[1]] || match[1];
       const pkgArch = baseArch(match[2]);
+      const variantSuffix = match[3] || '';
 
-      const isMatch =
+      let isMatch =
         pkgPlatform === platform &&
         (pkgArch === arch || pkgArch === 'universal');
+
+      // For Windows x64 releases, keep only the base CPU runtime for
+      // @node-llama-cpp to avoid bundling huge optional GPU variants
+      // (cuda/cuda-ext/vulkan) in the default installer.
+      if (
+        scope === '@node-llama-cpp' &&
+        platform === 'win32' &&
+        arch === 'x64'
+      ) {
+        isMatch =
+          pkgPlatform === platform &&
+          pkgArch === arch &&
+          variantSuffix === '';
+      }
 
       if (!isMatch) {
         try {
