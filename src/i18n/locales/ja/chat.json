@@ -42,6 +42,14 @@
         "older": "1か月より前"
     },
     "projectRequired": "プロジェクトが選択されていません。先にプロジェクトを選択してください。",
+    "workspaceRequired": {
+        "title": "先にワークスペースを設定してください",
+        "description": "チャットを始める前に、プロジェクトとコンテキスト管理のためのローカルワークスペースを設定してください。"
+    },
+    "projectScreen": {
+        "tagline": "あなたの物語を世界が待っています",
+        "createNow": "今すぐ作成"
+    },
     "fileTree": {
         "title": "ファイル",
         "noWorkspace": "ワークスペースが選択されていません",

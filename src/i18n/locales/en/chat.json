@@ -42,6 +42,14 @@
         "older": "Older than 1 Month"
     },
     "projectRequired": "No project selected. Please choose a project first.",
+    "workspaceRequired": {
+        "title": "Set Workspace First",
+        "description": "Before chatting, configure a local workspace directory for project and context management."
+    },
+    "projectScreen": {
+        "tagline": "The world is waiting for your story",
+        "createNow": "Start Creating"
+    },
     "fileTree": {
         "title": "Files",
         "noWorkspace": "No workspace selected",

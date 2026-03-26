@@ -132,28 +132,31 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
       toast.error(message || 'Failed to open debug console');
     }
   }, []);
-  const handleSwitchProject = useCallback((targetPath: string) => {
-    if (!targetPath) return;
-    const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
-    if (!isOnChatRoute) {
-      navigate('/chat');
-      window.setTimeout(() => {
-        window.dispatchEvent(
-          new CustomEvent('project:switch-request', {
-            detail: { path: targetPath },
-          }),
-        );
-      }, 0);
+  const handleSwitchProject = useCallback(
+    (targetPath: string) => {
+      if (!targetPath) return;
+      const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+      if (!isOnChatRoute) {
+        navigate('/chat');
+        window.setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('project:switch-request', {
+              detail: { path: targetPath },
+            })
+          );
+        }, 0);
+        setProjectMenuOpen(false);
+        return;
+      }
+      window.dispatchEvent(
+        new CustomEvent('project:switch-request', {
+          detail: { path: targetPath },
+        })
+      );
       setProjectMenuOpen(false);
-      return;
-    }
-    window.dispatchEvent(
-      new CustomEvent('project:switch-request', {
-        detail: { path: targetPath },
-      }),
-    );
-    setProjectMenuOpen(false);
-  }, [location.pathname, navigate]);
+    },
+    [location.pathname, navigate]
+  );
 
   const handleCreateProject = useCallback(() => {
     const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
@@ -242,11 +245,15 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                         className={cn(
                           'w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                           'hover:bg-black/5 dark:hover:bg-white/10',
-                          project.isActive ? 'bg-black/5 dark:bg-white/10 font-medium' : 'text-foreground/80'
+                          project.isActive
+                            ? 'bg-black/5 dark:bg-white/10 font-medium'
+                            : 'text-foreground/80'
                         )}
                       >
                         <div className="truncate">{project.name}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">{project.path}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {project.path}
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -290,7 +297,11 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                 )}
                 title="Gateway Status"
               >
-                {isGatewayRunning ? <Server className="h-4 w-4" /> : <ServerOff className="h-4 w-4" />}
+                {isGatewayRunning ? (
+                  <Server className="h-4 w-4" />
+                ) : (
+                  <ServerOff className="h-4 w-4" />
+                )}
                 <span
                   className={cn(
                     'absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-background',
@@ -438,28 +449,31 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
     }
   }, []);
 
-  const handleSwitchProject = useCallback((targetPath: string) => {
-    if (!targetPath) return;
-    const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
-    if (!isOnChatRoute) {
-      navigate('/chat');
-      window.setTimeout(() => {
-        window.dispatchEvent(
-          new CustomEvent('project:switch-request', {
-            detail: { path: targetPath },
-          }),
-        );
-      }, 0);
+  const handleSwitchProject = useCallback(
+    (targetPath: string) => {
+      if (!targetPath) return;
+      const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+      if (!isOnChatRoute) {
+        navigate('/chat');
+        window.setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('project:switch-request', {
+              detail: { path: targetPath },
+            })
+          );
+        }, 0);
+        setProjectMenuOpen(false);
+        return;
+      }
+      window.dispatchEvent(
+        new CustomEvent('project:switch-request', {
+          detail: { path: targetPath },
+        })
+      );
       setProjectMenuOpen(false);
-      return;
-    }
-    window.dispatchEvent(
-      new CustomEvent('project:switch-request', {
-        detail: { path: targetPath },
-      }),
-    );
-    setProjectMenuOpen(false);
-  }, [location.pathname, navigate]);
+    },
+    [location.pathname, navigate]
+  );
 
   const handleCreateProject = useCallback(() => {
     const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
@@ -479,28 +493,31 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
     window.dispatchEvent(new CustomEvent('project:open-request'));
     setProjectMenuOpen(false);
   }, []);
-  const handleRequestCloseProject = useCallback((targetPath: string) => {
-    if (!targetPath) return;
-    const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
-    if (!isOnChatRoute) {
-      navigate('/chat');
-      window.setTimeout(() => {
-        window.dispatchEvent(
-          new CustomEvent('project:close-request', {
-            detail: { path: targetPath },
-          }),
-        );
-      }, 0);
+  const handleRequestCloseProject = useCallback(
+    (targetPath: string) => {
+      if (!targetPath) return;
+      const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+      if (!isOnChatRoute) {
+        navigate('/chat');
+        window.setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('project:close-request', {
+              detail: { path: targetPath },
+            })
+          );
+        }, 0);
+        setProjectMenuOpen(false);
+        return;
+      }
+      window.dispatchEvent(
+        new CustomEvent('project:close-request', {
+          detail: { path: targetPath },
+        })
+      );
       setProjectMenuOpen(false);
-      return;
-    }
-    window.dispatchEvent(
-      new CustomEvent('project:close-request', {
-        detail: { path: targetPath },
-      }),
-    );
-    setProjectMenuOpen(false);
-  }, [location.pathname, navigate]);
+    },
+    [location.pathname, navigate]
+  );
 
   return (
     <>
@@ -528,10 +545,8 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
-                    variant='ghost'
-                    className={cn(
-                      'h-8 max-w-[220px] border truncate',
-                    )}
+                    variant="ghost"
+                    className={cn('h-8 max-w-[220px] border truncate')}
                     title={projectPath}
                   >
                     <FolderClosed className="size-4 mr-1 shrink-0" />
@@ -545,14 +560,15 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                     className="w-full flex items-center rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
                     onClick={handleCreateProject}
                   >
-                    <FolderPlus className='size-4 mr-1'/> {t('common:projectDialog.title')}
+                    <FolderPlus className="size-4 mr-1" /> {t('common:projectDialog.title')}
                   </button>
                   <button
                     type="button"
                     className="w-full flex items-center rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
                     onClick={handleOpenProject}
                   >
-                    <FolderOpen className='size-4 mr-1'/>{isZh ? '打开项目' : 'Open Project'}
+                    <FolderOpen className="size-4 mr-1" />
+                    {isZh ? '打开项目' : 'Open Project'}
                   </button>
                   <div className="my-1 border-t"></div>
                   <div className="max-h-[420px] overflow-y-auto space-y-1">
@@ -563,12 +579,16 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                           'w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                           'hover:bg-black/5 dark:hover:bg-white/10',
                           'flex items-center justify-between',
-                          project.isActive ? 'bg-black/5 dark:bg-white/10 font-medium' : 'text-foreground/80'
+                          project.isActive
+                            ? 'bg-black/5 dark:bg-white/10 font-medium'
+                            : 'text-foreground/80'
                         )}
                         onMouseEnter={() => setHoveredProjectPath(project.path)}
-                        onMouseLeave={() => setHoveredProjectPath((current) => (
-                          current === project.path ? null : current
-                        ))}
+                        onMouseLeave={() =>
+                          setHoveredProjectPath((current) =>
+                            current === project.path ? null : current
+                          )
+                        }
                       >
                         <button
                           type="button"
@@ -577,18 +597,23 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                           className="min-w-0 flex-1 text-left"
                         >
                           <div className="truncate">{project.name}</div>
-                          <div className="truncate text-[11px] text-muted-foreground">{project.path}</div>
+                          <div className="truncate text-[11px] text-muted-foreground">
+                            {project.path}
+                          </div>
                         </button>
                         <Popover
                           open={projectActionMenuPath === project.path}
-                          onOpenChange={(open) => setProjectActionMenuPath(open ? project.path : null)}
+                          onOpenChange={(open) =>
+                            setProjectActionMenuPath(open ? project.path : null)
+                          }
                         >
                           <PopoverTrigger asChild>
                             <Button
-                              variant='ghost'
+                              variant="ghost"
                               className={cn(
                                 'shrink-0 !p-0 size-6 flex items-center justify-center transition-opacity',
-                                hoveredProjectPath === project.path || projectActionMenuPath === project.path
+                                hoveredProjectPath === project.path ||
+                                  projectActionMenuPath === project.path
                                   ? 'opacity-100'
                                   : 'pointer-events-none opacity-0'
                               )}
@@ -621,28 +646,17 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
           )}
         </div>
         <div className="no-drag flex h-full">
-          {showPanelToggles && projectPath && (
-            <div className="mr-1 flex h-full items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
-                onClick={() => setPreferencesOpen(true)}
-                title={t('common:sidebar.preferences')}
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
-              {/* <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
-                onClick={() => void openDevConsole()}
-                title="Open OpenClaw"
-              >
-                <Terminal className="h-4 w-4" />
-              </Button> */}
-            </div>
-          )}
+          <div className="mr-1 flex h-full items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={() => setPreferencesOpen(true)}
+              title={t('common:sidebar.preferences')}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
           <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
             <PopoverTrigger asChild>
               <div className="flex h-full items-center justify-center">
@@ -653,9 +667,13 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                     'mr-1 relative flex size-7 items-center justify-center transition-colors',
                     isPopoverOpen ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
                   )}
-                  title='状态'
+                  title="状态"
                 >
-                  {isGatewayRunning ? <Server className="h-4 w-4" /> : <ServerOff className="h-4 w-4" />}
+                  {isGatewayRunning ? (
+                    <Server className="h-4 w-4" />
+                  ) : (
+                    <ServerOff className="h-4 w-4" />
+                  )}
                   <span
                     className={cn(
                       'absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-background',
@@ -682,7 +700,9 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
                 size="icon"
                 className={cn(
                   'size-7 cursor-pointer',
-                  isFileTreePanelOpen ? 'bg-black/5 dark:hover:bg-white/10' : 'text-muted-foreground'
+                  isFileTreePanelOpen
+                    ? 'bg-black/5 dark:hover:bg-white/10'
+                    : 'text-muted-foreground'
                 )}
                 onClick={handleOpenFolder}
                 title={isFileTreePanelOpen ? t('common:actions.close') : t('fileTree.openFolder')}

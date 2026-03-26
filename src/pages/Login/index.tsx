@@ -21,6 +21,7 @@ export function Login() {
 
   const handleMessage = useCallback(
     async (event: MessageEvent) => {
+      console.log('event', event);
       if (event.origin !== ALLOWED_ORIGIN) return;
       if (!event.data?.action) return;
 

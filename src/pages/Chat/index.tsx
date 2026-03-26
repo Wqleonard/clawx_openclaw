@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, FileText, FolderPlus, Loader2 } from 'lucide-react';
+import { AlertCircle, FileText, FolderPlus, Loader2, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -249,6 +249,10 @@ export function Chat() {
       toast.error(t('settings:workspace.saveFailed'));
     }
   }, [setWorkspaceRoots, t, workspaceRoots]);
+  const handleRemoveWorkspaceRoot = useCallback(() => {
+    setWorkspaceRoots('');
+    toast.success(t('settings:workspace.saved'));
+  }, [setWorkspaceRoots, t]);
 
   const workspaceSetupDialog = (
     <ConfirmDialog
@@ -1158,6 +1162,16 @@ export function Chat() {
     };
   }, []);
 
+  if (!workspaceRoots.trim()) {
+    return (
+      <WorkspaceRootsRequiredScreen
+        workspaceRoots={workspaceRoots}
+        onPickWorkspaceRoot={() => void handlePickWorkspaceRoot()}
+        onRemoveWorkspaceRoot={handleRemoveWorkspaceRoot}
+      />
+    );
+  }
+
   if (!projectPath) {
     return <ProjectRequiredScreen onCreateProject={openCreateProjectDialog} />;
   }
@@ -1522,6 +1536,64 @@ function WelcomeScreen() {
   );
 }
 
+function WorkspaceRootsRequiredScreen({
+  workspaceRoots,
+  onPickWorkspaceRoot,
+  onRemoveWorkspaceRoot,
+}: {
+  workspaceRoots: string;
+  onPickWorkspaceRoot: () => void;
+  onRemoveWorkspaceRoot: () => void;
+}) {
+  const { t } = useTranslation(['chat', 'settings']);
+
+  return (
+    <div className="flex w-full h-full p-4 justify-center text-center">
+      <div className="flex flex-col w-full rounded-2xl border items-center px-6 py-8">
+        <h1 className="mt-[9%] bg-gradient-to-b from-zinc-400 via-zinc-700 to-black bg-clip-text text-[52px] font-bold text-transparent dark:from-zinc-200 dark:via-zinc-100 dark:to-white">
+          {t('chat:workspaceRequired.title')}
+        </h1>
+
+        <div className="mt-8 w-full max-w-[520px] rounded-2xl border border-black/5 bg-black/[0.02] dark:border-white/8 dark:bg-white/[0.03] p-5 text-left">
+          <h3 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider">
+            {t('settings:workspace.title')}
+          </h3>
+          <p className="mt-2 text-[12px] text-muted-foreground">{t('settings:workspace.desc')}</p>
+          <div className="mt-3 space-y-2">
+            {!workspaceRoots ? (
+              <p className="text-[12px] text-muted-foreground">{t('settings:workspace.empty')}</p>
+            ) : (
+              <div className="flex items-center justify-between rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-3 py-2">
+                <span className="text-[12px] font-mono text-foreground truncate flex-1 mr-2">
+                  {workspaceRoots}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onRemoveWorkspaceRoot}
+                  className="h-7 px-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onPickWorkspaceRoot}
+            className="mt-4 rounded-xl h-9 px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 text-[13px]"
+          >
+            <FolderPlus className="h-3.5 w-3.5 mr-1.5" />
+            {t('settings:workspace.pick')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => void }) {
   const { t } = useTranslation('chat');
   return (
@@ -1535,9 +1607,9 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
             Claw
           </span>
         </h1>
-        <p className='text-[22px] text-muted-foreground'>世界正在等待你的故事</p>
+        <p className="text-[22px] text-muted-foreground">{t('projectScreen.tagline')}</p>
         <Button className="relative mt-[32px] flex w-fit items-center gap-4 rounded-lg border border-[#c02b2b]/40 bg-gradient-to-r from-[#ed4141] to-[#c02b2b] px-8 py-7 text-xl font-bold text-white shadow-[0_10px_30px_rgba(192,43,43,0.28)] transition-all duration-300 hover:border-[#ed4141]/80 hover:from-[#f05555] hover:to-[#cf3838] hover:shadow-[0_14px_36px_rgba(192,43,43,0.36)]" onClick={onCreateProject}>
-          <FolderPlus className='size-6'/> 立即创作
+          <FolderPlus className="size-6" /> {t('projectScreen.createNow')}
         </Button>
       </div>
     </div>

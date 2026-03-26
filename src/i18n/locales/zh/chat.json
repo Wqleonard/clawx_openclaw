@@ -42,6 +42,14 @@
         "older": "一个月之前"
     },
     "projectRequired": "未选择项目，请先选择一个项目。",
+    "workspaceRequired": {
+        "title": "请先设置工作区",
+        "description": "在聊天前需要先配置一个本地工作区目录，用于项目与上下文管理。"
+    },
+    "projectScreen": {
+        "tagline": "世界正在等待你的故事",
+        "createNow": "立即创作"
+    },
     "fileTree": {
         "title": "文件",
         "noWorkspace": "未选择工作目录",
