@@ -74,11 +74,21 @@ export interface ToolStatus {
   updatedAt: number;
 }
 
+type ChatErrorSource =
+  | 'gateway-rpc-result'
+  | 'gateway-rpc-throw'
+  | 'send-with-media-result'
+  | 'send-with-media-throw'
+  | 'timeout-no-response'
+  | 'abort-rpc'
+  | 'runtime-event-error';
+
 interface ChatState {
   // Messages
   messages: RawMessage[];
   loading: boolean;
   error: string | null;
+  errorSource: ChatErrorSource | null;
   warning: string | null;
 
   // Streaming
@@ -872,6 +882,7 @@ function buildSessionSwitchPatch(
     streamingTools: [],
     activeRunId: null,
     error: null,
+    errorSource: null,
     pendingFinal: false,
     lastUserMessageAt: null,
     pendingToolImages: [],
@@ -1026,6 +1037,134 @@ function parseDurationMs(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const parsed = typeof value === 'string' ? Number(value) : NaN;
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function normalizeErrorText(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const text = value.trim();
+    return text.length > 0 ? text : null;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (!value || typeof value !== 'object') return null;
+
+  const record = value as Record<string, unknown>;
+  const keys = ['message', 'error', 'detail', 'reason', 'msg', 'errorMessage', 'error_message'];
+  for (const key of keys) {
+    const candidate = normalizeErrorText(record[key]);
+    if (candidate) return candidate;
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized && serialized !== '{}' ? serialized : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseNumericCode(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function unwrapQuotedText(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function resolveBackendMessageText(raw: string, status?: number, code?: number): string {
+  const text = raw.trim();
+  const shouldStripStatusPrefix = status === 402 || code === 402 || /^402\b/.test(text);
+  if (!shouldStripStatusPrefix) return unwrapQuotedText(text);
+
+  const prefixedMatch = text.match(/^\d{3}\s+(.+)$/);
+  const withoutStatus = prefixedMatch ? prefixedMatch[1].trim() : text;
+
+  // Best-effort parse: 402 {"message":"POINTS_INSUFFICIENT"}
+  if (withoutStatus.startsWith('{') && withoutStatus.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(withoutStatus) as Record<string, unknown>;
+      const message = normalizeErrorText(parsed.message);
+      if (message) return message;
+    } catch {
+      // Ignore malformed JSON and fall back to plain text cleanup.
+    }
+  }
+
+  return unwrapQuotedText(withoutStatus);
+}
+
+function resolveRuntimeErrorMessage(event: Record<string, unknown>): string {
+  const details = asRecord(event.details) ?? asRecord(event.detail);
+  const topLevelError = asRecord(event.error);
+  const messageObj = asRecord(event.message);
+  const messageDetails =
+    asRecord(messageObj?.details) ??
+    asRecord(messageObj?.detail) ??
+    asRecord(messageObj?.error);
+  const nestedError = details ? asRecord(details.error) : null;
+  const errorData = topLevelError ? asRecord(topLevelError.data) : null;
+  const deepNestedError = errorData ? asRecord(errorData.error) : null;
+
+  const status =
+    parseNumericCode(event.status) ??
+    parseNumericCode(details?.status) ??
+    parseNumericCode(messageObj?.status) ??
+    parseNumericCode(messageDetails?.status) ??
+    parseNumericCode(errorData?.status) ??
+    parseNumericCode(topLevelError?.status) ??
+    parseNumericCode(nestedError?.status) ??
+    parseNumericCode(deepNestedError?.status);
+  const code =
+    parseNumericCode(event.code) ??
+    parseNumericCode(details?.code) ??
+    parseNumericCode(messageObj?.code) ??
+    parseNumericCode(messageDetails?.code) ??
+    parseNumericCode(errorData?.code) ??
+    parseNumericCode(topLevelError?.code) ??
+    parseNumericCode(nestedError?.code) ??
+    parseNumericCode(deepNestedError?.code);
+
+  // Extend here for future code/status-specific UX behavior.
+  // Example:
+  // if (status === 429) return 'Rate limit exceeded, please retry later.';
+  if (status === 402 || code === 402) {
+    const detailFirst =
+      normalizeErrorText(details) ??
+      normalizeErrorText(messageDetails) ??
+      normalizeErrorText(messageObj) ??
+      normalizeErrorText(nestedError) ??
+      normalizeErrorText(errorData) ??
+      normalizeErrorText(deepNestedError) ??
+      normalizeErrorText(topLevelError);
+    if (detailFirst) return resolveBackendMessageText(detailFirst, status, code);
+  }
+
+  const general =
+    normalizeErrorText(details) ??
+    normalizeErrorText(messageDetails) ??
+    normalizeErrorText(messageObj) ??
+    normalizeErrorText(nestedError) ??
+    normalizeErrorText(errorData) ??
+    normalizeErrorText(deepNestedError) ??
+    normalizeErrorText(event.errorMessage) ??
+    normalizeErrorText(topLevelError) ??
+    normalizeErrorText(event.message);
+  if (general) return resolveBackendMessageText(general, status, code);
+  return 'An error occurred';
 }
 
 function extractToolUseUpdates(message: unknown): ToolStatus[] {
@@ -1192,6 +1331,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   loading: false,
   error: null,
+  errorSource: null,
   warning: null,
 
   sending: false,
@@ -1385,6 +1525,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         streamingTools: [],
         activeRunId: null,
         error: null,
+        errorSource: null,
         warning: null,
         pendingFinal: false,
         lastUserMessageAt: null,
@@ -1459,6 +1600,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingTools: [],
       activeRunId: null,
       error: null,
+      errorSource: null,
       warning: null,
       pendingFinal: false,
       lastUserMessageAt: null,
@@ -1507,7 +1649,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    if (!quiet) set({ loading: true, error: null });
+    if (!quiet) set({ loading: true, error: null, errorSource: null });
 
     // 安全保护：如果历史记录加载花费太多时间，则强制将 loading 设置为 false
     // 防止 UI 永远卡在转圈状态。
@@ -1730,6 +1872,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...s.messages, userMsg],
       sending: true,
       error: null,
+      errorSource: null,
       warning: hasInstallSkillRiskIntent(trimmed)
         ? '安装外界skill存在安全风险，请谨慎安装'
         : null,
@@ -1825,6 +1968,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       clearHistoryPoll();
       set({
         error: 'No response received from the model. The provider may be unavailable or the API key may have insufficient quota. Please check your provider settings.',
+        errorSource: 'timeout-no-response',
         sending: false,
         activeRunId: null,
         lastUserMessageAt: null,
@@ -1832,9 +1976,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     };
     setTimeout(checkStuck, 30_000);
 
+    const hasMedia = attachments && attachments.length > 0;
     try {
       const idempotencyKey = crypto.randomUUID();
-      const hasMedia = attachments && attachments.length > 0;
       if (hasMedia) {
         console.log('[sendMessage] Media paths:', attachments!.map(a => a.stagedPath));
       }
@@ -1896,13 +2040,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       if (!result.success) {
         clearHistoryPoll();
-        set({ error: result.error || 'Failed to send message', sending: false });
+        set({
+          error: result.error || 'Failed to send message',
+          errorSource: hasMedia ? 'send-with-media-result' : 'gateway-rpc-result',
+          sending: false,
+        });
       } else if (result.result?.runId) {
         set({ activeRunId: result.result.runId });
       }
     } catch (err) {
       clearHistoryPoll();
-      set({ error: String(err), sending: false });
+      set({
+        error: String(err),
+        errorSource: hasMedia ? 'send-with-media-throw' : 'gateway-rpc-throw',
+        sending: false,
+      });
     }
   },
 
@@ -1921,7 +2073,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         { sessionKey: currentSessionKey },
       );
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: String(err), errorSource: 'abort-rpc' });
     }
   },
 
@@ -1967,7 +2119,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // show loading/streaming in the app when this session has an active run.
       const { sending } = get();
       if (!sending && runId) {
-        set({ sending: true, activeRunId: runId, error: null });
+        set({ sending: true, activeRunId: runId, error: null, errorSource: null });
       }
     }
 
@@ -1976,7 +2128,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Run just started (e.g. from console); show loading immediately.
         const { sending: currentSending } = get();
         if (!currentSending && runId) {
-          set({ sending: true, activeRunId: runId, error: null });
+          set({ sending: true, activeRunId: runId, error: null, errorSource: null });
         }
         break;
       }
@@ -1986,7 +2138,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // stale error banner so the user sees the live stream again.
         if (_errorRecoveryTimer) {
           clearErrorRecoveryTimer();
-          set({ error: null });
+          set({ error: null, errorSource: null });
         }
         const updates = collectToolUpdates(event.message, resolvedState);
         set((s) => ({
@@ -2003,7 +2155,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       case 'final': {
         clearErrorRecoveryTimer();
-        if (get().error) set({ error: null });
+        if (get().error) set({ error: null, errorSource: null });
         // Message complete - add to history and clear streaming
         const finalMsg = event.message as RawMessage | undefined;
         if (finalMsg) {
@@ -2161,7 +2313,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         break;
       }
       case 'error': {
-        const errorMsg = String(event.errorMessage || 'An error occurred');
+        const errorMsg = resolveRuntimeErrorMessage(event);
         const wasSending = get().sending;
 
         // Snapshot the current streaming message into messages[] so partial
@@ -2181,6 +2333,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         set({
           error: errorMsg,
+          errorSource: 'runtime-event-error',
           streamingText: '',
           streamingMessage: null,
           streamingTools: [],
@@ -2261,6 +2414,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     await Promise.all([loadHistory(), loadSessions()]);
   },
 
-  clearError: () => set({ error: null }),
+  clearError: () => set({ error: null, errorSource: null }),
   clearWarning: () => set({ warning: null }),
 }));

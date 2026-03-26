@@ -192,7 +192,7 @@ export const useSettingsStore = create<SettingsState>()(
       resetSettings: () => set(defaultSettings),
     }),
     {
-      name: 'clawx-settings',
+      name: 'storyclaw-settings',
       version: 2,
       migrate: (persistedState, fromVersion) => {
         const state = persistedState as Partial<typeof defaultSettings>;
