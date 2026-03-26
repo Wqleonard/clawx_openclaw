@@ -13,12 +13,12 @@ import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 // One-time migration: clear persisted dark/system theme so light becomes the default.
 // Zustand persist's migrate() handles new installs; this handles existing localStorage.
 try {
-  const raw = localStorage.getItem('storyclaw-settings');
+  const raw = localStorage.getItem('clawx-settings');
   if (raw) {
     const parsed = JSON.parse(raw);
     if (parsed?.state?.theme && parsed.state.theme !== 'light') {
       parsed.state.theme = 'light';
-      localStorage.setItem('storyclaw-settings', JSON.stringify(parsed));
+      localStorage.setItem('clawx-settings', JSON.stringify(parsed));
     }
   }
 } catch {

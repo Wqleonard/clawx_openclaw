@@ -88,52 +88,6 @@ export interface GatewayManagerEvents {
   'chat:message': (data: { message: unknown }) => void;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
-function buildAgentErrorProbe(payload: Record<string, unknown>): Record<string, unknown> | null {
-  const data = asRecord(payload.data) ?? null;
-  const state = payload.state ?? data?.state;
-  const phase = payload.phase ?? data?.phase;
-
-  logger.debug('[gateway-agent-error-probe data]', data);
-  
-  const errorObj = asRecord(payload.error) ?? asRecord(data?.error);
-  const detailObj =
-    asRecord(payload.details) ??
-    asRecord(payload.detail) ??
-    asRecord(data?.details) ??
-    asRecord(data?.detail);
-  const errorMessage =
-    payload.errorMessage ??
-    data?.errorMessage ??
-    (typeof errorObj?.message === 'string' ? errorObj.message : undefined);
-  const isErrorLike =
-    state === 'error'
-    || phase === 'error'
-    || phase === 'failed'
-    || errorObj != null
-    || detailObj != null
-    || typeof errorMessage === 'string';
-
-  if (!isErrorLike) return null;
-
-  return {
-    runId: payload.runId ?? data?.runId,
-    sessionKey: payload.sessionKey ?? data?.sessionKey,
-    stream: payload.stream ?? data?.stream,
-    seq: payload.seq ?? data?.seq,
-    state,
-    phase,
-    errorMessage,
-    error: errorObj ?? payload.error ?? data?.error,
-    details: detailObj ?? payload.details ?? payload.detail ?? data?.details ?? data?.detail,
-    status: payload.status ?? data?.status ?? errorObj?.status ?? detailObj?.status,
-    code: payload.code ?? data?.code ?? errorObj?.code ?? detailObj?.code,
-  };
-}
-
 /**
  * Gateway Manager
  * Handles starting, stopping, and communicating with the OpenClaw Gateway
@@ -1407,7 +1361,6 @@ export class GatewayManager extends EventEmitter {
     const msg = message as Record<string, unknown>;
 
     if (msg.type === 'event' && msg.event === 'agent' && typeof msg.payload === 'object' && msg.payload !== null) {
-      logger.debug('[gateway-agent-error-probe msg]', msg);
       const payload = msg.payload as Record<string, unknown>;
       const stream = typeof payload.stream === 'string' ? payload.stream : '';
       const data = (payload.data && typeof payload.data === 'object')
@@ -1420,12 +1373,6 @@ export class GatewayManager extends EventEmitter {
       // On lifecycle start, read latest user turn from the authoritative session jsonl.
       if (stream === 'lifecycle' && phase === 'start' && sessionKey) {
         void this.fallbackLogLatestSessionUserMessage({ sessionKey, runId });
-      }
-
-      logger.debug('[gateway-agent-error-probe payload]', payload);
-      const probe = buildAgentErrorProbe(payload);
-      if (probe) {
-        logger.debug('[gateway-agent-error-probe]', probe);
       }
     }
 

@@ -110,10 +110,6 @@ function shouldProcessGatewayEvent(event: Record<string, unknown>): boolean {
   return true;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
 function maybeLoadSessions(
   state: { loadSessions: () => Promise<void> },
   force = false,
@@ -144,82 +140,16 @@ function handleGatewayNotification(notification: { method?: string; params?: Rec
   const data = (p.data && typeof p.data === 'object') ? (p.data as Record<string, unknown>) : {};
   const phase = data.phase ?? p.phase;
   const hasChatData = (p.state ?? data.state) || (p.message ?? data.message);
-  const hasErrorSignal =
-    phase === 'error'
-    || phase === 'failed'
-    || p.error != null
-    || data.error != null
-    || p.errorMessage != null
-    || data.errorMessage != null
-    || p.details != null
-    || p.detail != null
-    || data.details != null
-    || data.detail != null;
 
-  if (hasChatData || hasErrorSignal) {
-    const topLevelError = asRecord(p.error) ?? p.error;
-    const dataError = asRecord(data.error) ?? data.error;
-    const messageObj = asRecord(p.message) ?? asRecord(data.message);
-    const messageError = asRecord(messageObj?.error) ?? messageObj?.error;
-    const messageDetails =
-      messageObj?.details ??
-      messageObj?.detail ??
-      (asRecord(messageObj?.error)?.details) ??
-      (asRecord(messageObj?.error)?.detail);
-    const resolvedErrorMessage =
-      p.errorMessage ??
-      data.errorMessage ??
-      (typeof messageObj?.errorMessage === 'string' ? messageObj.errorMessage : undefined) ??
-      (typeof messageObj?.message === 'string' ? messageObj.message : undefined) ??
-      (typeof topLevelError === 'string'
-        ? topLevelError
-        : (topLevelError && typeof topLevelError === 'object' && 'message' in (topLevelError as Record<string, unknown>)
-          ? (topLevelError as Record<string, unknown>).message
-          : undefined)) ??
-      (typeof dataError === 'string'
-        ? dataError
-        : (dataError && typeof dataError === 'object' && 'message' in (dataError as Record<string, unknown>)
-          ? (dataError as Record<string, unknown>).message
-          : undefined));
-
+  if (hasChatData) {
     const normalizedEvent: Record<string, unknown> = {
       ...data,
       runId: p.runId ?? data.runId,
       sessionKey: p.sessionKey ?? data.sessionKey,
       stream: p.stream ?? data.stream,
       seq: p.seq ?? data.seq,
-      state: p.state ?? data.state ?? (hasErrorSignal ? 'error' : undefined),
+      state: p.state ?? data.state,
       message: p.message ?? data.message,
-      errorMessage: resolvedErrorMessage,
-      error: topLevelError ?? dataError ?? messageError,
-      details:
-        p.details ??
-        p.detail ??
-        data.details ??
-        data.detail ??
-        messageDetails ??
-        (topLevelError && typeof topLevelError === 'object'
-          ? (topLevelError as Record<string, unknown>).details
-          : undefined) ??
-        (topLevelError && typeof topLevelError === 'object'
-          ? (topLevelError as Record<string, unknown>).detail
-          : undefined),
-      status:
-        p.status ??
-        data.status ??
-        messageObj?.status ??
-        (asRecord(messageObj?.error)?.status) ??
-        (topLevelError && typeof topLevelError === 'object'
-          ? (topLevelError as Record<string, unknown>).status
-          : undefined),
-      code:
-        p.code ??
-        data.code ??
-        messageObj?.code ??
-        (asRecord(messageObj?.error)?.code) ??
-        (topLevelError && typeof topLevelError === 'object'
-          ? (topLevelError as Record<string, unknown>).code
-          : undefined),
     };
     if (shouldProcessGatewayEvent(normalizedEvent)) {
       import('./chat')

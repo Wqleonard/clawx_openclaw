@@ -135,7 +135,6 @@ export function Chat() {
   const loading = useChatStore((s) => s.loading);
   const sending = useChatStore((s) => s.sending);
   const error = useChatStore((s) => s.error);
-  const errorSource = useChatStore((s) => s.errorSource);
   const warning = useChatStore((s) => s.warning);
   const showThinking = useChatStore((s) => s.showThinking);
   const streamingMessage = useChatStore((s) => s.streamingMessage);
@@ -153,11 +152,6 @@ export function Chat() {
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
   const agents = useAgentsStore((s) => s.agents);
   const deleteAgent = useAgentsStore((s) => s.deleteAgent);
-
-  useEffect(() => {
-    if (!error) return;
-    console.log('[chat:error]', { error, errorSource });
-  }, [error, errorSource]);
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
   const projectPath = useFileSystemStore((s) => s.projectPath);

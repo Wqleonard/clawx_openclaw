@@ -57,21 +57,11 @@ export interface ToolStatus {
   updatedAt: number;
 }
 
-export type ChatErrorSource =
-  | 'gateway-rpc-result'
-  | 'gateway-rpc-throw'
-  | 'send-with-media-result'
-  | 'send-with-media-throw'
-  | 'timeout-no-response'
-  | 'abort-rpc'
-  | 'runtime-event-error';
-
 export interface ChatState {
   // Messages
   messages: RawMessage[];
   loading: boolean;
   error: string | null;
-  errorSource: ChatErrorSource | null;
 
   // Streaming
   sending: boolean;
