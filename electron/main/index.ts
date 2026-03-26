@@ -52,6 +52,10 @@ import { APP_DISPLAY_NAME } from '../shared/app-brand';
 import { ensureBoomSearchPlugin } from '../services/boom-search/plugin-deploy';
 import { ensureAiExecAuditPlugin } from '../services/ai-exec-audit/plugin-deploy';
 import { ensureBoomExecutorGuardPlugin } from '../services/boom-lowpriv-executor/plugin-deploy';
+import {
+  startActiveReportHeartbeat,
+  stopActiveReportHeartbeat,
+} from '../utils/active-report-heartbeat';
 
 // Store app data under the branded directory.
 app.setPath('userData', join(app.getPath('appData'), 'storyclaw'));
@@ -306,6 +310,7 @@ async function initialize(): Promise<void> {
 
   // Warm up network optimization (non-blocking)
   void warmupNetworkOptimization();
+  startActiveReportHeartbeat();
 
   // Start content safety worker (non-blocking; checks fail-open until ready)
   void contentSafetyManager.start().catch((err) => {
@@ -607,6 +612,7 @@ if (gotTheLock) {
 
     hostEventBus.closeAll();
     hostApiServer?.close();
+    stopActiveReportHeartbeat();
 
     const stopPromise = gatewayManager.stop().catch((err) => {
       logger.warn('gatewayManager.stop() error during quit:', err);

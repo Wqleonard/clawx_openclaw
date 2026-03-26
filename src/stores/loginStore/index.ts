@@ -10,7 +10,6 @@ import type {
   Message,
   LoginStore,
 } from './types'
-import { invokeIpc } from '@/lib/api-client';
 export type { UserInfo, AvatarData, Message, InterceptedAction, LoginStore } from './types'
 
 const NEWBIE_TOUR_STORAGE_KEY = 'hasNewbieTourShowed'
@@ -79,12 +78,12 @@ function ensureAuthEnvConsistency(): void {
   saveAuthEnvFingerprint(current)
 }
 
-function syncBusinessTokenToMainProcess(token: string | null): void {
+function notifyBusinessAuthTokenChanged(token: string | null): void {
+  if (typeof window === 'undefined') return
   const nextToken = (token ?? '').trim()
-  invokeIpc('settings:set', 'businessAuthToken', nextToken)
-    .catch(() => {
-      // Best-effort sync only; auth flow in renderer should not be interrupted.
-    })
+  window.dispatchEvent(new CustomEvent('business-auth-token-changed', {
+    detail: { token: nextToken },
+  }))
 }
 
 function extractAuthToken(payload: unknown): string | null {
@@ -227,7 +226,6 @@ function getAvatarDataUrl(userInfo: UserInfo | null): string {
 
 export const useLoginStore = create<LoginStore>((set, get) => {
   ensureAuthEnvConsistency()
-  syncBusinessTokenToMainProcess(localStorage.getItem('token'))
 
   const readedIds = loadReadedMessageIdsFromStorage()
   let savedUserInfo: UserInfo | null = null
@@ -264,7 +262,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
     updateLoginStatus: () => {
       const token = localStorage.getItem('token')
       const hasToken = !!token
-      syncBusinessTokenToMainProcess(token)
+      notifyBusinessAuthTokenChanged(token)
       set({ isLoggedIn: hasToken })
     },
 
@@ -399,7 +397,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
         }
 
         localStorage.setItem('token', token)
-        syncBusinessTokenToMainProcess(token)
+        notifyBusinessAuthTokenChanged(token)
         try {
           await useProviderStore.getState().ensureBaowenmaoPresetAccounts(token)
           useSettingsStore.getState().markSetupComplete()
@@ -465,7 +463,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
       })
       get().saveUserInfo(null)
       localStorage.removeItem('token')
-      syncBusinessTokenToMainProcess(null)
+      notifyBusinessAuthTokenChanged(null)
       localStorage.removeItem('___first_in_editor___')
       get().updateLoginStatus()
       get().clearInterceptedActions()

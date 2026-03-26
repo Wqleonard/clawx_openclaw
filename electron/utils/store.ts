@@ -35,6 +35,7 @@ export interface AppSettings {
   machineId: string;
   hasReportedInstall: boolean;
   businessAuthToken: string;
+  businessApiBaseUrl: string;
 
   // Gateway
   gatewayAutoStart: boolean;
@@ -100,6 +101,7 @@ function createDefaultSettings(): AppSettings {
     machineId: '',
     hasReportedInstall: false,
     businessAuthToken: '',
+    businessApiBaseUrl: '',
 
     // Gateway
     gatewayAutoStart: true,

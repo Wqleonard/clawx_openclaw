@@ -62,9 +62,12 @@ import {
 } from '../services/providers/provider-runtime-sync';
 import { validateApiKeyWithProvider } from '../services/providers/provider-validation';
 import { appUpdater } from './updater';
-import { PORTS } from '../utils/config';
 import { registerFileSystemHandlers, syncWorkspaceRootFromSettings } from '../services/filesystem';
+
 import { getActiveHostApiPort } from '../api/server';
+
+import { triggerActiveReportHeartbeatNow } from '../utils/active-report-heartbeat';
+
 
 // import { registerHostApiProxyHandlers } from './ipc/host-api-proxy';
 import {
@@ -2233,6 +2236,18 @@ function registerSettingsHandlers(gatewayManager: GatewayManager): void {
     if (key === 'launchAtStartup') {
       await syncLaunchAtStartupSettingFromStore();
     }
+    if (key === 'businessAuthToken') {
+      const token = typeof value === 'string' ? value.trim() : '';
+      if (token) {
+        triggerActiveReportHeartbeatNow();
+      }
+    }
+    if (key === 'businessApiBaseUrl') {
+      const baseUrl = typeof value === 'string' ? value.trim() : '';
+      if (baseUrl) {
+        triggerActiveReportHeartbeatNow();
+      }
+    }
 
     return { success: true };
   });
@@ -2258,6 +2273,20 @@ function registerSettingsHandlers(gatewayManager: GatewayManager): void {
     }
     if (entries.some(([key]) => key === 'launchAtStartup')) {
       await syncLaunchAtStartupSettingFromStore();
+    }
+    const businessAuthEntry = entries.find(([key]) => key === 'businessAuthToken');
+    if (businessAuthEntry) {
+      const token = typeof businessAuthEntry[1] === 'string' ? businessAuthEntry[1].trim() : '';
+      if (token) {
+        triggerActiveReportHeartbeatNow();
+      }
+    }
+    const businessBaseUrlEntry = entries.find(([key]) => key === 'businessApiBaseUrl');
+    if (businessBaseUrlEntry) {
+      const baseUrl = typeof businessBaseUrlEntry[1] === 'string' ? businessBaseUrlEntry[1].trim() : '';
+      if (baseUrl) {
+        triggerActiveReportHeartbeatNow();
+      }
     }
 
     return { success: true };
