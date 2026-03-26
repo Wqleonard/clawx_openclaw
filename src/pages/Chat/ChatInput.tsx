@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import CLAW_PNG from '@/assets/claw.png'
+import CLAW_PNG from '@/assets/claw.png';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -149,8 +149,7 @@ export function ChatInput({
   // );
   const selectedTarget = useMemo(
     () => (agents ?? []).find((agent) => agent.id === targetAgentId) ?? null,
-    [agents, targetAgentId],
-
+    [agents, targetAgentId]
   );
   const providerAccounts = useProviderStore((s) => s.accounts);
   const providerStatuses = useProviderStore((s) => s.statuses);
@@ -528,26 +527,26 @@ export function ChatInput({
         <div className="bg-black/5 pb-2 -mb-2 rounded-ss-lg rounded-se-lg">
           <div className="flex items-center gap-2 px-3 h-7 leading-7 ">
             {/* <Bot className="h-3.5 w-3.5 text-primary" /> */}
-            <div className='size-4'>
-              <img src={CLAW_PNG} alt="" className='w-full h-full object-cover'/>
+            <div className="size-4">
+              <img src={CLAW_PNG} alt="" className="w-full h-full object-cover" />
             </div>
             <span className="text-sm">
               {t('toolbar.currentAgent', { agent: currentAgentName })}
             </span>
           </div>
+          {/* Attachment Previews */}
+          {attachments.length > 0 && (
+            <div className="flex gap-2 pt-1 px-1 mb-3 flex-wrap ">
+              {attachments.map((att) => (
+                <AttachmentPreview
+                  key={att.id}
+                  attachment={att}
+                  onRemove={() => removeAttachment(att.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
-        {/* Attachment Previews */}
-        {attachments.length > 0 && (
-          <div className="flex gap-2 mb-3 flex-wrap">
-            {attachments.map((att) => (
-              <AttachmentPreview
-                key={att.id}
-                attachment={att}
-                onRemove={() => removeAttachment(att.id)}
-              />
-            ))}
-          </div>
-        )}
 
         {/* Input Row */}
         <div
@@ -697,45 +696,47 @@ function AttachmentPreview({
   const isImage = attachment.mimeType.startsWith('image/') && attachment.preview;
 
   return (
-    <div className="relative group rounded-lg overflow-hidden border border-border">
-      {isImage ? (
-        // Image thumbnail
-        <div className="w-16 h-16">
-          <img
-            src={attachment.preview!}
-            alt={attachment.fileName}
-            className="w-full h-full object-cover"
-          />
-        </div>
-      ) : (
-        // Generic file card
-        <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 max-w-[200px]">
-          <FileIcon
-            mimeType={attachment.mimeType}
-            className="h-5 w-5 shrink-0 text-muted-foreground"
-          />
-          <div className="min-w-0 overflow-hidden">
-            <p className="text-xs font-medium truncate">{attachment.fileName}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {attachment.fileSize > 0 ? formatFileSize(attachment.fileSize) : '...'}
-            </p>
+    <div className="relative group overflow-visible">
+      <div className=" rounded-lg overflow-hidden border">
+        {isImage ? (
+          // Image thumbnail
+          <div className="w-16 h-16">
+            <img
+              src={attachment.preview!}
+              alt={attachment.fileName}
+              className="w-full h-full object-cover"
+            />
           </div>
-        </div>
-      )}
+        ) : (
+          // Generic file card
+          <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 max-w-[200px]">
+            <FileIcon
+              mimeType={attachment.mimeType}
+              className="h-5 w-5 shrink-0 text-muted-foreground"
+            />
+            <div className="min-w-0 overflow-hidden">
+              <p className="text-xs font-medium truncate">{attachment.fileName}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {attachment.fileSize > 0 ? formatFileSize(attachment.fileSize) : '...'}
+              </p>
+            </div>
+          </div>
+        )}
 
-      {/* Staging overlay */}
-      {attachment.status === 'staging' && (
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-          <Loader2 className="h-4 w-4 text-white animate-spin" />
-        </div>
-      )}
+        {/* Staging overlay */}
+        {attachment.status === 'staging' && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <Loader2 className="h-4 w-4 text-white animate-spin" />
+          </div>
+        )}
 
-      {/* Error overlay */}
-      {attachment.status === 'error' && (
-        <div className="absolute inset-0 bg-destructive/20 flex items-center justify-center">
-          <span className="text-[10px] text-destructive font-medium px-1">Error</span>
-        </div>
-      )}
+        {/* Error overlay */}
+        {attachment.status === 'error' && (
+          <div className="absolute inset-0 bg-destructive/20 flex items-center justify-center">
+            <span className="text-[10px] text-destructive font-medium px-1">Error</span>
+          </div>
+        )}
+      </div>
 
       {/* Remove button */}
       <button
