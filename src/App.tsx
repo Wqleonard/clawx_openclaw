@@ -31,6 +31,11 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 let hasReportedVisitorOnAppBoot = false;
+const BUSINESS_AUTH_TOKEN_CHANGED_EVENT = 'business-auth-token-changed';
+
+function normalizeBaseUrl(raw: string): string {
+  return raw.trim().replace(/\/+$/, '').toLowerCase();
+}
 
 /**
  * Error Boundary to catch and display React rendering errors
@@ -518,6 +523,35 @@ function App() {
   useEffect(() => {
     initProviders();
   }, [initProviders]);
+
+  useEffect(() => {
+    const baseUrl = normalizeBaseUrl(String(import.meta.env.VITE_BUSINESS_API_BASE_URL ?? ''));
+    void invokeIpc('settings:set', 'businessApiBaseUrl', baseUrl).catch(() => {
+      // Best-effort sync only.
+    });
+  }, []);
+
+  useEffect(() => {
+    const syncToken = (token: string | null | undefined) => {
+      const nextToken = String(token ?? '').trim();
+      void invokeIpc('settings:set', 'businessAuthToken', nextToken).catch(() => {
+        // Best-effort sync only.
+      });
+    };
+
+    // Initial sync on app boot/reload.
+    syncToken(localStorage.getItem('token'));
+
+    const handleTokenChanged = (event: Event) => {
+      const token = (event as CustomEvent<{ token?: string }>).detail?.token ?? '';
+      syncToken(token);
+    };
+
+    window.addEventListener(BUSINESS_AUTH_TOKEN_CHANGED_EVENT, handleTokenChanged as EventListener);
+    return () => {
+      window.removeEventListener(BUSINESS_AUTH_TOKEN_CHANGED_EVENT, handleTokenChanged as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn) return;
