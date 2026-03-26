@@ -204,6 +204,25 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' };
   });
 
+  const allowDevShortcuts = !app.isPackaged || process.env.STORYCLAW_ENABLE_DEV_SHORTCUTS === '1';
+  if (!allowDevShortcuts) {
+    // Block dev-only shortcuts in packaged builds.
+    win.webContents.on('before-input-event', (event, input) => {
+      const key = input.key.toLowerCase();
+      const isReload =
+        key === 'f5' ||
+        (key === 'r' && (input.control || input.meta));
+      const isToggleDevTools =
+        key === 'f12' ||
+        (key === 'i' && input.alt && input.meta) ||
+        (key === 'i' && input.control && input.shift);
+
+      if (isReload || isToggleDevTools) {
+        event.preventDefault();
+      }
+    });
+  }
+
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
