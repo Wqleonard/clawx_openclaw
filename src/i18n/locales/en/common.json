@@ -67,5 +67,25 @@
         "placeholder": "Project name",
         "create": "Create",
         "creating": "Creating..."
+    },
+    "init": {
+        "title": "Initializing Story Claw",
+        "subtitle": "Preparing the runtime environment. This usually takes just a few seconds.",
+        "progressLabel": "Startup progress {{progress}}%",
+        "warningSuffix": "with warnings",
+        "steps": {
+            "boot": {
+                "window": "Preparing application window...",
+                "services": "Loading core services...",
+                "defer-first-run": "First install detected, optimizing startup sequence...",
+                "repair-bootstrap": "Repairing workspace bootstrap files...",
+                "install-skills": "Installing built-in skills...",
+                "install-plugins": "Deploying plugins and extensions...",
+                "gateway": "Starting gateway service...",
+                "context": "Syncing workspace context templates...",
+                "cli": "Configuring CLI capabilities...",
+                "ready": "Initialization complete. Entering app..."
+            }
+        }
     }
 }

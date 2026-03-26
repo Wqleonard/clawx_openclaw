@@ -201,6 +201,7 @@ const electronAPI = {
         'oauth:error',
         'openclaw:cli-installed',
         'fs:changed',
+        'app:init-progress',
       ];
 
       if (validChannels.includes(channel)) {
@@ -249,6 +250,7 @@ const electronAPI = {
         'oauth:code',
         'oauth:success',
         'oauth:error',
+        'app:init-progress',
       ];
 
       if (validChannels.includes(channel)) {

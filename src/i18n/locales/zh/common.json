@@ -67,5 +67,25 @@
         "placeholder": "项目名称",
         "create": "创建",
         "creating": "创建中..."
+    },
+    "init": {
+        "title": "正在初始化 Story Claw",
+        "subtitle": "首次加载期间正在准备运行环境，这通常只需几秒钟。",
+        "progressLabel": "初始化进度 {{progress}}%",
+        "warningSuffix": "存在告警",
+        "steps": {
+            "boot": {
+                "window": "正在准备应用窗口…",
+                "services": "正在加载基础服务…",
+                "defer-first-run": "检测到首次安装，正在优化启动顺序…",
+                "repair-bootstrap": "正在修复工作区引导文件…",
+                "install-skills": "正在安装内置技能…",
+                "install-plugins": "正在部署插件与扩展…",
+                "gateway": "正在启动网关服务…",
+                "context": "正在同步上下文模板…",
+                "cli": "正在配置命令行能力…",
+                "ready": "初始化完成，正在进入应用…"
+            }
+        }
     }
 }

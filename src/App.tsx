@@ -31,6 +31,12 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 let hasReportedVisitorOnAppBoot = false;
+type InitProgressEvent = {
+  progress?: number;
+  step?: string;
+  done?: boolean;
+  error?: boolean;
+};
 
 /**
  * Error Boundary to catch and display React rendering errors
@@ -481,6 +487,7 @@ function ProjectCreateDialogHost() {
 }
 
 function App() {
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
   const location = useLocation();
   const initSettings = useSettingsStore((state) => state.init);
@@ -493,6 +500,13 @@ function App() {
   const ensureBaowenmaoPresetAccounts = useProviderStore((state) => state.ensureBaowenmaoPresetAccounts);
 
   const initProviders = useProviderStore((state) => state.init);
+  const [initProgress, setInitProgress] = useState({
+    visible: false,
+    progress: 0,
+    step: 'boot.window',
+    error: false,
+  });
+  const initOverlayHideTimerRef = useRef<number | null>(null);
 
 
   useEffect(() => {
@@ -587,6 +601,51 @@ function App() {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    const clearHideTimer = () => {
+      if (initOverlayHideTimerRef.current != null) {
+        window.clearTimeout(initOverlayHideTimerRef.current);
+        initOverlayHideTimerRef.current = null;
+      }
+    };
+
+    const unsubscribe = window.electron.ipcRenderer.on(
+      'app:init-progress',
+      (...args: unknown[]) => {
+        const payload = args[0] as InitProgressEvent | undefined;
+        if (!payload || typeof payload !== 'object') return;
+        const nextProgress =
+          typeof payload.progress === 'number'
+            ? Math.max(0, Math.min(100, Math.round(payload.progress)))
+            : undefined;
+        const nextStep = typeof payload.step === 'string' ? payload.step : undefined;
+        const isDone = payload.done === true;
+        const hasError = payload.error === true;
+
+        clearHideTimer();
+        setInitProgress((prev) => ({
+          visible: true,
+          progress: nextProgress ?? prev.progress,
+          step: nextStep ?? prev.step,
+          error: prev.error || hasError,
+        }));
+
+        if (isDone) {
+          initOverlayHideTimerRef.current = window.setTimeout(() => {
+            setInitProgress((prev) => ({ ...prev, visible: false }));
+          }, 420);
+        }
+      },
+    );
+
+    return () => {
+      clearHideTimer();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
   // Apply theme
   useEffect(() => {
     const root = window.document.documentElement;
@@ -643,8 +702,83 @@ function App() {
         {/* Global toast notifications */}
         <Toaster position="bottom-right" richColors closeButton style={{ zIndex: 99999 }} />
         <ProjectCreateDialogHost />
+        {initProgress.visible && (
+          <AppInitializationOverlay
+            progress={initProgress.progress}
+            step={initProgress.step}
+            error={initProgress.error}
+            title={t('init.title')}
+            subtitle={t('init.subtitle')}
+            stepText={t(`init.steps.${initProgress.step}`, {
+              defaultValue: t('init.steps.boot.window'),
+            })}
+            progressLabel={t('init.progressLabel', { progress: initProgress.progress })}
+            warningSuffix={t('init.warningSuffix')}
+          />
+        )}
       </TooltipProvider>
     </ErrorBoundary>
+  );
+}
+
+function AppInitializationOverlay({
+  progress,
+  step,
+  error,
+  title,
+  subtitle,
+  stepText,
+  progressLabel,
+  warningSuffix,
+}: {
+  progress: number;
+  step: string;
+  error: boolean;
+  title: string;
+  subtitle: string;
+  stepText: string;
+  progressLabel: string;
+  warningSuffix: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-background/95 backdrop-blur-md">
+      <div className="w-full max-w-xl px-8">
+        <div className="rounded-3xl border border-border/80 bg-card/95 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+          <div className="mb-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/8 px-3 py-1 text-xs font-medium text-primary">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+              </span>
+              {progressLabel}
+            </div>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{title}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary/70 via-primary to-primary transition-[width] duration-500 ease-out"
+                style={{ width: `${Math.max(4, progress)}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className={error ? 'text-amber-500' : 'text-muted-foreground'}>
+                {stepText}
+                {error ? ` · ${warningSuffix}` : ''}
+              </span>
+              <span className="font-medium text-foreground">{progress}%</span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground/90">
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+            <span>{step}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
