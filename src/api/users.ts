@@ -151,14 +151,12 @@ const completeNewbieMissionReq = (taskId: number) => {
 const visitorPost = () => {
   const token = localStorage.getItem('token')?.trim() || '';
   const visitorId = getOrCreateVisitorId();
-  const headers: Record<string, string> = {};
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    delete headers['X-Visitor-Id'];
-  } else if (visitorId) {
-    delete headers.Authorization;
-    headers['X-Visitor-Id'] = visitorId;
+    return
+  }
+  const headers = {
+    'X-Visitor-Id': visitorId,
   }
 
   return apiClient.post('/visitor/report', undefined, {
