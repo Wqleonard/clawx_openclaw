@@ -153,7 +153,7 @@ const visitorPost = () => {
   const visitorId = getOrCreateVisitorId();
 
   if (token) {
-    return
+    return Promise.resolve();
   }
   const headers = {
     'X-Visitor-Id': visitorId,
