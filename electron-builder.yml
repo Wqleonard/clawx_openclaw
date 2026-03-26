@@ -127,13 +127,11 @@ nsis:
   differentialPackage: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  runAfterFinish: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   license: LICENSE
-  # include: scripts/installer.nsh
-  # Temporarily disabled due to Kaspersky false positive
-  # (HEUR:Trojan-Downloader.Win32.Bitser.gen).
-  # Re-enable only after minimizing high-risk installer behaviors.
+  include: scripts/installer.nsh
   installerIcon: resources/icons/icon.ico
   uninstallerIcon: resources/icons/icon.ico
 
