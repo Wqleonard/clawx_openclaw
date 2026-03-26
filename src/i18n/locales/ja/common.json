@@ -67,25 +67,5 @@
         "placeholder": "プロジェクト名",
         "create": "作成",
         "creating": "作成中..."
-    },
-    "init": {
-        "title": "Story Claw を初期化中",
-        "subtitle": "実行環境を準備しています。通常は数秒で完了します。",
-        "progressLabel": "起動進捗 {{progress}}%",
-        "warningSuffix": "警告あり",
-        "steps": {
-            "boot": {
-                "window": "アプリケーションウィンドウを準備中...",
-                "services": "コアサービスを読み込み中...",
-                "defer-first-run": "初回インストールを検出。起動順序を最適化中...",
-                "repair-bootstrap": "ワークスペースの起動ファイルを修復中...",
-                "install-skills": "内蔵スキルをインストール中...",
-                "install-plugins": "プラグインと拡張機能を展開中...",
-                "gateway": "ゲートウェイサービスを起動中...",
-                "context": "ワークスペースコンテキストを同期中...",
-                "cli": "CLI 機能を設定中...",
-                "ready": "初期化が完了しました。アプリを開始します..."
-            }
-        }
     }
 }

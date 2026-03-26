@@ -9,7 +9,6 @@ import { Menu, app, shell, BrowserWindow } from 'electron';
  */
 export function createMenu(): void {
   const isMac = process.platform === 'darwin';
-  const isPackaged = app.isPackaged;
   
   const template: Electron.MenuItemConstructorOptions[] = [
     // App menu (macOS only)
@@ -88,7 +87,7 @@ export function createMenu(): void {
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
-        ...(isPackaged ? [] : [{ role: 'toggleDevTools' as const }]),
+        { role: 'toggleDevTools' },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

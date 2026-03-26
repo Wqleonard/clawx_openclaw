@@ -57,8 +57,6 @@ import { ensureBoomExecutorGuardPlugin } from '../services/boom-lowpriv-executor
 app.setPath('userData', join(app.getPath('appData'), 'storyclaw'));
 
 const WINDOWS_APP_USER_MODEL_ID = 'app.storyclaw.desktop';
-const MAIN_WINDOW_SHOW_FALLBACK_MS = 1800;
-const WINDOWS_SQUIRREL_FIRST_RUN_DELAY_MS = 5000;
 
 // Disable GPU hardware acceleration globally for maximum stability across
 // all GPU configurations (no GPU, integrated, discrete).
@@ -145,33 +143,6 @@ let hostEventBus!: HostEventBus;
 let hostApiServer: Server | null = null;
 const mainWindowFocusState = createMainWindowFocusState();
 const quitLifecycleState = createQuitLifecycleState();
-const isWindowsSquirrelFirstRun =
-  process.platform === 'win32' &&
-  process.argv.some((arg) => arg.toLowerCase().includes('--squirrel-firstrun'));
-
-type InitProgressStep =
-  | 'boot.window'
-  | 'boot.services'
-  | 'boot.defer-first-run'
-  | 'boot.repair-bootstrap'
-  | 'boot.install-skills'
-  | 'boot.install-plugins'
-  | 'boot.gateway'
-  | 'boot.context'
-  | 'boot.cli'
-  | 'boot.ready';
-
-type InitProgressPayload = {
-  progress: number;
-  step: InitProgressStep;
-  done?: boolean;
-  error?: boolean;
-};
-
-function emitInitProgress(payload: InitProgressPayload): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send('app:init-progress', payload);
-}
 
 /**
  * Resolve the icons directory path (works in both dev and packaged mode)
@@ -206,7 +177,6 @@ function getAppIcon(): Electron.NativeImage | undefined {
 function createWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin';
   const isWindows = process.platform === 'win32';
-  const isPackaged = app.isPackaged;
   const useCustomTitleBar = isWindows;
 
   const win = new BrowserWindow({
@@ -233,25 +203,6 @@ function createWindow(): BrowserWindow {
     shell.openExternal(url);
     return { action: 'deny' };
   });
-
-  if (isPackaged) {
-    // Harden packaged builds: block common DevTools shortcuts.
-    win.webContents.on('before-input-event', (event, input) => {
-      const key = input.key.toLowerCase();
-      const hasCtrlOrCmd = input.control || input.meta;
-      const openDevtoolsByCombo =
-        hasCtrlOrCmd && input.shift && (key === 'i' || key === 'j' || key === 'c');
-      const openDevtoolsByF12 = key === 'f12';
-      if (openDevtoolsByCombo || openDevtoolsByF12) {
-        event.preventDefault();
-      }
-    });
-
-    // If some other path still opens DevTools, close it immediately.
-    win.webContents.on('devtools-opened', () => {
-      win.webContents.closeDevTools();
-    });
-  }
 
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -288,13 +239,11 @@ function focusMainWindow(): void {
 
 function createMainWindow(): BrowserWindow {
   const win = createWindow();
-  let didPresentMainWindow = false;
-  let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const presentMainWindow = (reason: 'ready-to-show' | 'fallback-timeout') => {
-    if (didPresentMainWindow) return;
-    if (mainWindow !== win || win.isDestroyed()) return;
-    didPresentMainWindow = true;
+  win.once('ready-to-show', () => {
+    if (mainWindow !== win) {
+      return;
+    }
 
     const action = consumeMainWindowReady(mainWindowFocusState);
     if (action === 'focus') {
@@ -303,23 +252,7 @@ function createMainWindow(): BrowserWindow {
     }
 
     win.show();
-    if (reason === 'fallback-timeout') {
-      logger.warn(
-        `Main window fallback show triggered after ${MAIN_WINDOW_SHOW_FALLBACK_MS}ms before ready-to-show`
-      );
-    }
-  };
-
-  win.once('ready-to-show', () => {
-    if (fallbackTimer) {
-      clearTimeout(fallbackTimer);
-      fallbackTimer = null;
-    }
-    presentMainWindow('ready-to-show');
   });
-  fallbackTimer = setTimeout(() => {
-    presentMainWindow('fallback-timeout');
-  }, MAIN_WINDOW_SHOW_FALLBACK_MS);
 
   win.on('close', (event) => {
     if (!isQuitting()) {
@@ -329,10 +262,6 @@ function createMainWindow(): BrowserWindow {
   });
 
   win.on('closed', () => {
-    if (fallbackTimer) {
-      clearTimeout(fallbackTimer);
-      fallbackTimer = null;
-    }
     if (mainWindow === win) {
       mainWindow = null;
     }
@@ -356,16 +285,6 @@ async function initialize(): Promise<void> {
     logger.info(`Chromium remote debugging enabled at 127.0.0.1:${remoteDebugPort}`);
   }
 
-  // Set application menu
-  createMenu();
-
-  // Create and expose the main window immediately so startup feels responsive.
-  const window = createMainWindow();
-
-  // Create system tray
-  createTray(window);
-  emitInitProgress({ progress: 8, step: 'boot.window' });
-
   // Warm up network optimization (non-blocking)
   void warmupNetworkOptimization();
 
@@ -373,6 +292,22 @@ async function initialize(): Promise<void> {
   void contentSafetyManager.start().catch((err) => {
     logger.warn('Failed to start content safety worker:', err);
   });
+
+  // Initialize Telemetry early
+  await initTelemetry();
+
+  // Apply persisted proxy settings before creating windows or network requests.
+  await applyProxySettings();
+  await syncLaunchAtStartupSettingFromStore();
+
+  // Set application menu
+  createMenu();
+
+  // Create the main window
+  const window = createMainWindow();
+
+  // Create system tray
+  createTray(window);
 
   // Override security headers ONLY for the OpenClaw Gateway Control UI.
   // The URL filter ensures this callback only fires for gateway requests,
@@ -413,6 +348,49 @@ async function initialize(): Promise<void> {
 
   // Note: Auto-check for updates is driven by the renderer (update store init)
   // so it respects the user's "Auto-check for updates" setting.
+
+  // Repair any bootstrap files that only contain ClawX markers (no OpenClaw
+  // template content). This fixes a race condition where ensureClawXContext()
+  // previously created the file before the gateway could seed the full template.
+  void repairClawXOnlyBootstrapFiles().catch((error) => {
+    logger.warn('Failed to repair bootstrap files:', error);
+  });
+
+  // Pre-deploy built-in skills (feishu-doc, feishu-drive, feishu-perm, feishu-wiki)
+  // to ~/.openclaw/skills/ so they are immediately available without manual install.
+  void ensureBuiltinSkillsInstalled().catch((error) => {
+    logger.warn('Failed to install built-in skills:', error);
+  });
+
+  // Pre-deploy bundled third-party skills from resources/preinstalled-skills.
+  // This installs full skill directories (not only SKILL.md) in an idempotent,
+  // non-destructive way and never blocks startup.
+  void ensurePreinstalledSkillsInstalled().catch((error) => {
+    logger.warn('Failed to install preinstalled skills:', error);
+  });
+
+
+  // Deploy BoomClaw built-in web search plugin to ~/.openclaw/extensions/boom-search/
+  // and inject the required config (tools.web.search.enabled: false + plugin enabled).
+  void ensureBoomSearchPlugin().catch((error) => {
+    logger.warn('Failed to deploy boom-search plugin:', error);
+  });
+
+  void ensureAiExecAuditPlugin().catch((error) => {
+    logger.warn('Failed to deploy ai-exec-audit plugin:', error);
+  });
+
+  void ensureBoomExecutorGuardPlugin().catch((error) => {
+    logger.warn('Failed to deploy boom-executor-guard plugin:', error);
+  });
+
+
+  // Pre-deploy/upgrade bundled OpenClaw plugins (dingtalk, wecom, qqbot, feishu, wechat)
+
+  // to ~/.openclaw/extensions/ so they are always up-to-date after an app update.
+  void ensureAllBundledPluginsInstalled().catch((error) => {
+    logger.warn('Failed to install/upgrade bundled plugins:', error);
+  });
 
   // Bridge gateway and host-side events before any auto-start logic runs, so
   // renderer subscribers observe the full startup lifecycle.
@@ -489,106 +467,38 @@ async function initialize(): Promise<void> {
     hostEventBus.emit('channel:whatsapp-error', error);
   });
 
-  // Keep critical settings sync in background to avoid blocking initial window interactivity.
-  void (async () => {
+  // Start Gateway automatically (this seeds missing bootstrap files with full templates)
+  const gatewayAutoStart = await getSetting('gatewayAutoStart');
+  if (gatewayAutoStart) {
     try {
-      await initTelemetry();
-      await applyProxySettings();
-      await syncLaunchAtStartupSettingFromStore();
-      emitInitProgress({ progress: 20, step: 'boot.services' });
+      await syncAllProviderAuthToRuntime();
+      logger.debug('Auto-starting Gateway...');
+      await gatewayManager.start();
+      logger.info('Gateway auto-start succeeded');
     } catch (error) {
-      logger.error('Early background startup task failed:', error);
-      emitInitProgress({ progress: 20, step: 'boot.services', error: true });
+      logger.error('Gateway auto-start failed:', error);
+      mainWindow?.webContents.send('gateway:error', String(error));
     }
-  })();
-
-  const heavyTaskDelayMs = isWindowsSquirrelFirstRun ? WINDOWS_SQUIRREL_FIRST_RUN_DELAY_MS : 0;
-  if (heavyTaskDelayMs > 0) {
-    logger.info(
-      `Windows first-run detected, deferring heavy startup tasks by ${heavyTaskDelayMs}ms`
-    );
-    emitInitProgress({ progress: 24, step: 'boot.defer-first-run' });
+  } else {
+    logger.info('Gateway auto-start disabled in settings');
   }
 
-  const deferredStartupTimer = setTimeout(() => {
-    void (async () => {
-      emitInitProgress({ progress: 32, step: 'boot.repair-bootstrap' });
-      try {
-        // Repair any bootstrap files that only contain ClawX markers (no OpenClaw
-        // template content). This fixes a race condition where ensureClawXContext()
-        // previously created the file before the gateway could seed the full template.
-        await repairClawXOnlyBootstrapFiles();
-      } catch (error) {
-        logger.warn('Failed to repair bootstrap files:', error);
-        emitInitProgress({ progress: 32, step: 'boot.repair-bootstrap', error: true });
-      }
+  // Merge BoomClaw context snippets into the workspace bootstrap files.
+  // The gateway seeds workspace files asynchronously after its HTTP server
+  // is ready, so ensureClawXContext will retry until the target files appear.
+  void ensureClawXContext().catch((error) => {
+    logger.warn(`Failed to merge ${APP_DISPLAY_NAME} context into workspace:`, error);
+  });
 
-      emitInitProgress({ progress: 45, step: 'boot.install-skills' });
-      try {
-        await ensureBuiltinSkillsInstalled();
-        await ensurePreinstalledSkillsInstalled();
-      } catch (error) {
-        logger.warn('Failed to install startup skills:', error);
-        emitInitProgress({ progress: 45, step: 'boot.install-skills', error: true });
-      }
-
-      emitInitProgress({ progress: 62, step: 'boot.install-plugins' });
-      try {
-        // Deploy BoomClaw built-in plugins and bundled OpenClaw plugins.
-        await ensureBoomSearchPlugin();
-        await ensureAiExecAuditPlugin();
-        await ensureBoomExecutorGuardPlugin();
-        await ensureAllBundledPluginsInstalled();
-      } catch (error) {
-        logger.warn('Failed to install startup plugins:', error);
-        emitInitProgress({ progress: 62, step: 'boot.install-plugins', error: true });
-      }
-
-      emitInitProgress({ progress: 74, step: 'boot.gateway' });
-      try {
-        // Start Gateway automatically (this seeds missing bootstrap files with full templates).
-        const gatewayAutoStart = await getSetting('gatewayAutoStart');
-        if (gatewayAutoStart) {
-          await syncAllProviderAuthToRuntime();
-          logger.debug('Auto-starting Gateway...');
-          await gatewayManager.start();
-          logger.info('Gateway auto-start succeeded');
-        } else {
-          logger.info('Gateway auto-start disabled in settings');
-        }
-      } catch (error) {
-        logger.error('Gateway auto-start failed:', error);
-        mainWindow?.webContents.send('gateway:error', String(error));
-        emitInitProgress({ progress: 74, step: 'boot.gateway', error: true });
-      }
-
-      emitInitProgress({ progress: 86, step: 'boot.context' });
-      try {
-        // The gateway seeds workspace files asynchronously after its HTTP server
-        // is ready, so ensureClawXContext will retry until the target files appear.
-        await ensureClawXContext();
-      } catch (error) {
-        logger.warn(`Failed to merge ${APP_DISPLAY_NAME} context into workspace:`, error);
-        emitInitProgress({ progress: 86, step: 'boot.context', error: true });
-      }
-
-      emitInitProgress({ progress: 94, step: 'boot.cli' });
-      try {
-        // Auto-install openclaw CLI and shell completions.
-        await autoInstallCliIfNeeded((installedPath) => {
-          mainWindow?.webContents.send('openclaw:cli-installed', installedPath);
-        });
-        generateCompletionCache();
-        installCompletionToProfile();
-      } catch (error) {
-        logger.warn('CLI auto-install failed:', error);
-        emitInitProgress({ progress: 94, step: 'boot.cli', error: true });
-      }
-
-      emitInitProgress({ progress: 100, step: 'boot.ready', done: true });
-    })();
-  }, heavyTaskDelayMs);
-  deferredStartupTimer.unref?.();
+  // Auto-install openclaw CLI and shell completions (non-blocking).
+  void autoInstallCliIfNeeded((installedPath) => {
+    mainWindow?.webContents.send('openclaw:cli-installed', installedPath);
+  }).then(() => {
+    generateCompletionCache();
+    installCompletionToProfile();
+  }).catch((error) => {
+    logger.warn('CLI auto-install failed:', error);
+  });
 }
 
 if (gotTheLock) {
