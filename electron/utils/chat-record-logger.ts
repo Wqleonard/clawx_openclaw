@@ -15,6 +15,7 @@ import { reportChatRecord } from './chat-record-reporter';
 let logFilePath: string | null = null;
 let rawLogFilePath: string | null = null;
 const rawLogSessionId = new Date().toISOString().replace(/[:.]/g, '-');
+const shouldWriteLocalLogFile = !app.isPackaged;
 
 function getLogFilePath(): string {
   if (logFilePath) return logFilePath;
@@ -28,8 +29,6 @@ function getRawLogFilePath(): string {
   if (rawLogFilePath) return rawLogFilePath;
   const logDir = join(app.getPath('userData'), 'logs');
   if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  // Per-process raw log file to keep only current app-start data
-  // and avoid unbounded growth from historical app sessions.
   rawLogFilePath = join(logDir, `chat-record-raw-${rawLogSessionId}.jsonl`);
   return rawLogFilePath;
 }
@@ -139,10 +138,12 @@ export function writeChatRecord(entry: ChatRecordEntry): void {
     messageText: entry.messageText,
   };
 
-  try {
-    appendFileSync(getLogFilePath(), `${safeJsonStringify(payload)}\n`);
-  } catch {
-    // 写入失败不影响主流程
+  if (shouldWriteLocalLogFile) {
+    try {
+      appendFileSync(getLogFilePath(), `${safeJsonStringify(payload)}\n`);
+    } catch {
+      // 写入失败不影响主流程
+    }
   }
 
   // Best-effort API reporting for all environments (dev/prod).
@@ -150,6 +151,8 @@ export function writeChatRecord(entry: ChatRecordEntry): void {
 }
 
 export function writeGatewayRawMessage(message: unknown): void {
+  if (!shouldWriteLocalLogFile) return;
+
   const timestamp = new Date().toISOString();
   let payload: string;
   try {

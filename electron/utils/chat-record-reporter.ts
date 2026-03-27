@@ -18,7 +18,8 @@ function resolveBusinessBaseUrl(): string {
  * Best-effort only: never throws to caller.
  */
 export async function reportChatRecord(type: ChatRecordType, source: ChatRecordSource): Promise<void> {
-  const baseUrl = resolveBusinessBaseUrl();
+  const configuredBaseUrl = (await getSetting('businessApiBaseUrl')).trim();
+  const baseUrl = (configuredBaseUrl || resolveBusinessBaseUrl()).replace(/\/+$/, '');
   if (!baseUrl) return;
 
   try {
@@ -40,7 +41,7 @@ export async function reportChatRecord(type: ChatRecordType, source: ChatRecordS
       logger.warn(
         `[chat-record-report] non-2xx response: status=${response.status} source=${source} type=${type}`,
       );
-    }
+    } 
   } catch (error) {
     logger.warn('[chat-record-report] request failed:', error);
   }
