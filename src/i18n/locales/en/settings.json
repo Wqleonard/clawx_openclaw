@@ -323,6 +323,14 @@
     "installMessage": "Install the \"openclaw\" command?",
     "installDetail": "This will create ~/.local/bin/openclaw. Ensure ~/.local/bin is on your PATH if you want to run it globally."
   },
+  "compliance": {
+    "title": "Compliance",
+    "icpLicense": "ICP License",
+    "algorithmRegistration": "Algorithm Registration",
+    "llmRegistration": "LLM Registration",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
+  },
   "about": {
     "title": "About",
     "appName": "{{appName}}",

@@ -12,6 +12,7 @@ import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 import { cn } from '@/lib/utils';
 import { logClientEvent } from '@/lib/client-log';
 import { Terminal } from 'lucide-react';
+import { href } from 'react-router-dom';
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
@@ -49,8 +50,7 @@ function SettingRow({
 }
 
 export function AboutSection() {
-  const { i18n } = useTranslation();
-  const isZh = i18n.language?.startsWith('zh');
+  const { t } = useTranslation('settings');
   const {
     autoCheckUpdate,
     setAutoCheckUpdate,
@@ -93,7 +93,7 @@ export function AboutSection() {
       {/* App info */}
       <div>
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-          {isZh ? '关于' : 'About'}
+          {t('about.title')}
         </h2>
         <SectionCard>
           <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5">
@@ -125,7 +125,7 @@ export function AboutSection() {
       {/* Updates */}
       <div>
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-          {isZh ? '更新' : 'Updates'}
+          {t('updates.title')}
         </h2>
         <SectionCard>
           <div className="px-5 py-4 border-b border-black/5 dark:border-white/5">
@@ -133,10 +133,8 @@ export function AboutSection() {
           </div>
 
           <SettingRow
-            label={isZh ? '自动检查更新' : 'Auto-check for Updates'}
-            desc={
-              isZh ? '启动时自动检查是否有新版本。' : 'Automatically check for updates on launch.'
-            }
+            label={t('updates.autoCheck')}
+            desc={t('updates.autoCheckDesc')}
             control={
               <Switch
                 checked={autoCheckUpdate}
@@ -152,10 +150,8 @@ export function AboutSection() {
             }
           />
           <SettingRow
-            label={isZh ? '自动下载更新' : 'Auto-download Updates'}
-            desc={
-              isZh ? '发现新版本时自动下载。' : 'Automatically download updates when available.'
-            }
+            label={t('updates.autoDownload')}
+            desc={t('updates.autoDownloadDesc')}
             control={
               <Switch
                 checked={autoDownloadUpdate}
@@ -177,34 +173,43 @@ export function AboutSection() {
 
       <div>
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-          {isZh ? '备案信息' : 'Compliance'}
+          {t('compliance.title')}
         </h2>
         <SectionCard>
           {[
-            { label: isZh ? 'ICP 备案/许可证号' : 'ICP License', value: '沪ICP备XXXXXXXX号' },
-            { label: isZh ? '算法备案' : 'Algorithm Registration', value: 'XXXXXXXXXXXXXXXXXX' },
-            { label: isZh ? '大模型备案登记' : 'LLM Registration', value: 'XXXXXXXXXXXXXXXXXX' },
+            {
+              label: t('compliance.icpLicense'),
+              value: '浙ICP备17039406号-19',
+              href: 'https://beian.miit.gov.cn/',
+            },
+            // { label: t('compliance.algorithmRegistration'), value: 'XXXXXXXXXXXXXXXXXX' },
+            // { label: t('compliance.llmRegistration'), value: 'XXXXXXXXXXXXXXXXXX' },
           ].map((item) => (
             <div
               key={item.label}
               className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5"
             >
               <p className="text-[14px] font-medium text-foreground">{item.label}</p>
-              <p className="text-[12px] font-mono text-muted-foreground">{item.value}</p>
+              <p
+                className="text-[12px] cursor-pointer font-mono text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => openUrl(item.href)}
+              >
+                {item.value}
+              </p>
             </div>
           ))}
           <div className="px-5 py-3 flex gap-4">
             <button
-              onClick={() => openUrl('https://storyclaw.com/privacy')}
+              onClick={() => openUrl('https://www.baowenmao.com/claw-privacy-policy')}
               className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
             >
-              {isZh ? '隐私政策' : 'Privacy Policy'}
+              {t('compliance.privacyPolicy')}
             </button>
             <button
-              onClick={() => openUrl('https://storyclaw.com/terms')}
+              onClick={() => openUrl('https://www.baowenmao.com/claw-user-agreement')}
               className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
             >
-              {isZh ? '用户协议' : 'Terms of Service'}
+              {t('compliance.termsOfService')}
             </button>
           </div>
         </SectionCard>
@@ -212,11 +217,11 @@ export function AboutSection() {
 
       <div>
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-          开发者模式
+          {t('advanced.devMode')}
         </h2>
         <SectionCard>
           <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5">
-            <p className="text-[14px] font-medium text-foreground">开发者模式</p>
+            <p className="text-[14px] font-medium text-foreground">{t('advanced.devMode')}</p>
             <p className="text-[12px] font-mono text-muted-foreground">
               <Switch
                 checked={devModeUnlocked}
@@ -231,20 +236,18 @@ export function AboutSection() {
               />
             </p>
           </div>
-          {
-            devModeUnlocked && (
-              <div className='px-5 py-3'>
-                <button
-                  onClick={() => void openDevConsole()}
-                  className="text-[13px] flex text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Terminal className="size-4 mr-2" />{isZh ? '打开调试控制台' : 'Open debug console'}
-                </button>
-              </div>
-            )
-          }
+          {devModeUnlocked && (
+            <div className="px-5 py-3">
+              <button
+                onClick={() => void openDevConsole()}
+                className="text-[13px] flex text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Terminal className="size-4 mr-2" />
+                {t('developer.openConsole')}
+              </button>
+            </div>
+          )}
         </SectionCard>
-        
       </div>
 
       {/* Copyright */}

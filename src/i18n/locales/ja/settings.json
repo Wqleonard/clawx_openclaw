@@ -320,6 +320,14 @@
     "installMessage": "\"openclaw\" コマンドをインストールしますか？",
     "installDetail": "~/.local/bin/openclaw が作成されます。グローバルに実行するには ~/.local/bin が PATH に含まれていることを確認してください。"
   },
+  "compliance": {
+    "title": "コンプライアンス",
+    "icpLicense": "ICP ライセンス",
+    "algorithmRegistration": "アルゴリズム登録",
+    "llmRegistration": "大規模モデル登録",
+    "privacyPolicy": "プライバシーポリシー",
+    "termsOfService": "利用規約"
+  },
   "about": {
     "title": "バージョン情報",
     "appName": "{{appName}}",
