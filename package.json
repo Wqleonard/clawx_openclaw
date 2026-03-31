@@ -54,6 +54,7 @@
         "uv:download:linux": "zx scripts/download-bundled-uv.mjs --platform=linux",
         "uv:download:all": "zx scripts/download-bundled-uv.mjs --all",
         "update:yml:templates": "node scripts/generate-update-yml.mjs",
+        "update:yml:release": "node scripts/generate-update-yml.mjs --output-dir release",
         "package:mac:qa": "vite build --mode qa && zx scripts/bundle-openclaw.mjs && zx scripts/bundle-openclaw-plugins.mjs && zx scripts/bundle-preinstalled-skills.mjs && electron-builder --mac",
         "package:win:qa": "vite build --mode qa && zx scripts/bundle-openclaw.mjs && zx scripts/bundle-openclaw-plugins.mjs && zx scripts/bundle-preinstalled-skills.mjs && electron-builder --win",
         "package:mac:mirror": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ pnpm run package:mac && node scripts/generate-update-yml.mjs --output-dir release",
