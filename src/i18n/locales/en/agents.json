@@ -27,7 +27,7 @@
         "lobsterSourceAgent": "From Existing Lobster",
         "noAgents": "No agents created yet",
         "workspaceLabel": "Workspace Directory (Optional)",
-        "workspacePlaceholder": "Leave empty for automatic assignment"
+        "workspacePlaceholder": "Leave empty for automatic assignment",
         "inheritWorkspaceLabel": "Inherit main agent workspace",
         "inheritWorkspaceDescription": "Copy SOUL.md, AGENTS.md, etc. from the main agent"
     },

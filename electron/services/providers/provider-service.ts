@@ -6,7 +6,6 @@ import type {
   ProviderAccount,
   ProviderConfig,
   ProviderDefinition,
-  ProviderType,
 } from '../../shared/providers/types';
 import { BUILTIN_PROVIDER_TYPES } from '../../shared/providers/types';
 import { ensureProviderStoreMigrated } from './provider-migration';
@@ -25,11 +24,12 @@ import {
   deleteProvider,
   getApiKey,
   hasApiKey,
+  saveProvider,
   setDefaultProvider,
   storeApiKey,
 } from '../../utils/secure-storage';
 import { getActiveOpenClawProviders, getOpenClawProvidersConfig } from '../../utils/openclaw-auth';
-import { getAliasSourceTypes, getOpenClawProviderKeyForType } from '../../utils/provider-keys';
+import { getOpenClawProviderKeyForType } from '../../utils/provider-keys';
 import type { ProviderWithKeyInfo } from '../../shared/providers/types';
 import { logger } from '../../utils/logger';
 
@@ -60,117 +60,85 @@ export class ProviderService {
 
   async listAccounts(): Promise<ProviderAccount[]> {
     await ensureProviderStoreMigrated();
+    let accounts = await listProviderAccounts();
 
-    // ── openclaw.json is the ONLY source of truth ──
-    // The provider list is derived entirely from openclaw.json.
-    // The electron-store is only used as a metadata cache (label, authMode, etc.).
-
-    const { providers: openClawProviders, defaultModel } = await getOpenClawProvidersConfig();
-    const activeProviders = await getActiveOpenClawProviders();
-
-    if (activeProviders.size === 0) {
-      return [];
+    // Seed: when ClawX store is empty but OpenClaw config has providers,
+    // create ProviderAccount entries so the settings panel isn't blank.
+    // This covers users who configured providers via CLI or openclaw.json directly.
+    if (accounts.length === 0) {
+      const activeProviders = await getActiveOpenClawProviders();
+      if (activeProviders.size > 0) {
+        accounts = await this.seedAccountsFromOpenClawConfig();
+      }
+      return accounts;
     }
 
-    // Read store accounts as a lookup cache (NOT as the source of what to display).
-    const allStoreAccounts = await listProviderAccounts();
+    // Sync check: remove stale accounts whose provider no longer exists in
+    // OpenClaw JSON (e.g. user deleted openclaw.json manually).
+    {
+      const activeProviders = await getActiveOpenClawProviders();
 
-    // Index store accounts by their openclaw runtime key for fast lookup.
-    const storeByKey = new Map<string, ProviderAccount[]>();
-    for (const account of allStoreAccounts) {
-      const ock = getOpenClawProviderKeyForType(account.vendorId, account.id);
-      const group = storeByKey.get(ock) ?? [];
-      group.push(account);
-      storeByKey.set(ock, group);
-    }
+      // If the OpenClaw config is empty or unreadable, skip cleanup entirely
+      // to avoid accidentally wiping valid accounts during transient states
+      // (e.g. gateway restart, file lock, first launch before config sync).
+      if (activeProviders.size === 0) {
+        logger.warn(
+          '[provider-sync] OpenClaw config has no active providers — skipping stale-account cleanup to preserve existing accounts',
+        );
+        return accounts;
+      }
 
-    const result: ProviderAccount[] = [];
-    const processedKeys = new Set<string>();
+      const staleIds: string[] = [];
 
-    // For each active provider in openclaw.json, produce exactly ONE account.
-    for (const key of activeProviders) {
-      if (processedKeys.has(key)) continue;
-      processedKeys.add(key);
+      for (const account of accounts) {
+        const isBuiltin = (BUILTIN_PROVIDER_TYPES as readonly string[]).includes(account.vendorId);
+        // Builtin providers (anthropic, openai, etc.) are always retained
+        // because they don't require an explicit models.providers entry in
+        // openclaw.json — the runtime recognises them natively.
+        if (isBuiltin) continue;
 
-      const storeGroup = storeByKey.get(key) ?? [];
+        const openClawKey = getOpenClawProviderKeyForType(account.vendorId, account.id);
+        const isActive =
+          activeProviders.has(account.vendorId) ||
+          activeProviders.has(account.id) ||
+          activeProviders.has(openClawKey);
 
-      if (storeGroup.length > 0) {
-        // Pick the best store account for this key:
-        // 1. Prefer alias variants (e.g. minimax-portal-cn over minimax-portal)
-        // 2. Among equal variants, prefer the most recently updated
-        const aliasAccounts = storeGroup.filter((a) => a.vendorId !== key);
-        const candidates = aliasAccounts.length > 0 ? aliasAccounts : storeGroup;
-        candidates.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-        result.push(candidates[0]);
-
-        // Clean up orphaned duplicates from the store.
-        const kept = candidates[0];
-        for (const account of storeGroup) {
-          if (account.id !== kept.id) {
-            logger.info(
-              `[provider-sync] Removing orphaned account "${account.id}" for key "${key}" (keeping "${kept.id}")`,
-            );
-            await deleteProviderAccount(account.id);
-          }
+        if (!isActive) {
+          staleIds.push(account.id);
         }
-      } else {
-        // No store account for this key — create a seed from openclaw.json.
-        const entry = openClawProviders[key];
-        if (entry) {
-          const seeded = ProviderService.buildAccountsFromOpenClawEntries(
-            { [key]: entry },
-            new Set(),
-            new Set(),
-            defaultModel,
-          );
-          for (const account of seeded) {
-            await saveProviderAccount(account);
-            result.push(account);
-            logger.info(`[provider-sync] Seeded provider account "${account.id}" from openclaw.json`);
-          }
+      }
+
+      if (staleIds.length > 0) {
+        for (const id of staleIds) {
+          logger.info(`[provider-sync] Removing stale provider account "${id}" (no longer in OpenClaw config)`);
+          await deleteProviderAccount(id);
         }
+        return accounts.filter((a) => !staleIds.includes(a.id));
       }
     }
 
-    return result;
+    return accounts;
   }
 
-
-
   /**
-   * Build ProviderAccount objects from OpenClaw config entries, skipping any
-   * whose id or vendorId is already represented by an existing account.
+   * Seed the ClawX provider store from openclaw.json when the store is empty.
+   * This is a one-time operation for users who configured providers externally.
    */
-  static buildAccountsFromOpenClawEntries(
-    providers: Record<string, Record<string, unknown>>,
-    existingIds: Set<string>,
-    existingVendorIds: Set<string>,
-    defaultModel: string | undefined,
-  ): ProviderAccount[] {
+  private async seedAccountsFromOpenClawConfig(): Promise<ProviderAccount[]> {
+    const { providers, defaultModel } = await getOpenClawProvidersConfig();
+
+    // Determine the provider prefix from the default model (e.g. "siliconflow/deepseek..." → "siliconflow")
     const defaultModelProvider = defaultModel?.includes('/')
       ? defaultModel.split('/')[0]
       : undefined;
 
     const now = new Date().toISOString();
-    const built: ProviderAccount[] = [];
+    const seeded: ProviderAccount[] = [];
 
     for (const [key, entry] of Object.entries(providers)) {
-      if (existingIds.has(key)) continue;
-
       const definition = getProviderDefinition(key);
       const isBuiltin = (BUILTIN_PROVIDER_TYPES as readonly string[]).includes(key);
       const vendorId = isBuiltin ? key : 'custom';
-
-      // Skip if an account with this vendorId already exists (e.g. user already
-      // created "openrouter-uuid" via UI — no need to import bare "openrouter").
-      if (existingVendorIds.has(vendorId)) continue;
-
-      // Skip if an alias source type already exists.
-      // e.g. openclaw.json has "minimax-portal" but account vendorId is "minimax-portal-cn"
-      const aliasSources = getAliasSourceTypes(key);
-      if (aliasSources.some((source) => existingVendorIds.has(source))) {
-        continue;
-      }
 
       const baseUrl = typeof entry.baseUrl === 'string' ? entry.baseUrl : definition?.providerConfig?.baseUrl;
 
@@ -184,7 +152,7 @@ export class ProviderService {
 
       const account: ProviderAccount = {
         id: key,
-        vendorId: (vendorId as ProviderAccount['vendorId'] as ProviderType),
+        vendorId: (vendorId as ProviderAccount['vendorId']),
         label: definition?.name ?? key.charAt(0).toUpperCase() + key.slice(1),
         authMode: definition?.defaultAuthMode ?? 'api_key',
         baseUrl,
@@ -199,10 +167,17 @@ export class ProviderService {
         updatedAt: now,
       };
 
-      built.push(account);
+      await saveProviderAccount(account);
+      seeded.push(account);
     }
 
-    return built;
+    if (seeded.length > 0) {
+      logger.info(
+        `[provider-seed] Seeded ${seeded.length} provider account(s) from openclaw.json: ${seeded.map((a) => a.id).join(', ')}`,
+      );
+    }
+
+    return seeded;
   }
 
   async getAccount(accountId: string): Promise<ProviderAccount | null> {
@@ -217,8 +192,7 @@ export class ProviderService {
 
   async createAccount(account: ProviderAccount, apiKey?: string): Promise<ProviderAccount> {
     await ensureProviderStoreMigrated();
-    // Only save to providerAccounts store — do NOT call saveProvider() which
-    // writes to the legacy `providers` store and causes phantom/duplicate issues.
+    await saveProvider(providerAccountToConfig(account));
     await saveProviderAccount(account);
     if (apiKey !== undefined && apiKey.trim()) {
       await storeApiKey(account.id, apiKey.trim());
@@ -244,7 +218,7 @@ export class ProviderService {
       updatedAt: patch.updatedAt ?? new Date().toISOString(),
     };
 
-    // Only save to providerAccounts store — skip legacy saveProvider().
+    await saveProvider(providerAccountToConfig(nextAccount));
     await saveProviderAccount(nextAccount);
     if (apiKey !== undefined) {
       const trimmedKey = apiKey.trim();
@@ -268,7 +242,8 @@ export class ProviderService {
    */
   async listLegacyProviders(): Promise<ProviderConfig[]> {
     logLegacyProviderApiUsage('listLegacyProviders', 'listAccounts');
-    const accounts = await this.listAccounts();
+    await ensureProviderStoreMigrated();
+    const accounts = await listProviderAccounts();
     return accounts.map(providerAccountToConfig);
   }
 

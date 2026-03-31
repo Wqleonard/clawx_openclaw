@@ -620,6 +620,9 @@ async function buildSnapshotFromConfig(config: AgentConfigDocument): Promise<Age
   const defaultModelLabel = formatModelLabel(
     (config.agents as AgentsConfig | undefined)?.defaults?.model
   );
+  const defaultModelConfig = (config.agents as AgentsConfig | undefined)?.defaults?.model;
+  const defaultModelRef = resolveModelRef(defaultModelConfig);
+
   const agents: AgentSummary[] = entries.map((entry) => {
     const explicitModelRef = resolveModelRef(entry.model);
     const modelLabel = formatModelLabel(entry.model) || defaultModelLabel || 'Not configured';

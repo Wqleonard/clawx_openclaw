@@ -15,12 +15,6 @@ import { resolveCurrentEffectiveProviderModel } from '@/lib/provider-accounts';
 
 // ── Types ────────────────────────────────────────────────────────
 
-
-import {
-  DEFAULT_CANONICAL_PREFIX,
-  DEFAULT_SESSION_KEY,
-} from './chat/types';
-
 /** Metadata for locally-attached files (not from Gateway) */
 export interface AttachedFileMeta {
   fileName: string;
@@ -85,6 +79,7 @@ interface ChatState {
   messages: RawMessage[];
   loading: boolean;
   error: string | null;
+  warning: string | null;
 
   // Streaming
   sending: boolean;
@@ -127,6 +122,7 @@ interface ChatState {
   toggleThinking: () => void;
   refresh: () => Promise<void>;
   clearError: () => void;
+  clearWarning: () => void;
 }
 
 // Module-level timestamp tracking the last chat event received.
@@ -213,6 +209,9 @@ function isDuplicateChatEvent(eventState: string, event: Record<string, unknown>
   _chatEventDedupe.set(key, now);
   return false;
 }
+
+const DEFAULT_CANONICAL_PREFIX = 'agent:main';
+const DEFAULT_SESSION_KEY = `${DEFAULT_CANONICAL_PREFIX}:main`;
 
 // ── Local image cache ─────────────────────────────────────────
 // The Gateway doesn't store image attachments in session content blocks,
@@ -936,16 +935,6 @@ function isToolResultRole(role: unknown): boolean {
   if (!role) return false;
   const normalized = String(role).toLowerCase();
   return normalized === 'toolresult' || normalized === 'tool_result';
-}
-
-/** True for internal plumbing messages that should never be shown in the UI. */
-function isInternalMessage(msg: { role?: unknown; content?: unknown }): boolean {
-  if (msg.role === 'system') return true;
-  if (msg.role === 'assistant') {
-    const text = getMessageText(msg.content);
-    if (/^(HEARTBEAT_OK|NO_REPLY)\s*$/.test(text)) return true;
-  }
-  return false;
 }
 
 function extractTextFromContent(content: unknown): string {

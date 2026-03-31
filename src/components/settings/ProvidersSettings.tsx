@@ -33,7 +33,6 @@ import {
 } from '@/stores/providers';
 import {
   PROVIDER_TYPE_INFO,
-  getProviderDocsUrl,
   type ProviderType,
   getProviderIconUrl,
   resolveProviderApiKeyForSave,
@@ -470,7 +469,7 @@ export function ProvidersSettings() {
             const isBaowenmaoPreset = account.vendorId === 'baowenmao'
     && BAOWENMAO_PRESET_ACCOUNTS.some((p) => p.id === account.id);
   const typeInfo = PROVIDER_TYPE_INFO.find((t) => t.id === account.vendorId);
-            const providerDocsUrl = getProviderDocsUrl(typeInfo, i18n.language);
+            // const providerDocsUrl = getProviderDocsUrl(typeInfo, i18n.language);
             const showModelIdField = shouldShowProviderModelId(typeInfo, devModeUnlocked);
             const codePlanPreset = typeInfo?.codePlanPresetBaseUrl && typeInfo?.codePlanPresetModelId
             ? {
@@ -478,9 +477,9 @@ export function ProvidersSettings() {
             modelId: typeInfo.codePlanPresetModelId,
     }
             : null;
-            const effectiveDocsUrl = account.vendorId === 'ark' && arkMode === 'codeplan'
-            ? (typeInfo?.codePlanDocsUrl || providerDocsUrl)
-            : providerDocsUrl;
+            // const effectiveDocsUrl = account.vendorId === 'ark' && arkMode === 'codeplan'
+            // ? (typeInfo?.codePlanDocsUrl || providerDocsUrl)
+            // : providerDocsUrl;
             const canEditModelConfig = Boolean(typeInfo?.showBaseUrl || showModelIdField);
             const showUserAgentField = shouldShowUserAgentField(account);
 
@@ -1024,7 +1023,7 @@ export function ProvidersSettings() {
                       onValidateKey,
                       devModeUnlocked,
 }: AddProviderDialogProps) {
-  const {t, i18n} = useTranslation('settings');
+  const {t} = useTranslation('settings');
                     const [selectedType, setSelectedType] = useState<ProviderType | null>(initialType ?? null);
                     const [name, setName] = useState('');
                     const [apiKey, setApiKey] = useState('');
@@ -1057,7 +1056,7 @@ export function ProvidersSettings() {
                       const [authMode, setAuthMode] = useState<'oauth' | 'apikey'>('apikey');
 
   const typeInfo = PROVIDER_TYPE_INFO.find((t) => t.id === selectedType);
-                      const providerDocsUrl = getProviderDocsUrl(typeInfo, i18n.language);
+                      // const providerDocsUrl = getProviderDocsUrl(typeInfo, i18n.language);
                       const showModelIdField = shouldShowProviderModelId(typeInfo, devModeUnlocked);
                       const codePlanPreset = typeInfo?.codePlanPresetBaseUrl && typeInfo?.codePlanPresetModelId
                       ? {
@@ -1065,9 +1064,9 @@ export function ProvidersSettings() {
                       modelId: typeInfo.codePlanPresetModelId,
     }
                       : null;
-                      const effectiveDocsUrl = selectedType === 'ark' && arkMode === 'codeplan'
-                      ? (typeInfo?.codePlanDocsUrl || providerDocsUrl)
-                      : providerDocsUrl;
+                      // const effectiveDocsUrl = selectedType === 'ark' && arkMode === 'codeplan'
+                      // ? (typeInfo?.codePlanDocsUrl || providerDocsUrl)
+                      // : providerDocsUrl;
                       const isOAuth = typeInfo?.isOAuth ?? false;
                       const supportsApiKey = typeInfo?.supportsApiKey ?? false;
   const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));

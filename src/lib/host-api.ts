@@ -9,13 +9,32 @@ const HOST_API_BASE = `http://127.0.0.1:${HOST_API_PORT}`;
 let cachedHostApiToken: string | null = null;
 
 async function getHostApiToken(): Promise<string> {
-  if (cachedHostApiToken) return cachedHostApiToken;
-  try {
-    cachedHostApiToken = await invokeIpc<string>('hostapi:token');
-  } catch {
-    cachedHostApiToken = '';
+  if (cachedHostApiToken) {
+    return cachedHostApiToken;
   }
-  return cachedHostApiToken ?? '';
+
+  let lastError: unknown = null;
+  // Host API token is generated when main-process host API server starts.
+  // During early renderer boot it may still be empty, so retry briefly.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const token = await invokeIpc<string>('hostapi:token');
+      if (typeof token === 'string' && token.length > 0) {
+        cachedHostApiToken = token;
+        return token;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+
+  throw new Error(
+    lastError instanceof Error
+      ? `Host API token unavailable via IPC: ${lastError.message}`
+      : 'Host API token unavailable via IPC (empty token or channel error)'
+  );
 }
 
 type HostApiProxyResponse = {
@@ -151,6 +170,7 @@ function allowLocalhostFallback(): boolean {
 }
 
 export async function hostApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  console.log('hostApiFetch', path, init);
   const startedAt = Date.now();
   const method = init?.method || 'GET';
   // In Electron renderer, always proxy through main process to avoid CORS.

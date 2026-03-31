@@ -28,6 +28,10 @@ export interface EnabledProviderModel {
   displayName: string;
 }
 
+function ensureArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function toEnabledProviderModel(
   account: ProviderAccount,
   vendor?: ProviderVendorInfo,
@@ -54,9 +58,9 @@ export async function fetchProviderSnapshot(): Promise<ProviderSnapshot> {
   ]);
 
   return {
-    accounts,
-    statuses,
-    vendors,
+    accounts: ensureArray(accounts),
+    statuses: ensureArray(statuses),
+    vendors: ensureArray(vendors),
     defaultAccountId: defaultInfo.accountId,
   };
 }
@@ -124,9 +128,9 @@ export function buildProviderListItems(
   vendors: ProviderVendorInfo[],
   defaultAccountId: string | null,
 ): ProviderListItem[] {
-  const safeAccounts = accounts ?? [];
-  const safeStatuses = statuses ?? [];
-  const safeVendors = vendors ?? [];
+  const safeAccounts = ensureArray(accounts);
+  const safeStatuses = ensureArray(statuses);
+  const safeVendors = ensureArray(vendors);
   const vendorMap = new Map(safeVendors.map((vendor) => [vendor.id, vendor]));
   const statusMap = new Map(safeStatuses.map((status) => [status.id, status]));
 
@@ -156,10 +160,13 @@ export function buildEnabledProviderModels(
   statuses: ProviderWithKeyInfo[],
   vendors: ProviderVendorInfo[],
 ): EnabledProviderModel[] {
-  const statusMap = new Map(statuses.map((status) => [status.id, status]));
-  const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+  const safeAccounts = ensureArray(accounts);
+  const safeStatuses = ensureArray(statuses);
+  const safeVendors = ensureArray(vendors);
+  const statusMap = new Map(safeStatuses.map((status) => [status.id, status]));
+  const vendorMap = new Map(safeVendors.map((vendor) => [vendor.id, vendor]));
 
-  return accounts
+  return safeAccounts
     .filter((account) => account.enabled && hasConfiguredCredentials(account, statusMap.get(account.id)))
     .map((account) => toEnabledProviderModel(account, vendorMap.get(account.vendorId)))
     .sort((left, right) => left.displayName.localeCompare(right.displayName));
@@ -171,18 +178,21 @@ export function resolveCurrentEffectiveProviderModel(
   vendors: ProviderVendorInfo[],
   defaultAccountId: string | null,
 ): EnabledProviderModel | null {
-  const statusMap = new Map(statuses.map((status) => [status.id, status]));
-  const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+  const safeAccounts = ensureArray(accounts);
+  const safeStatuses = ensureArray(statuses);
+  const safeVendors = ensureArray(vendors);
+  const statusMap = new Map(safeStatuses.map((status) => [status.id, status]));
+  const vendorMap = new Map(safeVendors.map((vendor) => [vendor.id, vendor]));
   const isUsable = (account: ProviderAccount) =>
     account.enabled && hasConfiguredCredentials(account, statusMap.get(account.id));
 
   if (defaultAccountId) {
-    const defaultAccount = accounts.find((account) => account.id === defaultAccountId);
+    const defaultAccount = safeAccounts.find((account) => account.id === defaultAccountId);
     if (defaultAccount && isUsable(defaultAccount)) {
       return toEnabledProviderModel(defaultAccount, vendorMap.get(defaultAccount.vendorId));
     }
   }
 
-  const fallback = accounts.find(isUsable);
+  const fallback = safeAccounts.find(isUsable);
   return fallback ? toEnabledProviderModel(fallback, vendorMap.get(fallback.vendorId)) : null;
 }

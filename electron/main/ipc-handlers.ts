@@ -65,7 +65,7 @@ import { validateApiKeyWithProvider } from '../services/providers/provider-valid
 import { appUpdater } from './updater';
 import { registerFileSystemHandlers, syncWorkspaceRootFromSettings } from '../services/filesystem';
 
-import { getActiveHostApiPort } from '../api/server';
+import { getActiveHostApiPort, getHostApiToken } from '../api/server';
 
 import { triggerActiveReportHeartbeatNow } from '../utils/active-report-heartbeat';
 
@@ -169,6 +169,9 @@ type HostApiFetchRequest = {
 };
 
 function registerHostApiProxyHandlers(): void {
+  // Expose the per-session Host API auth token for renderer browser-fallback.
+  ipcMain.handle('hostapi:token', () => getHostApiToken());
+
   ipcMain.handle('hostapi:fetch', async (_, request: HostApiFetchRequest) => {
     try {
       const path = typeof request?.path === 'string' ? request.path : '';
@@ -178,6 +181,10 @@ function registerHostApiProxyHandlers(): void {
 
       const method = (request.method || 'GET').toUpperCase();
       const headers: Record<string, string> = { ...(request.headers || {}) };
+      // Host API requires Bearer auth for all non-preflight requests.
+      if (!headers.Authorization && !headers.authorization) {
+        headers.Authorization = `Bearer ${getHostApiToken()}`;
+      }
       let body: string | undefined;
 
       if (request.body !== undefined && request.body !== null) {
@@ -185,9 +192,9 @@ function registerHostApiProxyHandlers(): void {
           body = request.body;
         } else {
           body = JSON.stringify(request.body);
-          if (!headers['Content-Type'] && !headers['content-type']) {
-            headers['Content-Type'] = 'application/json';
-          }
+        }
+        if (!headers['Content-Type'] && !headers['content-type']) {
+          headers['Content-Type'] = 'application/json';
         }
       }
 
