@@ -9,6 +9,9 @@ import {
 import { logger } from '../utils/logger';
 import { APP_DISPLAY_NAME } from '../shared/app-brand';
 
+export const GATEWAY_CHALLENGE_TIMEOUT_MS = 10_000;
+export const GATEWAY_CONNECT_HANDSHAKE_TIMEOUT_MS = 20_000;
+
 export async function probeGatewayReady(
   port: number,
   timeoutMs = 1500,
@@ -170,8 +173,12 @@ export async function connectGatewaySocket(options: {
   onHandshakeComplete: (ws: WebSocket) => void;
   onMessage: (message: unknown) => void;
   onCloseAfterHandshake: () => void;
+  challengeTimeoutMs?: number;
+  connectTimeoutMs?: number;
 }): Promise<WebSocket> {
   logger.debug(`Connecting Gateway WebSocket (ws://localhost:${options.port}/ws)`);
+  const challengeTimeoutMs = options.challengeTimeoutMs ?? GATEWAY_CHALLENGE_TIMEOUT_MS;
+  const connectTimeoutMs = options.connectTimeoutMs ?? GATEWAY_CONNECT_HANDSHAKE_TIMEOUT_MS;
 
   return await new Promise<WebSocket>((resolve, reject) => {
     const wsUrl = `ws://localhost:${options.port}/ws`;
@@ -235,7 +242,7 @@ export async function connectGatewaySocket(options: {
           ws.close();
           rejectOnce(new Error('Connect handshake timeout'));
         }
-      }, 10000);
+      }, connectTimeoutMs);
       handshakeTimeout = requestTimeout;
 
       options.pendingRequests.set(connectId, {
@@ -259,7 +266,7 @@ export async function connectGatewaySocket(options: {
         ws.close();
         rejectOnce(new Error('Timed out waiting for connect.challenge from Gateway'));
       }
-    }, 10000);
+    }, challengeTimeoutMs);
 
     ws.on('open', () => {
       logger.debug('Gateway WebSocket opened, waiting for connect.challenge...');

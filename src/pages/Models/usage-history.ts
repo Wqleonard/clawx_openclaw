@@ -6,6 +6,7 @@ export type UsageHistoryEntry = {
   model?: string;
   provider?: string;
   content?: string;
+  usageStatus?: 'available' | 'missing' | 'error';
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;

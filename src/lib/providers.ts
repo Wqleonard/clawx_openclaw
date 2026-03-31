@@ -146,6 +146,10 @@ export const PROVIDER_TYPE_INFO: ProviderTypeInfo[] = [
     requiresApiKey: true,
     isOAuth: true,
     supportsApiKey: true,
+    defaultModelId: 'gpt-5.4',
+    showModelId: true,
+    showModelIdInDevModeOnly: true,
+    modelIdPlaceholder: 'gpt-5.4',
     apiKeyUrl: 'https://platform.openai.com/api-keys',
   },
   {
@@ -157,7 +161,10 @@ export const PROVIDER_TYPE_INFO: ProviderTypeInfo[] = [
     requiresApiKey: true,
     isOAuth: true,
     supportsApiKey: true,
-    defaultModelId: 'gemini-3.1-pro-preview',
+    defaultModelId: 'gemini-3-pro-preview',
+    showModelId: true,
+    showModelIdInDevModeOnly: true,
+    modelIdPlaceholder: 'gemini-3-pro-preview',
     apiKeyUrl: 'https://aistudio.google.com/app/apikey',
   },
   {

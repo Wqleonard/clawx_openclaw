@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { exec as execCb } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
@@ -20,7 +21,7 @@ import { handleCronRoutes } from './routes/cron';
 import { handleBoomSearchRoutes } from './routes/boom-search';
 import { handleAiExecAuditRoutes } from './routes/ai-exec-audit';
 import { handlePluginRuntimeConfigRoutes } from './routes/plugin-runtime-config';
-import { sendJson } from './route-utils';
+import { sendJson, setCorsHeaders, requireJsonContentType } from './route-utils';
 
 const execAsync = promisify(execCb);
 let activeHostApiPort: number = PORTS.CLAWX_HOST_API;
@@ -184,10 +185,53 @@ async function recoverHostApiPort(port: number, currentPid: number): Promise<boo
   return false;
 }
 
+let hostApiToken: string = '';
+
+/** Retrieve the current Host API auth token (for use by IPC proxy). */
+export function getHostApiToken(): string {
+  return hostApiToken;
+}
+
 function createHostApiServer(ctx: HostApiContext, port: number): Server {
+  hostApiToken = randomBytes(32).toString('hex');
+
   const server = createServer(async (req, res) => {
     try {
       const requestUrl = new URL(req.url || '/', `http://127.0.0.1:${port}`);
+      // ── CORS headers ─────────────────────────────────────────
+      // Set origin-aware CORS headers early so every response
+      // (including error responses) carries them consistently.
+      const origin = req.headers.origin;
+      setCorsHeaders(res, origin);
+
+      // CORS preflight — respond before auth so browsers can negotiate.
+      if (req.method === 'OPTIONS') {
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
+
+      // ── Auth gate ──────────────────────────────────────────────
+      // Every non-preflight request must carry a valid Bearer token.
+      // Accept via Authorization header (preferred) or ?token= query
+      // parameter (for EventSource which cannot set custom headers).
+      const authHeader = req.headers.authorization || '';
+      const bearerToken = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : (requestUrl.searchParams.get('token') || '');
+      if (bearerToken !== hostApiToken) {
+        sendJson(res, 401, { success: false, error: 'Unauthorized' });
+        return;
+      }
+
+      // ── Content-Type gate (anti-CSRF) ──────────────────────────
+      // Mutation requests must use application/json to force a CORS
+      // preflight, preventing "simple request" CSRF attacks.
+      if (!requireJsonContentType(req)) {
+        sendJson(res, 415, { success: false, error: 'Content-Type must be application/json' });
+        return;
+      }
+
       for (const handler of routeHandlers) {
         if (await handler(req, res, requestUrl, ctx)) {
           return;

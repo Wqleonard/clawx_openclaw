@@ -93,6 +93,82 @@ interface AuthProfilesStore {
   lastGood?: Record<string, string>;
 }
 
+function removeProfilesForProvider(store: AuthProfilesStore, provider: string): boolean {
+  const removedProfileIds = new Set<string>();
+
+  for (const [profileId, profile] of Object.entries(store.profiles)) {
+    if (profile?.provider !== provider) {
+      continue;
+    }
+    delete store.profiles[profileId];
+    removedProfileIds.add(profileId);
+  }
+
+  if (removedProfileIds.size === 0) {
+    return false;
+  }
+
+  if (store.order) {
+    for (const [orderProvider, profileIds] of Object.entries(store.order)) {
+      const nextProfileIds = profileIds.filter((profileId) => !removedProfileIds.has(profileId));
+      if (nextProfileIds.length > 0) {
+        store.order[orderProvider] = nextProfileIds;
+      } else {
+        delete store.order[orderProvider];
+      }
+    }
+  }
+
+  if (store.lastGood) {
+    for (const [lastGoodProvider, profileId] of Object.entries(store.lastGood)) {
+      if (removedProfileIds.has(profileId)) {
+        delete store.lastGood[lastGoodProvider];
+      }
+    }
+  }
+
+  return true;
+}
+
+function removeProfileFromStore(
+  store: AuthProfilesStore,
+  profileId: string,
+  expectedType?: AuthProfileEntry['type'] | OAuthProfileEntry['type'],
+): boolean {
+  const profile = store.profiles[profileId];
+  let changed = false;
+  const shouldCleanReferences = !profile || !expectedType || profile.type === expectedType;
+  if (profile && (!expectedType || profile.type === expectedType)) {
+    delete store.profiles[profileId];
+    changed = true;
+  }
+
+  if (shouldCleanReferences && store.order) {
+    for (const [orderProvider, profileIds] of Object.entries(store.order)) {
+      const nextProfileIds = profileIds.filter((id) => id !== profileId);
+      if (nextProfileIds.length !== profileIds.length) {
+        changed = true;
+      }
+      if (nextProfileIds.length > 0) {
+        store.order[orderProvider] = nextProfileIds;
+      } else {
+        delete store.order[orderProvider];
+      }
+    }
+  }
+
+  if (shouldCleanReferences && store.lastGood) {
+    for (const [lastGoodProvider, lastGoodProfileId] of Object.entries(store.lastGood)) {
+      if (lastGoodProfileId === profileId) {
+        delete store.lastGood[lastGoodProvider];
+        changed = true;
+      }
+    }
+  }
+
+  return changed;
+}
+
 // ── Auth Profiles I/O ────────────────────────────────────────────
 
 function getAuthProfilesPath(agentId = 'main'): string {
@@ -133,6 +209,56 @@ async function discoverAgentIds(): Promise<string[]> {
 const OPENCLAW_CONFIG_PATH = join(homedir(), '.openclaw', 'openclaw.json');
 const FEISHU_PLUGIN_ID_CANDIDATES = ['openclaw-lark', 'feishu-openclaw-plugin'] as const;
 const VALID_COMPACTION_MODES = new Set(['default', 'safeguard']);
+const BUILTIN_CHANNEL_IDS = new Set([
+  'discord',
+  'telegram',
+  'whatsapp',
+  'slack',
+  'signal',
+  'imessage',
+  'matrix',
+  'line',
+  'msteams',
+  'googlechat',
+  'mattermost',
+]);
+const AUTH_PROFILE_PROVIDER_KEY_MAP: Record<string, string> = {
+  'openai-codex': 'openai',
+  'google-gemini-cli': 'google',
+};
+
+function normalizeAuthProfileProviderKey(provider: string): string {
+  return AUTH_PROFILE_PROVIDER_KEY_MAP[provider] ?? provider;
+}
+
+function addProvidersFromProfileEntries(
+  profiles: Record<string, unknown> | undefined,
+  target: Set<string>,
+): void {
+  if (!profiles || typeof profiles !== 'object') {
+    return;
+  }
+
+  for (const profile of Object.values(profiles)) {
+    const provider = typeof (profile as Record<string, unknown>)?.provider === 'string'
+      ? ((profile as Record<string, unknown>).provider as string)
+      : undefined;
+    if (!provider) continue;
+    target.add(normalizeAuthProfileProviderKey(provider));
+  }
+}
+
+async function getProvidersFromAuthProfileStores(): Promise<Set<string>> {
+  const providers = new Set<string>();
+  const agentIds = await discoverAgentIds();
+
+  for (const agentId of agentIds) {
+    const store = await readAuthProfiles(agentId);
+    addProvidersFromProfileEntries(store.profiles, providers);
+  }
+
+  return providers;
+}
 
 async function readOpenClawJson(): Promise<Record<string, unknown>> {
   return (await readJsonFile<Record<string, unknown>>(OPENCLAW_CONFIG_PATH)) ?? {};
@@ -296,26 +422,14 @@ export async function removeProviderKeyFromOpenClaw(
   provider: string,
   agentId?: string
 ): Promise<void> {
-  if (isOAuthProviderType(provider)) {
-    console.log(`Skipping auth-profiles removal for OAuth provider "${provider}" (managed by OpenClaw plugin)`);
-    return;
-  }
   const agentIds = agentId ? [agentId] : await discoverAgentIds();
   if (agentIds.length === 0) agentIds.push('main');
 
   for (const id of agentIds) {
     const store = await readAuthProfiles(id);
-    const profileId = `${provider}:default`;
-
-    delete store.profiles[profileId];
-
-    if (store.order?.[provider]) {
-      store.order[provider] = store.order[provider].filter((aid) => aid !== profileId);
-      if (store.order[provider].length === 0) delete store.order[provider];
+    if (removeProfileFromStore(store, `${provider}:default`, 'api_key')) {
+      await writeAuthProfiles(store, id);
     }
-    if (store.lastGood?.[provider] === profileId) delete store.lastGood[provider];
-
-    await writeAuthProfiles(store, id);
   }
   console.log(`Removed API key for provider "${provider}" from OpenClaw auth-profiles (agents: ${agentIds.join(', ')})`);
 }
@@ -329,14 +443,7 @@ export async function removeProviderFromOpenClaw(provider: string): Promise<void
   if (agentIds.length === 0) agentIds.push('main');
   for (const id of agentIds) {
     const store = await readAuthProfiles(id);
-    const profileId = `${provider}:default`;
-    if (store.profiles[profileId]) {
-      delete store.profiles[profileId];
-      if (store.order?.[provider]) {
-        store.order[provider] = store.order[provider].filter((aid) => aid !== profileId);
-        if (store.order[provider].length === 0) delete store.order[provider];
-      }
-      if (store.lastGood?.[provider] === profileId) delete store.lastGood[provider];
+    if (removeProfilesForProvider(store, provider)) {
       await writeAuthProfiles(store, id);
     }
   }
@@ -383,6 +490,52 @@ export async function removeProviderFromOpenClaw(provider: string): Promise<void
         delete providers[provider];
         modified = true;
         console.log(`Removed OpenClaw provider config: ${provider}`);
+      }
+
+      const auth = (config.auth && typeof config.auth === 'object'
+        ? config.auth as Record<string, unknown>
+        : null);
+      const authProfiles = (
+        auth?.profiles && typeof auth.profiles === 'object'
+          ? auth.profiles as Record<string, AuthProfileEntry | OAuthProfileEntry>
+          : null
+      );
+      if (authProfiles) {
+        for (const [profileId, profile] of Object.entries(authProfiles)) {
+          if (profile?.provider !== provider) {
+            continue;
+          }
+          delete authProfiles[profileId];
+          modified = true;
+          console.log(`Removed OpenClaw auth profile: ${profileId}`);
+        }
+      }
+
+      // Clean up agents.defaults.model references that point to the deleted provider.
+      // Model refs use the format "providerType/modelId", e.g. "openai/gpt-4".
+      // Leaving stale refs causes the Gateway to report "Unknown model" errors.
+      const agents = config.agents as Record<string, unknown> | undefined;
+      const agentDefaults = (agents?.defaults && typeof agents.defaults === 'object'
+        ? agents.defaults as Record<string, unknown>
+        : null);
+      if (agentDefaults?.model && typeof agentDefaults.model === 'object') {
+        const modelCfg = agentDefaults.model as Record<string, unknown>;
+        const prefix = `${provider}/`;
+
+        if (typeof modelCfg.primary === 'string' && modelCfg.primary.startsWith(prefix)) {
+          delete modelCfg.primary;
+          modified = true;
+          console.log(`Removed deleted provider "${provider}" from agents.defaults.model.primary`);
+        }
+
+        if (Array.isArray(modelCfg.fallbacks)) {
+          const filtered = (modelCfg.fallbacks as string[]).filter((fb) => !fb.startsWith(prefix));
+          if (filtered.length !== modelCfg.fallbacks.length) {
+            modelCfg.fallbacks = filtered.length > 0 ? filtered : undefined;
+            modified = true;
+            console.log(`Removed deleted provider "${provider}" from agents.defaults.model.fallbacks`);
+          }
+        }
       }
 
       if (modified) {
@@ -742,6 +895,28 @@ export async function getActiveOpenClawProviders(): Promise<Set<string>> {
         }
       }
     }
+
+    // 3. agents.defaults.model.primary — the default model reference encodes
+    //    the provider prefix (e.g. "qwen-portal/coder-model" → "qwen-portal").
+    //    This covers providers that are active via OAuth or env-key but don't
+    //    have an explicit models.providers entry.
+    const agents = config.agents as Record<string, unknown> | undefined;
+    const defaults = agents?.defaults as Record<string, unknown> | undefined;
+    const modelConfig = defaults?.model as Record<string, unknown> | undefined;
+    const primaryModel = typeof modelConfig?.primary === 'string' ? modelConfig.primary : undefined;
+    if (primaryModel?.includes('/')) {
+      activeProviders.add(primaryModel.split('/')[0]);
+    }
+
+    // 4. auth.profiles — OAuth/device-token based providers may exist only in
+    //    auth-profiles without explicit models.providers entries yet.
+    const auth = config.auth as Record<string, unknown> | undefined;
+    addProvidersFromProfileEntries(auth?.profiles as Record<string, unknown> | undefined, activeProviders);
+
+    const authProfileProviders = await getProvidersFromAuthProfileStores();
+    for (const provider of authProfileProviders) {
+      activeProviders.add(provider);
+    }
   } catch (err) {
     console.warn('Failed to read openclaw.json for active providers:', err);
   }
@@ -778,6 +953,21 @@ export async function getOpenClawProvidersConfig(): Promise<{
         : undefined;
     const defaultModel =
       typeof modelConfig?.primary === 'string' ? modelConfig.primary : undefined;
+
+    const authProviders = new Set<string>();
+    const auth = config.auth as Record<string, unknown> | undefined;
+    addProvidersFromProfileEntries(auth?.profiles as Record<string, unknown> | undefined, authProviders);
+
+    const authProfileProviders = await getProvidersFromAuthProfileStores();
+    for (const provider of authProfileProviders) {
+      authProviders.add(provider);
+    }
+
+    for (const provider of authProviders) {
+      if (!providers[provider]) {
+        providers[provider] = {};
+      }
+    }
 
     return { providers, defaultModel };
   } catch {
@@ -906,18 +1096,20 @@ export async function syncSessionIdleMinutesToOpenClaw(): Promise<void> {
 /**
  * Update a provider entry in every discovered agent's models.json.
  */
-export async function updateAgentModelProvider(
+type AgentModelProviderEntry = {
+  baseUrl?: string;
+  api?: string;
+  models?: Array<{ id: string; name: string }>;
+  apiKey?: string;
+  /** When true, pi-ai sends Authorization: Bearer instead of x-api-key */
+  authHeader?: boolean;
+};
+
+async function updateModelsJsonProviderEntriesForAgents(
+  agentIds: string[],
   providerType: string,
-  entry: {
-    baseUrl?: string;
-    api?: string;
-    models?: Array<{ id: string; name: string }>;
-    apiKey?: string;
-    /** When true, pi-ai sends Authorization: Bearer instead of x-api-key */
-    authHeader?: boolean;
-  }
+  entry: AgentModelProviderEntry,
 ): Promise<void> {
-  const agentIds = await discoverAgentIds();
   for (const agentId of agentIds) {
     const modelsPath = join(homedir(), '.openclaw', 'agents', agentId, 'agent', 'models.json');
     let data: Record<string, unknown> = {};
@@ -963,6 +1155,26 @@ export async function updateAgentModelProvider(
   }
 }
 
+export async function updateAgentModelProvider(
+  providerType: string,
+  entry: AgentModelProviderEntry,
+): Promise<void> {
+  const agentIds = await discoverAgentIds();
+  await updateModelsJsonProviderEntriesForAgents(agentIds, providerType, entry);
+}
+
+export async function updateSingleAgentModelProvider(
+  agentId: string,
+  providerType: string,
+  entry: AgentModelProviderEntry,
+): Promise<void> {
+  const normalizedAgentId = agentId.trim();
+  if (!normalizedAgentId) {
+    throw new Error('agentId is required');
+  }
+  await updateModelsJsonProviderEntriesForAgents([normalizedAgentId], providerType, entry);
+}
+
 /**
  * Sanitize ~/.openclaw/openclaw.json before Gateway start.
  *
@@ -983,7 +1195,24 @@ export async function updateAgentModelProvider(
  */
 export async function sanitizeOpenClawConfig(): Promise<void> {
   return withConfigLock(async () => {
-    const config = await readOpenClawJson();
+    // Skip sanitization if the config file does not exist yet.
+    // Creating a skeleton config here would overwrite any data written
+    // by the Gateway on its first run.
+    if (!(await fileExists(OPENCLAW_CONFIG_PATH))) {
+      console.log('[sanitize] openclaw.json does not exist yet, skipping sanitization');
+      return;
+    }
+
+    // Read the raw file directly instead of going through readOpenClawJson()
+    // which coalesces null → {}.  We need to distinguish a genuinely empty
+    // file (valid, proceed normally) from a corrupt/unreadable file (null,
+    // bail out to avoid overwriting the user's data with a skeleton config).
+    const rawConfig = await readJsonFile<Record<string, unknown>>(OPENCLAW_CONFIG_PATH);
+    if (rawConfig === null) {
+      console.log('[sanitize] openclaw.json could not be parsed, skipping sanitization to preserve data');
+      return;
+    }
+    const config: Record<string, unknown> = rawConfig;
     let modified = false;
 
     // ── skills section ──────────────────────────────────────────────
@@ -1223,6 +1452,35 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
         modified = true;
       }
 
+      // ── qqbot → openclaw-qqbot migration ────────────────────────
+      // The qqbot npm package (@tencent-connect/openclaw-qqbot) declares
+      // id="openclaw-qqbot" in its manifest, but older ClawX versions
+      // wrote bare "qqbot" into plugins.allow.  Migrate to the manifest ID
+      // so the Gateway can resolve the plugin correctly.
+      const LEGACY_QQBOT_ID = 'qqbot';
+      const NEW_QQBOT_ID = 'openclaw-qqbot';
+      if (Array.isArray(pluginsObj.allow)) {
+        const allowArr = pluginsObj.allow as string[];
+        const legacyIdx = allowArr.indexOf(LEGACY_QQBOT_ID);
+        if (legacyIdx !== -1) {
+          if (!allowArr.includes(NEW_QQBOT_ID)) {
+            allowArr[legacyIdx] = NEW_QQBOT_ID;
+          } else {
+            allowArr.splice(legacyIdx, 1);
+          }
+          console.log(`[sanitize] Migrated plugins.allow: ${LEGACY_QQBOT_ID} → ${NEW_QQBOT_ID}`);
+          modified = true;
+        }
+      }
+      if (pEntries?.[LEGACY_QQBOT_ID]) {
+        if (!pEntries[NEW_QQBOT_ID]) {
+          pEntries[NEW_QQBOT_ID] = pEntries[LEGACY_QQBOT_ID];
+        }
+        delete pEntries[LEGACY_QQBOT_ID];
+        console.log(`[sanitize] Migrated plugins.entries: ${LEGACY_QQBOT_ID} → ${NEW_QQBOT_ID}`);
+        modified = true;
+      }
+
       // ── Remove bare 'feishu' when canonical feishu plugin is present ──
       // The Gateway binary automatically adds bare 'feishu' to plugins.allow
       // because the official plugin registers the 'feishu' channel.
@@ -1247,6 +1505,67 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
             modified = true;
           }
         }
+      }
+
+      // ── Reconcile built-in channels with restrictive plugin allowlists ──
+      // If plugins.allow is active because an external plugin is configured,
+      // configured built-in channels must also be present or they will be
+      // blocked on restart. If the allowlist only contains built-ins, drop it.
+      const configuredBuiltIns = new Set<string>();
+      const channelsObj = config.channels as Record<string, Record<string, unknown>> | undefined;
+      if (channelsObj && typeof channelsObj === 'object') {
+        for (const [channelId, section] of Object.entries(channelsObj)) {
+          if (!BUILTIN_CHANNEL_IDS.has(channelId)) continue;
+          if (!section || section.enabled === false) continue;
+          if (Object.keys(section).length > 0) {
+            configuredBuiltIns.add(channelId);
+          }
+        }
+      }
+
+      if (pEntries.whatsapp) {
+        delete pEntries.whatsapp;
+        console.log('[sanitize] Removed legacy plugins.entries.whatsapp for built-in channel');
+        modified = true;
+      }
+
+      const externalPluginIds = allowArr2.filter((pluginId) => !BUILTIN_CHANNEL_IDS.has(pluginId));
+      let nextAllow = [...externalPluginIds];
+      if (externalPluginIds.length > 0) {
+        for (const channelId of configuredBuiltIns) {
+          if (!nextAllow.includes(channelId)) {
+            nextAllow.push(channelId);
+            modified = true;
+            console.log(`[sanitize] Added configured built-in channel "${channelId}" to plugins.allow`);
+          }
+        }
+      }
+
+      if (JSON.stringify(nextAllow) !== JSON.stringify(allowArr2)) {
+        if (nextAllow.length > 0) {
+          pluginsObj.allow = nextAllow;
+        } else {
+          delete pluginsObj.allow;
+        }
+        modified = true;
+      }
+
+      if (Array.isArray(pluginsObj.allow) && pluginsObj.allow.length === 0) {
+        delete pluginsObj.allow;
+        modified = true;
+      }
+      if (pluginsObj.entries && Object.keys(pEntries).length === 0) {
+        delete pluginsObj.entries;
+        modified = true;
+      }
+      const pluginKeysExcludingEnabled = Object.keys(pluginsObj).filter((key) => key !== 'enabled');
+      if (pluginsObj.enabled === true && pluginKeysExcludingEnabled.length === 0) {
+        delete pluginsObj.enabled;
+        modified = true;
+      }
+      if (Object.keys(pluginsObj).length === 0) {
+        delete config.plugins;
+        modified = true;
       }
     }
 

@@ -12,6 +12,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { getOpenClawDir, getResourcesDir } from './paths';
 import { logger } from './logger';
+import { cpAsyncSafe } from './plugin-install';
 import { withConfigLock } from './config-mutex';
 
 const OPENCLAW_CONFIG_PATH = join(homedir(), '.openclaw', 'openclaw.json');
@@ -225,7 +226,7 @@ export async function ensureBuiltinSkillsInstalled(): Promise<void> {
 
         try {
             await mkdir(targetDir, { recursive: true });
-            await cp(sourceDir, targetDir, { recursive: true });
+            await cpAsyncSafe(sourceDir, targetDir);
             logger.info(`Installed built-in skill: ${slug} -> ${targetDir}`);
         } catch (error) {
             logger.warn(`Failed to install built-in skill ${slug}:`, error);
@@ -364,7 +365,7 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             // from previous versions are not retained.
             await rm(targetDir, { recursive: true, force: true });
             await mkdir(targetDir, { recursive: true });
-            await cp(sourceDir, targetDir, { recursive: true, force: true });
+            await cpAsyncSafe(sourceDir, targetDir);
             const markerPayload: PreinstalledMarker = {
                 source: 'storyclaw-preinstalled',
                 slug: spec.slug,

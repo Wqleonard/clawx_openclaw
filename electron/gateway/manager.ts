@@ -472,6 +472,7 @@ export class GatewayManager extends EventEmitter {
     try {
       await this.restartInFlight;
       this.restartGovernor.recordExecuted();
+      this.restartController.recordRestartCompleted();
       const observability = this.restartGovernor.getObservability();
       const props = {
         gateway_restart_executed_total: observability.executed_total,
@@ -553,13 +554,6 @@ export class GatewayManager extends EventEmitter {
       return;
     }
 
-    if (process.platform === 'win32') {
-      logger.warn('[gateway-refresh] mode=reload result=fallback_restart cause=windows');
-      logger.debug('Windows detected, falling back to Gateway restart for reload');
-      await this.restart();
-      return;
-    }
-
     const connectedForMs = this.status.connectedAt
       ? Date.now() - this.status.connectedAt
       : Number.POSITIVE_INFINITY;
@@ -570,6 +564,15 @@ export class GatewayManager extends EventEmitter {
         `[gateway-refresh] mode=reload result=skipped_recent_connect connectedForMs=${connectedForMs} pid=${this.process.pid}`,
       );
       logger.info(`Gateway connected ${connectedForMs}ms ago, skipping reload signal`);
+      return;
+    }
+
+    if (process.platform === 'win32') {
+      // Windows does not support SIGUSR1 for in-process reload.
+      // Fall back to a full restart.  The connectedForMs < 8000 guard above
+      // already skips unnecessary restarts for recently-started processes.
+      logger.warn('[gateway-refresh] mode=reload result=fallback_restart cause=windows');
+      await this.restart();
       return;
     }
 
@@ -747,6 +750,9 @@ export class GatewayManager extends EventEmitter {
     await unloadLaunchctlGatewayService();
     this.processExitCode = null;
 
+    // Per-process dedup map for stderr lines — resets on each new spawn.
+    const stderrDedup = new Map<string, number>();
+
     const { child, lastSpawnSummary } = await launchGatewayProcess({
       port: this.status.port,
       launchContext,
@@ -757,6 +763,18 @@ export class GatewayManager extends EventEmitter {
         recordGatewayStartupStderrLine(this.recentStartupStderrLines, line);
         const classified = classifyGatewayStderrMessage(line);
         if (classified.level === 'drop') return;
+
+        // Dedup: suppress identical stderr lines after the first occurrence.
+        const count = (stderrDedup.get(classified.normalized) ?? 0) + 1;
+        stderrDedup.set(classified.normalized, count);
+        if (count > 1) {
+          // Log a summary every 50 duplicates to stay visible without flooding.
+          if (count % 50 === 0) {
+            logger.debug(`[Gateway stderr] (suppressed ${count} repeats) ${classified.normalized}`);
+          }
+          return;
+        }
+
         if (classified.level === 'debug') {
           logger.debug(`[Gateway stderr] ${classified.normalized}`);
           return;
@@ -823,7 +841,14 @@ export class GatewayManager extends EventEmitter {
         this.connectionMonitor.clear();
         if (this.status.state === 'running') {
           this.setStatus({ state: 'stopped' });
-          this.scheduleReconnect();
+          // On Windows, skip reconnect from WS close.  The Gateway is a local
+          // child process; actual crashes are already caught by the process exit
+          // handler (`onExit`) which calls scheduleReconnect().  Triggering
+          // reconnect from WS close as well races with the exit handler and can
+          // cause double start() attempts or port conflicts during TCP TIME_WAIT.
+          if (process.platform !== 'win32') {
+            this.scheduleReconnect();
+          }
         }
       },
     });
@@ -1446,6 +1471,14 @@ export class GatewayManager extends EventEmitter {
           ws.terminate();
         } catch (error) {
           logger.warn('Failed to terminate stale Gateway socket after heartbeat timeout:', error);
+        }
+
+        // On Windows, onCloseAfterHandshake intentionally skips scheduleReconnect()
+        // to avoid double-reconnect races with the process exit handler.  However,
+        // a heartbeat timeout means the socket is stale while the process may still
+        // be alive (no exit event), so we must explicitly trigger reconnect here.
+        if (process.platform === 'win32') {
+          this.scheduleReconnect();
         }
       },
     });

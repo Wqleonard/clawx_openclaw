@@ -100,6 +100,7 @@ Complete the entire setup—from installation to your first AI interaction—thr
 ### 💬 Intelligent Chat Interface
 Communicate with AI agents through a modern chat experience. Support for multiple conversation contexts, message history, rich content rendering with Markdown, and direct `@agent` routing in the main composer for multi-agent setups.
 When you target another agent with `@agent`, ClawX switches into that agent's own conversation context directly instead of relaying through the default agent. Agent workspaces stay separate by default, and stronger isolation depends on OpenClaw sandbox settings.
+Each agent can also override its own `provider/model` runtime setting; agents without overrides continue inheriting the global default model.
 
 ### 📡 Multi-Channel Management
 Configure and monitor multiple AI channels simultaneously. Each channel operates independently, allowing you to run specialized agents for different tasks.
@@ -108,6 +109,8 @@ ClawX now also bundles Tencent's official personal WeChat channel plugin, so you
 
 ### ⏰ Cron-Based Automation
 Schedule AI tasks to run automatically. Define triggers, set intervals, and let your AI agents work around the clock without manual intervention.
+The Cron page now lets you configure external delivery directly in the task form with separate sender-account and recipient-target selectors. For supported channels, recipient targets are discovered automatically from channel directories or known session history, so you no longer need to edit `jobs.json` by hand.
+Known limitation: WeChat is intentionally excluded from supported cron delivery channels for now. The current `openclaw-weixin` plugin requires a live conversation `contextToken` for outbound sends, so cron-style proactive delivery is not supported by the plugin itself.
 
 ### 🧩 Extensible Skill System
 Extend your AI agents with pre-built skills. Browse, install, and manage skills through the integrated skill panel—no package managers required.
@@ -338,6 +341,8 @@ pnpm typecheck            # TypeScript validation
 
 # Testing
 pnpm test                 # Run unit tests
+pnpm run test:e2e         # Run Electron E2E smoke tests with Playwright
+pnpm run test:e2e:headed  # Run Electron E2E tests with a visible window
 pnpm run comms:replay     # Compute communication replay metrics
 pnpm run comms:baseline   # Refresh communication baseline snapshot
 pnpm run comms:compare    # Compare replay metrics against baseline thresholds
@@ -361,6 +366,28 @@ pnpm run comms:compare
 ```
 
 `comms-regression` in CI enforces required scenarios and threshold checks.
+
+### Electron E2E Tests
+
+The Playwright Electron suite launches the packaged renderer and main process
+from `dist/` and `dist-electron/`, so it does not require manually running
+`pnpm dev` first.
+
+`pnpm run test:e2e` automatically:
+
+- builds the renderer and Electron bundles with `pnpm run build:vite`
+- starts Electron in an isolated E2E mode with a temporary `HOME`
+- uses a temporary ClawX `userData` directory
+- skips heavy startup side effects such as gateway auto-start, bundled skill
+  installation, tray creation, and CLI auto-install
+
+The first two baseline specs cover:
+
+- first-launch setup wizard visibility on a fresh profile
+- skipping setup and navigating to the Models page inside the Electron app
+
+Add future Electron flows under `tests/e2e/` and reuse the shared fixture in
+`tests/e2e/fixtures/electron.ts`.
 ### Tech Stack
 
 | Layer | Technology |
