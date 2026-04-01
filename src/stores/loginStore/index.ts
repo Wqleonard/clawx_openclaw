@@ -4,6 +4,8 @@ import { getInsiteNotification, type NotificationItem } from '@/api/insite-notif
 import { useProviderStore } from '@/stores/providers'
 import { useSettingsStore } from '@/stores/settings'
 import { logClientEvent } from '@/lib/client-log'
+import { invokeIpc } from '@/lib/api-client'
+import { clearBusinessAuthToken, getBusinessAuthToken, setBusinessAuthToken } from '@/lib/business-auth-token'
 import type {
   UserInfo,
   AvatarData,
@@ -63,19 +65,22 @@ function saveAuthEnvFingerprint(fingerprint: AuthEnvFingerprint): void {
   localStorage.setItem(AUTH_ENV_FINGERPRINT_KEY, JSON.stringify(fingerprint))
 }
 
-function ensureAuthEnvConsistency(): void {
+function ensureAuthEnvConsistency(): boolean {
   const current = getCurrentAuthEnvFingerprint()
   const stored = loadStoredAuthEnvFingerprint()
+  let changed = false
 
   if (stored) {
-    const changed = stored.env !== current.env || stored.apiBaseUrl !== current.apiBaseUrl
+    changed = stored.env !== current.env || stored.apiBaseUrl !== current.apiBaseUrl
     if (changed) {
       clearLoginStorage()
+      clearBusinessAuthToken()
     }
   }
 
   // Always persist the active fingerprint to support future environment switches.
   saveAuthEnvFingerprint(current)
+  return changed
 }
 
 function notifyBusinessAuthTokenChanged(token: string | null): void {
@@ -225,8 +230,6 @@ function getAvatarDataUrl(userInfo: UserInfo | null): string {
 }
 
 export const useLoginStore = create<LoginStore>((set, get) => {
-  ensureAuthEnvConsistency()
-
   const readedIds = loadReadedMessageIdsFromStorage()
   let savedUserInfo: UserInfo | null = null
   try {
@@ -237,8 +240,42 @@ export const useLoginStore = create<LoginStore>((set, get) => {
   }
 
   return {
-    isLoggedIn: !!localStorage.getItem('token'),
+    isLoggedIn: false,
+    authBootstrapDone: false,
     userInfo: savedUserInfo,
+    initAuthBootstrap: async () => {
+      const envChanged = ensureAuthEnvConsistency()
+      let tokenFromSettings = ''
+      try {
+        const settingToken = await invokeIpc<string>('settings:get', { key: 'businessAuthToken' })
+        tokenFromSettings = String(settingToken ?? '').trim()
+      } catch {
+        tokenFromSettings = ''
+      }
+
+      if (envChanged && tokenFromSettings) {
+        tokenFromSettings = ''
+        void invokeIpc('settings:set', 'businessAuthToken', '').catch(() => {})
+      }
+
+      const legacyToken = localStorage.getItem('token')?.trim() || ''
+      if (!tokenFromSettings && legacyToken) {
+        tokenFromSettings = legacyToken
+        void invokeIpc('settings:set', 'businessAuthToken', tokenFromSettings).catch(() => {})
+      }
+
+      if (legacyToken) {
+        localStorage.removeItem('token')
+      }
+
+      setBusinessAuthToken(tokenFromSettings)
+      notifyBusinessAuthTokenChanged(tokenFromSettings)
+      set({
+        isLoggedIn: !!tokenFromSettings,
+        authBootstrapDone: true,
+      })
+    },
+
     loginType: 'account',
     isLoading: false,
     smsCountdown: 0,
@@ -260,7 +297,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
     },
 
     updateLoginStatus: () => {
-      const token = localStorage.getItem('token')
+      const token = getBusinessAuthToken()
       const hasToken = !!token
       notifyBusinessAuthTokenChanged(token)
       set({ isLoggedIn: hasToken })
@@ -396,7 +433,8 @@ export const useLoginStore = create<LoginStore>((set, get) => {
           }
         }
 
-        localStorage.setItem('token', token)
+        setBusinessAuthToken(token)
+        void invokeIpc('settings:set', 'businessAuthToken', token).catch(() => {})
         notifyBusinessAuthTokenChanged(token)
         try {
           await useProviderStore.getState().ensureBaowenmaoPresetAccounts(token)
@@ -451,7 +489,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
 
     logout: () => {
       const wasLoggedIn = get().isLoggedIn
-      const prevToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const prevToken = getBusinessAuthToken()
       logClientEvent('info', {
         source: 'auth.logout',
         message: 'Logout requested',
@@ -462,7 +500,8 @@ export const useLoginStore = create<LoginStore>((set, get) => {
         },
       })
       get().saveUserInfo(null)
-      localStorage.removeItem('token')
+      clearBusinessAuthToken()
+      void invokeIpc('settings:set', 'businessAuthToken', '').catch(() => {})
       notifyBusinessAuthTokenChanged(null)
       localStorage.removeItem('___first_in_editor___')
       get().updateLoginStatus()
