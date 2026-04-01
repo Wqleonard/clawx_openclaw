@@ -230,6 +230,34 @@ function scheduleGatewayChannelSaveRefresh(
   void reason;
 }
 
+async function applyGatewayRefreshAfterBinding(
+  ctx: HostApiContext,
+  channelType: string,
+  reason: string,
+): Promise<void> {
+  const storedChannelType = resolveStoredChannelType(channelType);
+  if (ctx.gatewayManager.getStatus().state === 'stopped') {
+    return;
+  }
+
+  // Binding changes for plugin channels must take effect immediately.
+  // Avoid restart-governor suppression here by doing stop->start directly.
+  if (FORCE_RESTART_CHANNELS.has(storedChannelType)) {
+    try {
+      await ctx.gatewayManager.stop();
+      await ctx.gatewayManager.start();
+      return;
+    } catch (error) {
+      logger.warn(`[channel-binding] immediate gateway restart failed, falling back to debounced restart (${reason})`, error);
+      ctx.gatewayManager.debouncedRestart();
+      return;
+    }
+  }
+
+  ctx.gatewayManager.debouncedReload();
+  void reason;
+}
+
 function toComparableConfig(input: Record<string, unknown>): Record<string, string> {
   const next: Record<string, string> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -1080,7 +1108,7 @@ export async function handleChannelRoutes(
     try {
       const body = await parseJsonBody<{ channelType: string; accountId: string; agentId: string }>(req);
       await assignChannelAccountToAgent(body.agentId, resolveStoredChannelType(body.channelType), body.accountId);
-      scheduleGatewayChannelSaveRefresh(ctx, body.channelType, `channel:setBinding:${body.channelType}`);
+      await applyGatewayRefreshAfterBinding(ctx, body.channelType, `channel:setBinding:${body.channelType}`);
       sendJson(res, 200, { success: true });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
@@ -1092,7 +1120,7 @@ export async function handleChannelRoutes(
     try {
       const body = await parseJsonBody<{ channelType: string; accountId: string }>(req);
       await clearChannelBinding(resolveStoredChannelType(body.channelType), body.accountId);
-      scheduleGatewayChannelSaveRefresh(ctx, body.channelType, `channel:clearBinding:${body.channelType}`);
+      await applyGatewayRefreshAfterBinding(ctx, body.channelType, `channel:clearBinding:${body.channelType}`);
       sendJson(res, 200, { success: true });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
