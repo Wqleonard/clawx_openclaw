@@ -1,0 +1,56 @@
+import type { FilePreviewKind } from './types';
+
+export const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdx'] as const;
+
+export const IMAGE_EXTENSIONS = [
+  '.apng',
+  '.avif',
+  '.bmp',
+  '.gif',
+  '.ico',
+  '.jfif',
+  '.jpeg',
+  '.jpg',
+  '.pjpeg',
+  '.pjp',
+  '.png',
+  '.svg',
+  '.tif',
+  '.tiff',
+  '.webp',
+] as const;
+
+function hasAnyExtension(filePath: string, extensions: readonly string[]): boolean {
+  const lower = filePath.toLowerCase();
+  return extensions.some((ext) => lower.endsWith(ext));
+}
+
+export function getPreviewKind(filePath: string | null): FilePreviewKind {
+  if (!filePath) return 'none';
+  if (hasAnyExtension(filePath, MARKDOWN_EXTENSIONS)) return 'markdown';
+  if (hasAnyExtension(filePath, IMAGE_EXTENSIONS)) return 'image';
+  return 'unsupported';
+}
+
+export function getFileName(filePath: string): string {
+  const normalized = filePath.replace(/[\\/]+/g, '/');
+  const parts = normalized.split('/');
+  return parts[parts.length - 1] || filePath;
+}
+
+export function getMimeTypeByPath(filePath: string): string {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.jfif')) {
+    return 'image/jpeg';
+  }
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.svg')) return 'image/svg+xml';
+  if (lower.endsWith('.bmp')) return 'image/bmp';
+  if (lower.endsWith('.ico')) return 'image/x-icon';
+  if (lower.endsWith('.avif')) return 'image/avif';
+  if (lower.endsWith('.apng')) return 'image/apng';
+  if (lower.endsWith('.tif') || lower.endsWith('.tiff')) return 'image/tiff';
+  return 'application/octet-stream';
+}
