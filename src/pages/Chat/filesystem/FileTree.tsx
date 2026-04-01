@@ -606,6 +606,13 @@ export function FileTree({ className }: FileTreeProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      const fileTreeRoot = fileTreeRef.current;
+      if (!fileTreeRoot) return;
+      // Scope filesystem shortcuts to interactions originating from file tree.
+      // This avoids hijacking Ctrl/Cmd+C in chat message area.
+      if (!target || !fileTreeRoot.contains(target)) {
+        return;
+      }
       if (
         target &&
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)

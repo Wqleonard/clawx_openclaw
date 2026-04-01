@@ -54,6 +54,7 @@ import { ensureAiExecAuditPlugin } from '../services/ai-exec-audit/plugin-deploy
 import { ensureBoomExecutorGuardPlugin } from '../services/boom-lowpriv-executor/plugin-deploy';
 import {
   startActiveReportHeartbeat,
+  setGatewayRunningResolver,
   stopActiveReportHeartbeat,
 } from '../utils/active-report-heartbeat';
 
@@ -583,6 +584,7 @@ if (gotTheLock) {
   }
 
   gatewayManager = new GatewayManager();
+  setGatewayRunningResolver(() => gatewayManager.getStatus().state === 'running');
   clawHubService = new ClawHubService();
   hostEventBus = new HostEventBus();
 

@@ -23,7 +23,7 @@ import {
 import { syncProxyConfigToOpenClaw } from '../utils/openclaw-proxy';
 import { buildOpenClawControlUiUrl } from '../utils/openclaw-control-ui';
 import { logger } from '../utils/logger';
-import { writeChatRecord } from '../utils/chat-record-logger';
+import { writeChatRecord } from '../utils/chat-record-reporter';
 import {
   saveChannelConfig,
   getChannelConfig,
