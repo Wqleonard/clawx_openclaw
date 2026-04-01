@@ -25,6 +25,7 @@ export type InterceptedAction = (...args: unknown[]) => void | Promise<void>
 
 export interface LoginState {
   isLoggedIn: boolean
+  authBootstrapDone: boolean
   userInfo: UserInfo | null
   isLoading: boolean
   smsCountdown: number
@@ -43,6 +44,7 @@ export interface LoginState {
 }
 
 export interface LoginActions {
+  initAuthBootstrap: () => Promise<void>
   setNewbieTourShowed: () => void
   updateLoginStatus: () => void
   saveUserInfo: (info: UserInfo | null) => void

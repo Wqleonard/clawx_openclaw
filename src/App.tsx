@@ -29,9 +29,10 @@ import { AddAgentDialog } from './components/layout/AddAgentDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { getBusinessAuthToken } from '@/lib/business-auth-token';
 
 let hasReportedVisitorOnAppBoot = false;
-const BUSINESS_AUTH_TOKEN_CHANGED_EVENT = 'business-auth-token-changed';
 
 function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, '').toLowerCase();
@@ -495,6 +496,8 @@ function App() {
   const initGateway = useGatewayStore((state) => state.init);
 
   const isLoggedIn = useLoginStore((state) => state.isLoggedIn);
+  const authBootstrapDone = useLoginStore((state) => state.authBootstrapDone);
+  const initAuthBootstrap = useLoginStore((state) => state.initAuthBootstrap);
   const ensureBaowenmaoPresetAccounts = useProviderStore((state) => state.ensureBaowenmaoPresetAccounts);
 
   const initProviders = useProviderStore((state) => state.init);
@@ -525,6 +528,10 @@ function App() {
   }, [initProviders]);
 
   useEffect(() => {
+    void initAuthBootstrap();
+  }, [initAuthBootstrap]);
+
+  useEffect(() => {
     const baseUrl = normalizeBaseUrl(String(import.meta.env.VITE_BUSINESS_API_BASE_URL ?? ''));
     void invokeIpc('settings:set', 'businessApiBaseUrl', baseUrl).catch(() => {
       // Best-effort sync only.
@@ -532,30 +539,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const syncToken = (token: string | null | undefined) => {
-      const nextToken = String(token ?? '').trim();
-      void invokeIpc('settings:set', 'businessAuthToken', nextToken).catch(() => {
-        // Best-effort sync only.
-      });
-    };
-
-    // Initial sync on app boot/reload.
-    syncToken(localStorage.getItem('token'));
-
-    const handleTokenChanged = (event: Event) => {
-      const token = (event as CustomEvent<{ token?: string }>).detail?.token ?? '';
-      syncToken(token);
-    };
-
-    window.addEventListener(BUSINESS_AUTH_TOKEN_CHANGED_EVENT, handleTokenChanged as EventListener);
-    return () => {
-      window.removeEventListener(BUSINESS_AUTH_TOKEN_CHANGED_EVENT, handleTokenChanged as EventListener);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isLoggedIn) return;
-    const token = localStorage.getItem('token');
+    const token = getBusinessAuthToken();
     if (!token) return;
     void ensureBaowenmaoPresetAccounts(token).catch((err) => {
       console.error('Failed to sync Baowenmao preset accounts on startup:', err);
@@ -564,6 +549,7 @@ function App() {
 
   // Routing guard: Login → Setup → Main
   useEffect(() => {
+    if (!authBootstrapDone) return;
     const path = location.pathname;
 
     // 1. 未登录 → 强制登录页（/login 和 /setup 除外，setup 不应在未登录时访问，但不强制跳走避免死循环）
@@ -601,7 +587,7 @@ function App() {
       });
       navigate('/');
     }
-  }, [isLoggedIn, setupComplete, location.pathname, navigate]);
+  }, [authBootstrapDone, isLoggedIn, setupComplete, location.pathname, navigate]);
 
   // Listen for navigation events from main process
   useEffect(() => {
@@ -642,12 +628,21 @@ function App() {
 
   // Report visitor once on app boot (best-effort, non-blocking).
   useEffect(() => {
+    if (!authBootstrapDone) return;
     if (hasReportedVisitorOnAppBoot) return;
     hasReportedVisitorOnAppBoot = true;
     void visitorPost().catch((error) => {
       console.warn('Visitor report on app boot failed:', error);
     });
-  }, []);
+  }, [authBootstrapDone]);
+
+  if (!authBootstrapDone) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>

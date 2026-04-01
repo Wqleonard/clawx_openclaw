@@ -1,6 +1,7 @@
 import apiClient from './index';
 import { hostApiFetch } from '@/lib/host-api';
 import { getOrCreateVisitorId } from '@/utils/visitorId';
+import { getBusinessAuthToken } from '@/lib/business-auth-token';
 
 interface RegisterInfo {
   phone: string | number;
@@ -149,7 +150,7 @@ const completeNewbieMissionReq = (taskId: number) => {
 };
 
 const visitorPost = () => {
-  const token = localStorage.getItem('token')?.trim() || '';
+  const token = getBusinessAuthToken();
   const visitorId = getOrCreateVisitorId();
 
   if (token) {
