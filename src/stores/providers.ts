@@ -412,7 +412,6 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
 
     const now = new Date().toISOString();
     const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts');
-    console.log('accounts:', accounts);
 
     const upsertPreset = async (preset: BaowenmaoPresetAccount): Promise<void> => {
       const existing = accounts?.find((account) => account.id === preset.id);

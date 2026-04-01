@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, FileText, FolderPlus, Loader2, Trash2 } from 'lucide-react';
+import { AlertCircle, FolderPlus, Loader2, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -27,8 +27,7 @@ import {
   useChatLayoutStore,
 } from '@/stores/chat-layout';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { FileTree } from '@/components/filesystem';
-import { MarkdownEditor } from '@/components/markdownEditor';
+import { FileTree } from '@/pages/Chat/filesystem';
 import { Button } from '@/components/ui/button';
 import { useSettingsStore } from '@/stores/settings';
 import { invokeIpc } from '@/lib/api-client';
@@ -36,6 +35,7 @@ import { toast } from 'sonner';
 // import { useLoginStore } from '@/stores/loginStore';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { VisuallyHidden } from '@/components/ui/dialog';
+import { FilePreview } from './FilePreview';
 
 const INITIAL_NOW_MS = Date.now();
 const PROJECTS_RAIL_WIDTH = 12;
@@ -1339,7 +1339,7 @@ export function Chat() {
         </div>
       )}
 
-      {/* Markdown Viewer Panel */}
+      {/* File Preview Panel */}
       <div
         className={cn(
           'group relative border rounded-2xl flex overflow-hidden min-w-0',
@@ -1349,28 +1349,13 @@ export function Chat() {
       >
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden">
-            {!activeMarkdownFile ? (
-              <div className="flex h-full items-center justify-center px-4">
-                <div className="rounded-2xl border border-dashed border-black/10 bg-black/[0.02] px-8 py-7 text-center dark:border-white/10 dark:bg-white/[0.03]">
-                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-black/5 dark:bg-black/20 dark:ring-white/10">
-                    <FileText className="h-5 w-5 text-foreground/60" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    点击文件树中的 `.md` 文件后，会在这里直接显示内容
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full h-full flex flex-col">
-                <MarkdownEditor
-                  className="flex-1 min-h-0"
-                  value={activeMarkdownContent}
-                  mode={mdViewMode}
-                  onModeChange={setMdViewMode}
-                  onChange={handleMarkdownChange}
-                />
-              </div>
-            )}
+            <FilePreview
+              activeFile={activeFile}
+              fileContent={activeMarkdownContent}
+              mdViewMode={mdViewMode}
+              onMdViewModeChange={setMdViewMode}
+              onMarkdownChange={handleMarkdownChange}
+            />
           </div>
         </div>
       </div>
