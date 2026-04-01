@@ -10,6 +10,7 @@ import {
 import {
   ChevronDown,
   ChevronRight,
+  FileImage,
   FilePlus,
   FileText,
   Folder,
@@ -17,29 +18,48 @@ import {
   FolderPlus,
   RefreshCw,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button.tsx';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/ui/dialog.tsx';
 import { useTranslation } from 'react-i18next';
-import { Input } from '@/components/ui/input';
-import { invokeIpc } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
-import { useFileSystemStore } from '@/stores/filesystem';
-import { useChatStore } from '@/stores/chat';
+import { Input } from '@/components/ui/input.tsx';
+import { invokeIpc } from '@/lib/api-client.ts';
+import { cn } from '@/lib/utils.ts';
+import { useFileSystemStore } from '@/stores/filesystem.ts';
+import { useChatStore } from '@/stores/chat.ts';
 import type { FileNode } from '@/types/electron';
-import { useChatLayoutStore } from '@/stores/chat-layout';
+import { useChatLayoutStore } from '@/stores/chat-layout.ts';
 
 type FileTreeProps = {
   className?: string;
 };
 
 const expandedByWorkspaceCache = new Map<string, string[]>();
+
+const FILE_ICON_BY_EXTENSION = {
+  // image icons aligned with Chat/FilePreview.tsx
+  '.apng': FileImage,
+  '.avif': FileImage,
+  '.bmp': FileImage,
+  '.gif': FileImage,
+  '.ico': FileImage,
+  '.jfif': FileImage,
+  '.jpeg': FileImage,
+  '.jpg': FileImage,
+  '.pjpeg': FileImage,
+  '.pjp': FileImage,
+  '.png': FileImage,
+  '.svg': FileImage,
+  '.tif': FileImage,
+  '.tiff': FileImage,
+  '.webp': FileImage,
+} as const;
 
 type MenuAction =
   | 'new_file'
@@ -104,6 +124,16 @@ function splitFileName(inputName: string): { stem: string; ext: string } {
   };
 }
 
+function getFileIconByName(fileName: string) {
+  const lower = fileName.toLowerCase();
+  const dotIndex = lower.lastIndexOf('.');
+  if (dotIndex <= 0 || dotIndex === lower.length - 1) {
+    return FileText;
+  }
+  const extension = lower.slice(dotIndex);
+  return FILE_ICON_BY_EXTENSION[extension as keyof typeof FILE_ICON_BY_EXTENSION] ?? FileText;
+}
+
 function resolveUniqueName(
   targetDir: string,
   rawName: string,
@@ -162,9 +192,10 @@ function FileTreeNode({
   const hasChildren = !!node.children?.length;
   const isInContext = !isFolder && contextPathSet.has(node.path);
   const isActiveFile = !isFolder && !!activeFilePath && node.path === activeFilePath;
+  const FileNodeIcon = getFileIconByName(node.name);
 
   return (
-    <div>
+    <div title={node.path}>
       <button
         type="button"
         onClick={() => {
@@ -205,10 +236,12 @@ function FileTreeNode({
             <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )
         ) : (
-          <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <FileNodeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         )}
 
-        <span className={cn('truncate text-foreground/80', isInContext && 'text-primary')}>
+        <span 
+        className={cn('truncate text-foreground/80', isInContext && 'text-primary')}
+        >
           {node.name}
         </span>
       </button>
