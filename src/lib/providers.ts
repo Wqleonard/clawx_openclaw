@@ -291,7 +291,6 @@ export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
     id: 'qwen3-max:custom-baowenmao',
     model: 'qwen3-max',
     label: 'Qwen3-max',
-    isDefault: true,
   },
   {
     id: 'glm-5:custom-baowenmao',
@@ -302,11 +301,17 @@ export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
     id: 'kimi-k2.5:custom-baowenmao',
     model: 'kimi-k2.5',
     label: 'Kimi-k2.5',
+    isDefault: true,
   },
   {
     id: 'doubao-seed-1.8:custom-baowenmao',
     model: 'doubao-seed-1.8',
     label: 'Doubao-seed-1.8',
+  },
+  {
+    id: 'gpt-5.4:custom-baowenmao',
+    model: 'gpt-5.4',
+    label: 'gpt-5.4',
   },
   // {
   //   id: 'doubao-seed-1.6-flash:custom-baowenmao',
