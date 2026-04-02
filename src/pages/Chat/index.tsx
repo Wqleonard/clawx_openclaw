@@ -99,6 +99,12 @@ function getWorkspaceName(workspacePath: string): string {
   return segments[segments.length - 1] || workspacePath;
 }
 
+function toComparableTimestampMs(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  // Heuristic: chat timestamps are usually seconds; convert to ms.
+  return value < 1_000_000_000_000 ? value * 1000 : value;
+}
+
 export function Chat() {
   const { t } = useTranslation(['chat', 'settings']);
   const navigate = useNavigate();
@@ -525,7 +531,12 @@ export function Chat() {
 
   const streamMsg =
     streamingMessage && typeof streamingMessage === 'object'
-      ? (streamingMessage as unknown as { role?: string; content?: unknown; timestamp?: number })
+      ? (streamingMessage as unknown as {
+          id?: string;
+          role?: string;
+          content?: unknown;
+          timestamp?: number;
+        })
       : null;
   const streamText = streamMsg
     ? extractText(streamMsg)
@@ -540,13 +551,61 @@ export function Chat() {
   const streamImages = streamMsg ? extractImages(streamMsg) : [];
   const hasStreamImages = streamImages.length > 0;
   const hasStreamToolStatus = streamingTools.length > 0;
+  const renderedMessages = useMemo(() => {
+    const deduped: RawMessage[] = [];
+    const seenIds = new Set<string>();
+    for (const msg of messages) {
+      if (msg.id && seenIds.has(msg.id)) {
+        continue;
+      }
+      if (msg.id) {
+        seenIds.add(msg.id);
+      }
+      const prev = deduped[deduped.length - 1];
+      const prevText = prev ? extractText(prev).trim() : '';
+      const currentText = extractText(msg).trim();
+      const prevTs = prev ? toComparableTimestampMs(prev.timestamp) : null;
+      const currentTs = toComparableTimestampMs(msg.timestamp);
+      const isLikelyAdjacentAssistantDuplicate =
+        !!prev &&
+        prev.role === 'assistant' &&
+        msg.role === 'assistant' &&
+        currentText.length > 0 &&
+        currentText === prevText &&
+        (prevTs == null || currentTs == null || Math.abs(currentTs - prevTs) <= 15_000);
+      if (isLikelyAdjacentAssistantDuplicate) {
+        continue;
+      }
+      deduped.push(msg);
+    }
+    return deduped;
+  }, [messages]);
+  const lastRenderedMessage = renderedMessages[renderedMessages.length - 1];
+  const streamId = streamMsg?.id;
+  const lastRenderedId = lastRenderedMessage?.id;
+  const streamTextTrimmed = streamText.trim();
+  const lastRenderedTextTrimmed = lastRenderedMessage ? extractText(lastRenderedMessage).trim() : '';
+  const streamTs = streamMsg ? toComparableTimestampMs(streamMsg.timestamp) : null;
+  const lastRenderedTs = lastRenderedMessage ? toComparableTimestampMs(lastRenderedMessage.timestamp) : null;
+  const isStreamingDuplicateOfLastMessage =
+    (typeof streamId === 'string' &&
+      streamId.length > 0 &&
+      typeof lastRenderedId === 'string' &&
+      lastRenderedId.length > 0 &&
+      streamId === lastRenderedId) ||
+    (!!lastRenderedMessage &&
+      lastRenderedMessage.role === 'assistant' &&
+      streamTextTrimmed.length > 0 &&
+      streamTextTrimmed === lastRenderedTextTrimmed &&
+      (streamTs == null || lastRenderedTs == null || Math.abs(streamTs - lastRenderedTs) <= 15_000));
   const shouldRenderStreaming =
     sending &&
     (hasStreamText ||
       hasStreamThinking ||
       hasStreamTools ||
       hasStreamImages ||
-      hasStreamToolStatus);
+      hasStreamToolStatus) &&
+    !isStreamingDuplicateOfLastMessage;
   const hasAnyStreamContent =
     hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
   const resizeHandleTitle = t('common:actions.resizePanel');
@@ -1222,7 +1281,7 @@ export function Chat() {
                 <WelcomeScreen />
               ) : (
                 <>
-                  {messages.map((msg, idx) => (
+                  {renderedMessages.map((msg, idx) => (
                     <ChatMessage
                       key={msg.id || `msg-${idx}`}
                       message={msg}
