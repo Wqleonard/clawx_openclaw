@@ -541,6 +541,7 @@ function App() {
   useEffect(() => {
     if (!isLoggedIn) return;
     const token = getBusinessAuthToken();
+    console.log(token)
     if (!token) return;
     void ensureBaowenmaoPresetAccounts(token).catch((err) => {
       console.error('Failed to sync Baowenmao preset accounts on startup:', err);
