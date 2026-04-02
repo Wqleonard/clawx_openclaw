@@ -841,12 +841,15 @@ export class GatewayManager extends EventEmitter {
         this.connectionMonitor.clear();
         if (this.status.state === 'running') {
           this.setStatus({ state: 'stopped' });
-          // On Windows, skip reconnect from WS close.  The Gateway is a local
-          // child process; actual crashes are already caught by the process exit
-          // handler (`onExit`) which calls scheduleReconnect().  Triggering
-          // reconnect from WS close as well races with the exit handler and can
-          // cause double start() attempts or port conflicts during TCP TIME_WAIT.
-          if (process.platform !== 'win32') {
+          if (process.platform === 'win32') {
+            // If WS closes while the child process is still alive, relying only
+            // on onExit() leaves the app stuck in stopped state until manual
+            // reconnect. In this case, trigger reconnect proactively.
+            const processStillAlive = !!this.process && this.processExitCode === null;
+            if (processStillAlive) {
+              this.scheduleReconnect();
+            }
+          } else {
             this.scheduleReconnect();
           }
         }
