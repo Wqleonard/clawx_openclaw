@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const REPORTER_PATH = resolve(ROOT, 'resources', 'installer', 'install-success-reporter.cjs');
+const INSTALLER_NSH_PATH = resolve(ROOT, 'scripts', 'installer.nsh');
 const BASE_URL_TOKEN = '__INSTALL_REPORT_BASE_URL__';
 const REPORT_PATH_TOKEN = '__INSTALL_REPORT_PATH__';
 const SHOULD_RESTORE = process.argv.includes('--restore');
@@ -49,21 +50,32 @@ const reporterSource = readFileSync(REPORTER_PATH, 'utf8');
 const restoredSource = reporterSource
   .replace(/const BAKED_BASE_URL = '[^']*'/, `const BAKED_BASE_URL = '${BASE_URL_TOKEN}'`)
   .replace(/const BAKED_REPORT_PATH = '[^']*'/, `const BAKED_REPORT_PATH = '${REPORT_PATH_TOKEN}'`);
+const installerSource = readFileSync(INSTALLER_NSH_PATH, 'utf8');
+const restoredInstallerSource = installerSource
+  .replace(/!define INSTALL_OPEN_BASE_URL ".*"/, `!define INSTALL_OPEN_BASE_URL "${BASE_URL_TOKEN}"`)
+  .replace(/!define INSTALL_OPEN_PATH ".*"/, `!define INSTALL_OPEN_PATH "${REPORT_PATH_TOKEN}"`);
 
 if (SHOULD_RESTORE) {
   writeFileSync(REPORTER_PATH, restoredSource, 'utf8');
+  writeFileSync(INSTALLER_NSH_PATH, restoredInstallerSource, 'utf8');
   console.log('[install-reporter-config] reporter placeholders restored.');
   process.exit(0);
 }
 
 const escapedBaseUrl = baseUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 const escapedReportPath = (reportPath || '/data-analysis-records').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const nshBaseUrl = baseUrl.replace(/"/g, '');
+const nshReportPath = (reportPath || '/data-analysis-records').replace(/"/g, '');
 
 const bakedSource = restoredSource
   .replace(`const BAKED_BASE_URL = '${BASE_URL_TOKEN}'`, `const BAKED_BASE_URL = '${escapedBaseUrl}'`)
   .replace(`const BAKED_REPORT_PATH = '${REPORT_PATH_TOKEN}'`, `const BAKED_REPORT_PATH = '${escapedReportPath}'`);
+const bakedInstallerSource = restoredInstallerSource
+  .replace(`!define INSTALL_OPEN_BASE_URL "${BASE_URL_TOKEN}"`, `!define INSTALL_OPEN_BASE_URL "${nshBaseUrl}"`)
+  .replace(`!define INSTALL_OPEN_PATH "${REPORT_PATH_TOKEN}"`, `!define INSTALL_OPEN_PATH "${nshReportPath}"`);
 
 writeFileSync(REPORTER_PATH, bakedSource, 'utf8');
+writeFileSync(INSTALLER_NSH_PATH, bakedInstallerSource, 'utf8');
 
 if (!baseUrl) {
   console.warn('[install-reporter-config] baked baseUrl is empty; installer will fallback to pending only.');

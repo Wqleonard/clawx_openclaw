@@ -11,10 +11,34 @@
 Var InstallStartTick
 Var InstallReportExitCode
 
+!define INSTALL_OPEN_BASE_URL "__INSTALL_REPORT_BASE_URL__"
+!define INSTALL_OPEN_PATH "__INSTALL_REPORT_PATH__"
+
 !macro customInit
   System::Call 'kernel32::GetTickCount() i .r0'
   StrCpy $InstallStartTick $0
+  Call ReportInstallerOpen
 !macroend
+
+Function ReportInstallerOpen
+  StrCpy $6 "${INSTALL_OPEN_BASE_URL}"
+  StrCmp $6 "" _install_open_done
+  StrCmp $6 "__INSTALL_REPORT_BASE_URL__" _install_open_done
+
+  StrCpy $7 "${INSTALL_OPEN_PATH}"
+  StrCmp $7 "" 0 +2
+  StrCpy $7 "/data-analysis-records"
+
+  StrCpy $8 "$6$7"
+  StrCpy $9 "{$\"event_id$\":$\"evt_open_$InstallStartTick$\",$\"event_name$\":$\"install_open$\",$\"event_time$\":$\"$InstallStartTick$\",$\"payload$\":{$\"app_id$\":$\"${APP_ID}$\",$\"product_name$\":$\"${PRODUCT_NAME}$\",$\"version$\":$\"${VERSION}$\",$\"source$\":$\"nsis_init$\"}}"
+
+  ; Best-effort only: do not block installer UX.
+  inetc::post /SILENT /TIMEOUT 2000 /HEADER "Content-Type: application/json" "$8" "$9" "$TEMP\storyclaw-install-open.http"
+  Pop $0
+  Delete "$TEMP\storyclaw-install-open.http"
+
+  _install_open_done:
+FunctionEnd
 
 Function RunInstallSuccessReport
   System::Call 'kernel32::GetTickCount() i .r0'
