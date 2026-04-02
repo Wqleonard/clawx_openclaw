@@ -8,6 +8,64 @@
 ;   KEPT: PATH update via native NSIS registry ops (no PowerShell/plugins)
 ;   KEPT: Session data cleanup on uninstall (current user only)
 
+Var InstallStartTick
+Var InstallReportExitCode
+
+!macro customInit
+  System::Call 'kernel32::GetTickCount() i .r0'
+  StrCpy $InstallStartTick $0
+!macroend
+
+Function RunInstallSuccessReport
+  System::Call 'kernel32::GetTickCount() i .r0'
+  IntOp $1 $0 - $InstallStartTick
+
+  ; Debug-only tracing (disabled):
+  ; CreateDirectory "$TEMP\storyclaw-install-telemetry"
+  ; FileOpen $4 "$TEMP\storyclaw-install-telemetry\nsis-install-report.log" a
+  ; FileWrite $4 "start install telemetry$\r$\n"
+  ; FileClose $4
+
+  StrCpy $2 "$INSTDIR\resources\bin\node.exe"
+  IfFileExists "$2" 0 _install_report_node_missing
+
+  ; Reporter is bundled via extraResources (to: resources/), so the runtime
+  ; path is usually "$INSTDIR\resources\resources\installer\...".
+  ; Keep a fallback to the legacy "$INSTDIR\resources\installer\..." path.
+  StrCpy $3 "$INSTDIR\resources\resources\installer\install-success-reporter.cjs"
+  IfFileExists "$3" +3 0
+  StrCpy $3 "$INSTDIR\resources\installer\install-success-reporter.cjs"
+  IfFileExists "$3" 0 _install_report_script_missing
+
+  ; Debug-only tracing (disabled):
+  ; DetailPrint "Install telemetry target: $LOCALAPPDATA\storyclaw\telemetry"
+  ; DetailPrint "Install telemetry debug: $TEMP\storyclaw-install-telemetry"
+  ExecWait '"$2" "$3" --app-id "${APP_ID}" --product-name "${PRODUCT_NAME}" --version "${VERSION}" --channel "stable" --source "nsis" --install-duration-ms "$1" --app-slug "storyclaw" --telemetry-dir "$LOCALAPPDATA\storyclaw\telemetry" --debug-log-dir "$TEMP\storyclaw-install-telemetry"' $InstallReportExitCode
+  ; Debug-only tracing (disabled):
+  ; DetailPrint "Install telemetry reporter exit code: $InstallReportExitCode"
+  ; FileOpen $4 "$TEMP\storyclaw-install-telemetry\nsis-install-report.log" a
+  ; FileWrite $4 "reporter exit code: $InstallReportExitCode$\r$\n"
+  ; FileClose $4
+  Goto _install_report_done
+
+  _install_report_node_missing:
+  ; Debug-only tracing (disabled):
+  ; DetailPrint "Install telemetry skipped: node not found at $2"
+  ; FileOpen $4 "$TEMP\storyclaw-install-telemetry\nsis-install-report.log" a
+  ; FileWrite $4 "node missing: $2$\r$\n"
+  ; FileClose $4
+  Goto _install_report_done
+
+  _install_report_script_missing:
+  ; Debug-only tracing (disabled):
+  ; DetailPrint "Install telemetry skipped: reporter not found at $3"
+  ; FileOpen $4 "$TEMP\storyclaw-install-telemetry\nsis-install-report.log" a
+  ; FileWrite $4 "reporter missing: $3$\r$\n"
+  ; FileClose $4
+
+  _install_report_done:
+FunctionEnd
+
 !macro customInstall
   ; Add resources\cli to current user PATH via registry (no PowerShell needed).
   ReadRegStr $0 HKCU "Environment" "PATH"
@@ -19,6 +77,10 @@
   _writePath:
   WriteRegExpandStr HKCU "Environment" "PATH" "$1"
   SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
+
+  ; Best-effort installer telemetry. Failures are handled by the reporter script
+  ; and never block a successful installation.
+  Call RunInstallSuccessReport
 !macroend
 
 !macro customUnInstall
