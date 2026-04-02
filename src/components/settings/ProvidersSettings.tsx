@@ -41,6 +41,7 @@ import {
   shouldShowProviderModelId,
   shouldInvertInDark,
   BAOWENMAO_PRESET_ACCOUNTS,
+  MANAGED_GOOGLE_PRESET_ACCOUNTS,
 } from '@/lib/providers';
 import {
   buildProviderAccountId,
@@ -59,6 +60,10 @@ import { subscribeHostEvent } from '@/lib/host-events';
 const inputClasses = 'h-[44px] rounded-xl font-mono text-[13px] bg-[#eeece3] dark:bg-muted border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-black/20 dark:focus-visible:ring-white/20 focus-visible:border-black/30 dark:focus-visible:border-white/30 shadow-sm transition-all text-foreground placeholder:text-foreground/40';
 const labelClasses = 'text-[14px] text-foreground/80 font-bold';
 type ArkMode = 'apikey' | 'codeplan';
+const BUILTIN_MANAGED_ACCOUNT_IDS = new Set([
+  ...BAOWENMAO_PRESET_ACCOUNTS.map((preset) => preset.id),
+  ...MANAGED_GOOGLE_PRESET_ACCOUNTS.map((preset) => preset.id),
+]);
 
 function normalizeFallbackProviderIds(ids?: string[]): string[] {
   return Array.from(new Set((ids ?? []).filter(Boolean)));
@@ -71,6 +76,10 @@ function getProtocolBaseUrlPlaceholder(
     return 'https://api.example.com/anthropic';
   }
   return 'https://api.example.com/v1';
+}
+
+function isBuiltinManagedPresetAccount(accountId: string): boolean {
+  return BUILTIN_MANAGED_ACCOUNT_IDS.has(accountId);
 }
 
 function fallbackProviderIdsEqual(a?: string[], b?: string[]): boolean {
@@ -179,15 +188,11 @@ export function ProvidersSettings() {
     [accounts, statuses, vendors, defaultAccountId],
   );
   const builtinProviders = useMemo(
-    () => displayProviders.filter((item) =>
-      BAOWENMAO_PRESET_ACCOUNTS.some((preset) => preset.id === item.account.id)
-    ),
+    () => displayProviders.filter((item) => isBuiltinManagedPresetAccount(item.account.id)),
     [displayProviders],
   );
   const customProviders = useMemo(
-    () => displayProviders.filter((item) =>
-      !BAOWENMAO_PRESET_ACCOUNTS.some((preset) => preset.id === item.account.id)
-    ),
+    () => displayProviders.filter((item) => !isBuiltinManagedPresetAccount(item.account.id)),
     [displayProviders],
   );
 
@@ -467,8 +472,7 @@ export function ProvidersSettings() {
           const [saving, setSaving] = useState(false);
           const [arkMode, setArkMode] = useState<ArkMode>('apikey');
 
-            const isBaowenmaoPreset = account.vendorId === 'baowenmao'
-    && BAOWENMAO_PRESET_ACCOUNTS.some((p) => p.id === account.id);
+            const isManagedPreset = isBuiltinManagedPresetAccount(account.id);
   const typeInfo = PROVIDER_TYPE_INFO.find((t) => t.id === account.vendorId);
             const providerDocsUrl = getProviderDocsUrl(typeInfo, i18n.language);
             const showModelIdField = shouldShowProviderModelId(typeInfo, devModeUnlocked);
@@ -600,7 +604,7 @@ export function ProvidersSettings() {
                 const currentLabelClasses = isDefault ? "text-[13px] text-muted-foreground" : labelClasses;
                 const currentSectionLabelClasses = isDefault ? "text-[14px] font-bold text-foreground/80" : labelClasses;
                 const displayName = account.label;
-                const canShowDeleteAction = Boolean(onDelete) && !isBaowenmaoPreset;
+                const canShowDeleteAction = Boolean(onDelete) && !isManagedPreset;
 
                 return (
                 <div
@@ -676,7 +680,7 @@ export function ProvidersSettings() {
                         'absolute flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
                         'right-20 top-1/2 -translate-y-1/2'
                       )}>
-                        {isEditable && !isBaowenmaoPreset && (
+                        {isEditable && !isManagedPreset && (
                           <Button
                             variant="ghost"
                             size="icon"

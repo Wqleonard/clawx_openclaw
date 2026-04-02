@@ -44,7 +44,7 @@ export interface ProviderConfig {
   name: string;
   type: ProviderType;
   baseUrl?: string;
-  apiProtocol?: 'openai-completions' | 'openai-responses' | 'anthropic-messages';
+  apiProtocol?: 'openai-completions' | 'openai-responses' | 'anthropic-messages' | 'google-generative-ai';
   headers?: Record<string, string>;
   model?: string;
   fallbackModels?: string[];
@@ -101,13 +101,20 @@ export interface BaowenmaoPresetAccount {
   isDefault?: boolean;
 }
 
+export interface ManagedGooglePresetAccount {
+  id: string;
+  model: string;
+  label: string;
+  isDefault?: boolean;
+}
+
 export interface ProviderAccount {
   id: string;
   vendorId: ProviderType;
   label: string;
   authMode: ProviderAuthMode;
   baseUrl?: string;
-  apiProtocol?: 'openai-completions' | 'openai-responses' | 'anthropic-messages';
+  apiProtocol?: 'openai-completions' | 'openai-responses' | 'anthropic-messages' | 'google-generative-ai';
   headers?: Record<string, string>;
   model?: string;
   fallbackModels?: string[];
@@ -318,6 +325,26 @@ export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
   //   model: 'doubao-seed-1.6-flash',
   //   label: 'Doubao-seed-1.6-flash',
   // },
+];
+
+/** Managed Google proxy accounts that are auto-managed by the app */
+export const MANAGED_GOOGLE_PRESET_ACCOUNTS: ManagedGooglePresetAccount[] = [
+  {
+    id: 'gemini-3.1-flash-lite-preview:managed-google',
+    model: 'gemini-3.1-flash-lite-preview',
+    label: '沉思者3.1 flash',
+  },
+  {
+    id: 'gemini-2.5-flash-lite-preview-09-2025:managed-google',
+    model: 'gemini-2.5-flash-lite-preview-09-2025',
+    label: '沉思者2.5 flash',
+  },
+  {
+    id: 'gemini-3.1-pro-preview:managed-google',
+    model: 'gemini-3.1-pro-preview',
+    label: '沉思者3.1 pro',
+    isDefault: true,
+  },
 ];
 
 /** Get the SVG logo URL for a provider type, falls back to undefined */

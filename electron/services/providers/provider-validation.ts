@@ -90,6 +90,9 @@ function getValidationProfile(
   options?: { apiProtocol?: string }
 ): ValidationProfile {
   const providerApi = options?.apiProtocol || getProviderConfig(providerType)?.api;
+  if (providerApi === 'google-generative-ai') {
+    return 'google-query-key';
+  }
   if (providerApi === 'anthropic-messages') {
     return 'anthropic-header';
   }

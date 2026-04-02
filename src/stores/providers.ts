@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import type {
   BaowenmaoPresetAccount,
+  ManagedGooglePresetAccount,
   ProviderAccount,
   ProviderConfig,
   ProviderVendorInfo,
@@ -12,6 +13,7 @@ import type {
 } from '@/lib/providers';
 import {
   BAOWENMAO_PRESET_ACCOUNTS,
+  MANAGED_GOOGLE_PRESET_ACCOUNTS,
 } from '@/lib/providers';
 import { hostApiFetch } from '@/lib/host-api';
 import {
@@ -92,9 +94,12 @@ interface ProviderState {
    * 对预置账号执行 upsert、启用，并设置预置默认账号。
    */
   ensureBaowenmaoPresetAccounts: (apiKey: string) => Promise<void>;
+  /** 登录后把业务 token 同步到 Google 受管代理账号。 */
+  ensureManagedGoogleProxyAccount: (apiKey: string) => Promise<void>;
 }
 
 const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions';
+const MANAGED_GOOGLE_PROTOCOL: ProviderAccount['apiProtocol'] = 'google-generative-ai';
 
 function resolveBusinessApiBaseUrl(): string {
   const raw = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? '';
@@ -402,6 +407,89 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     }
     // 模型切换通过“切换默认 provider 账号”来实现。
     await get().setDefaultAccount(accountId);
+  },
+
+  ensureManagedGoogleProxyAccount: async (apiKey) => {
+    const baseUrl = resolveBusinessApiBaseUrl();
+    if (!baseUrl) {
+      throw new Error('VITE_BUSINESS_API_BASE_URL is not configured');
+    }
+
+    const now = new Date().toISOString();
+    const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts');
+    const upsertPreset = async (preset: ManagedGooglePresetAccount): Promise<void> => {
+      const existing = accounts.find((account) => account.id === preset.id);
+      const payload: ProviderAccount = {
+        id: preset.id,
+        vendorId: 'google',
+        label: preset.label,
+        authMode: 'api_key',
+        baseUrl,
+        apiProtocol: MANAGED_GOOGLE_PROTOCOL,
+        model: preset.model,
+        enabled: true,
+        isDefault: false,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+
+      if (existing) {
+        const updateResult = await hostApiFetch<{ success: boolean; error?: string }>(
+          `/api/provider-accounts/${encodeURIComponent(preset.id)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              updates: {
+                label: payload.label,
+                authMode: payload.authMode,
+                baseUrl: payload.baseUrl,
+                apiProtocol: payload.apiProtocol,
+                model: payload.model,
+                enabled: payload.enabled,
+              },
+              apiKey,
+            }),
+          }
+        );
+        if (!updateResult.success) {
+          throw new Error(updateResult.error || `Failed to update managed Google provider ${preset.id}`);
+        }
+      } else {
+        const createResult = await hostApiFetch<{ success: boolean; error?: string }>('/api/provider-accounts', {
+          method: 'POST',
+          body: JSON.stringify({ account: payload, apiKey }),
+        });
+        if (!createResult.success) {
+          throw new Error(createResult.error || `Failed to create managed Google provider ${preset.id}`);
+        }
+      }
+    };
+
+    for (const preset of MANAGED_GOOGLE_PRESET_ACCOUNTS) {
+      await upsertPreset(preset);
+    }
+
+    const LEGACY_MANAGED_GOOGLE_IDS = new Set(['google:managed-business']);
+    const staleLegacyAccounts = accounts.filter((account) => LEGACY_MANAGED_GOOGLE_IDS.has(account.id));
+    for (const stale of staleLegacyAccounts) {
+      await hostApiFetch<{ success: boolean }>(`/api/provider-accounts/${encodeURIComponent(stale.id)}`, {
+        method: 'DELETE',
+      });
+    }
+
+    const currentPresetIds = new Set(MANAGED_GOOGLE_PRESET_ACCOUNTS.map((p) => p.id));
+    const staleManagedAccounts = accounts.filter(
+      (account) => account.vendorId === 'google'
+        && account.id.endsWith(':managed-google')
+        && !currentPresetIds.has(account.id)
+    );
+    for (const stale of staleManagedAccounts) {
+      await hostApiFetch<{ success: boolean }>(`/api/provider-accounts/${encodeURIComponent(stale.id)}`, {
+        method: 'DELETE',
+      });
+    }
+
+    await get().refreshProviderSnapshot();
   },
 
   ensureBaowenmaoPresetAccounts: async (apiKey) => {

@@ -499,6 +499,7 @@ function App() {
   const authBootstrapDone = useLoginStore((state) => state.authBootstrapDone);
   const initAuthBootstrap = useLoginStore((state) => state.initAuthBootstrap);
   const ensureBaowenmaoPresetAccounts = useProviderStore((state) => state.ensureBaowenmaoPresetAccounts);
+  const ensureManagedGoogleProxyAccount = useProviderStore((state) => state.ensureManagedGoogleProxyAccount);
 
   const initProviders = useProviderStore((state) => state.init);
 
@@ -541,12 +542,14 @@ function App() {
   useEffect(() => {
     if (!isLoggedIn) return;
     const token = getBusinessAuthToken();
-    console.log(token)
     if (!token) return;
+    void ensureManagedGoogleProxyAccount(token).catch((err) => {
+      console.error('Failed to sync managed Google proxy account on startup:', err);
+    });
     void ensureBaowenmaoPresetAccounts(token).catch((err) => {
       console.error('Failed to sync Baowenmao preset accounts on startup:', err);
     });
-  }, [isLoggedIn, ensureBaowenmaoPresetAccounts]);
+  }, [isLoggedIn, ensureBaowenmaoPresetAccounts, ensureManagedGoogleProxyAccount]);
 
   // Routing guard: Login → Setup → Main
   useEffect(() => {
