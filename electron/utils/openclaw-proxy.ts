@@ -1,43 +1,63 @@
 import { readOpenClawConfig, writeOpenClawConfig } from './channel-config';
 import { resolveProxySettings, type ProxySettings } from './proxy';
 import { logger } from './logger';
+import { withConfigLock } from './config-mutex';
+
+interface SyncProxyOptions {
+  /**
+   * When true, keep an existing channels.telegram.proxy value if proxy is
+   * currently disabled in ClawX settings.
+   */
+  preserveExistingWhenDisabled?: boolean;
+}
 
 /**
  * Sync ClawX global proxy settings into OpenClaw channel config where the
  * upstream runtime expects an explicit per-channel proxy knob.
  */
-export async function syncProxyConfigToOpenClaw(settings: ProxySettings): Promise<void> {
-  const config = await readOpenClawConfig();
-  const telegramConfig = config.channels?.telegram;
+export async function syncProxyConfigToOpenClaw(
+  settings: ProxySettings,
+  options: SyncProxyOptions = {},
+): Promise<void> {
+  return withConfigLock(async () => {
+    const config = await readOpenClawConfig();
+    const telegramConfig = config.channels?.telegram;
 
-  if (!telegramConfig) {
-    return;
-  }
+    if (!telegramConfig) {
+      return;
+    }
 
-  const resolved = resolveProxySettings(settings);
-  const nextProxy = settings.proxyEnabled
-    ? (resolved.allProxy || resolved.httpsProxy || resolved.httpProxy)
-    : '';
-  const currentProxy = typeof telegramConfig.proxy === 'string' ? telegramConfig.proxy : '';
+    const resolved = resolveProxySettings(settings);
+    const preserveExistingWhenDisabled = options.preserveExistingWhenDisabled !== false;
+    const nextProxy = settings.proxyEnabled
+      ? (resolved.allProxy || resolved.httpsProxy || resolved.httpProxy)
+      : '';
+    const currentProxy = typeof telegramConfig.proxy === 'string' ? telegramConfig.proxy : '';
 
-  if (!nextProxy && !currentProxy) {
-    return;
-  }
+    if (!settings.proxyEnabled && preserveExistingWhenDisabled && currentProxy) {
+      logger.info('Skipped Telegram proxy sync because ClawX proxy is disabled and preserve mode is enabled');
+      return;
+    }
 
-  if (!config.channels) {
-    config.channels = {};
-  }
+    if (!nextProxy && !currentProxy) {
+      return;
+    }
 
-  config.channels.telegram = {
-    ...telegramConfig,
-  };
+    if (!config.channels) {
+      config.channels = {};
+    }
 
-  if (nextProxy) {
-    config.channels.telegram.proxy = nextProxy;
-  } else {
-    delete config.channels.telegram.proxy;
-  }
+    config.channels.telegram = {
+      ...telegramConfig,
+    };
 
-  await writeOpenClawConfig(config);
-  logger.info(`Synced Telegram proxy to OpenClaw config (${nextProxy || 'disabled'})`);
+    if (nextProxy) {
+      config.channels.telegram.proxy = nextProxy;
+    } else {
+      delete config.channels.telegram.proxy;
+    }
+
+    await writeOpenClawConfig(config);
+    logger.info(`Synced Telegram proxy to OpenClaw config (${nextProxy || 'disabled'})`);
+  });
 }

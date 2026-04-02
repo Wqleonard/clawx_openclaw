@@ -97,6 +97,7 @@ import {
   type ProviderAccount,
   type ProviderType,
   type ProviderTypeInfo,
+  getProviderDocsUrl,
   getProviderIconUrl,
   resolveProviderApiKeyForSave,
   resolveProviderModelForSave,
@@ -110,9 +111,19 @@ import {
   pickPreferredAccount,
 } from '@/lib/provider-accounts';
 import clawxIcon from '@/assets/logo.svg';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 
 // Use the shared provider registry for setup providers
 const providers = SETUP_PROVIDERS;
+
+function getProtocolBaseUrlPlaceholder(
+  apiProtocol: ProviderAccount['apiProtocol'],
+): string {
+  if (apiProtocol === 'anthropic-messages') {
+    return 'https://api.example.com/anthropic';
+  }
+  return 'https://api.example.com/v1';
+}
 
 // NOTE: Channel types moved to Settings > Channels page
 // NOTE: Skill bundles moved to Settings > Skills page - auto-install essential skills during setup
@@ -316,7 +327,7 @@ function WelcomeContent() {
   return (
     <div className="text-center space-y-4">
       <div className="mb-4 flex justify-center">
-        <img src={clawxIcon} alt="ClawX" className="h-16 w-16" />
+        <img src={clawxIcon} alt={APP_DISPLAY_NAME} className="h-16 w-16" />
       </div>
       <h2 className="text-xl font-semibold">{t('welcome.title')}</h2>
       <p className="text-muted-foreground">
@@ -696,6 +707,16 @@ interface ProviderContentProps {
   onConfiguredChange: (configured: boolean) => void;
 }
 
+type ProviderConnectionMode = 'personal' | 'managed';
+
+interface ManagedOpenClawConfig {
+  enabled: boolean;
+  baseUrl: string | null;
+  apiKey: string | null;
+  modelId?: string | null;
+  apiProtocol?: ProviderAccount['apiProtocol'] | null;
+}
+
 function ProviderContent({
   providers,
   selectedProvider,
@@ -704,18 +725,24 @@ function ProviderContent({
   onApiKeyChange,
   onConfiguredChange,
 }: ProviderContentProps) {
-  const { t } = useTranslation(['setup', 'settings']);
+  const { t, i18n } = useTranslation(['setup', 'settings']);
   const devModeUnlocked = useSettingsStore((state) => state.devModeUnlocked);
   const [showKey, setShowKey] = useState(false);
   const [validating, setValidating] = useState(false);
   const [keyValid, setKeyValid] = useState<boolean | null>(null);
+  const [connectionMode, setConnectionMode] = useState<ProviderConnectionMode>('personal');
+  const [managedConfig, setManagedConfig] = useState<ManagedOpenClawConfig | null>(null);
+  const [loadingManagedConfig, setLoadingManagedConfig] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [baseUrl, setBaseUrl] = useState('');
   const [modelId, setModelId] = useState('');
+  const [apiProtocol, setApiProtocol] = useState<ProviderAccount['apiProtocol']>('openai-completions');
   const [providerMenuOpen, setProviderMenuOpen] = useState(false);
   const providerMenuRef = useRef<HTMLDivElement | null>(null);
-
   const [authMode, setAuthMode] = useState<'oauth' | 'apikey'>('oauth');
+  const isManagedMode = connectionMode === 'managed';
+  const [arkMode, setArkMode] = useState<'apikey' | 'codeplan'>('apikey');
+
 
   // OAuth Flow State
   const [oauthFlowing, setOauthFlowing] = useState(false);
@@ -900,11 +927,63 @@ function ProviderContent({
     return () => { cancelled = true; };
   }, [onApiKeyChange, onConfiguredChange, onSelectProvider, providers]);
 
+  const loadManagedConfig = useCallback(async (): Promise<ManagedOpenClawConfig | null> => {
+    setLoadingManagedConfig(true);
+    try {
+      const result = await hostApiFetch<ManagedOpenClawConfig>('/api/providers/managed-openclaw');
+      setManagedConfig(result);
+      return result;
+    } catch (error) {
+      setManagedConfig(null);
+      toast.error(`Failed to load managed OpenClaw config: ${String(error)}`);
+      return null;
+    } finally {
+      setLoadingManagedConfig(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isManagedMode) return;
+
+    let cancelled = false;
+    (async () => {
+      const config = managedConfig ?? await loadManagedConfig();
+      if (cancelled) return;
+      if (!config?.enabled || !config.baseUrl || !config.apiKey) {
+        onConfiguredChange(false);
+        setKeyValid(false);
+        return;
+      }
+
+      if (selectedProvider !== 'custom') {
+        onSelectProvider('custom');
+      }
+      setAuthMode('apikey');
+      setBaseUrl(config.baseUrl);
+      setModelId(config.modelId || '');
+      setApiProtocol(config.apiProtocol || 'openai-completions');
+      onApiKeyChange(config.apiKey);
+      onConfiguredChange(false);
+      setKeyValid(null);
+    })();
+
+    return () => { cancelled = true; };
+  }, [
+    isManagedMode,
+    managedConfig,
+    loadManagedConfig,
+    onApiKeyChange,
+    onConfiguredChange,
+    onSelectProvider,
+    selectedProvider,
+  ]);
+
   // When provider changes, load stored key + reset base URL
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!selectedProvider) return;
+      setApiProtocol('openai-completions');
       try {
         const snapshot = await fetchProviderSnapshot();
         const statusMap = new Map(snapshot.statuses.map((status) => [status.id, status]));
@@ -917,7 +996,7 @@ function ProviderContent({
         const accountIdForLoad = preferredAccount?.id || selectedProvider;
         setSelectedAccountId(preferredAccount?.id || null);
 
-        const savedProvider = await hostApiFetch<{ baseUrl?: string; model?: string } | null>(
+        const savedProvider = await hostApiFetch<{ baseUrl?: string; model?: string; apiProtocol?: ProviderAccount['apiProtocol'] } | null>(
           `/api/providers/${encodeURIComponent(accountIdForLoad)}`,
         );
         const storedKey = (await hostApiFetch<{ apiKey: string | null }>(
@@ -927,8 +1006,22 @@ function ProviderContent({
           onApiKeyChange(storedKey || '');
 
           const info = providers.find((p) => p.id === selectedProvider);
-          setBaseUrl(savedProvider?.baseUrl || info?.defaultBaseUrl || '');
-          setModelId(savedProvider?.model || info?.defaultModelId || '');
+          const nextBaseUrl = savedProvider?.baseUrl || info?.defaultBaseUrl || '';
+          const nextModelId = savedProvider?.model || info?.defaultModelId || '';
+          setBaseUrl(nextBaseUrl);
+          setModelId(nextModelId);
+          setApiProtocol(savedProvider?.apiProtocol || 'openai-completions');
+          if (
+            selectedProvider === 'ark'
+            && info?.codePlanPresetBaseUrl
+            && info?.codePlanPresetModelId
+            && nextBaseUrl.trim() === info.codePlanPresetBaseUrl
+            && nextModelId.trim() === info.codePlanPresetModelId
+          ) {
+            setArkMode('codeplan');
+          } else {
+            setArkMode('apikey');
+          }
         }
       } catch (error) {
         if (!cancelled) {
@@ -963,15 +1056,25 @@ function ProviderContent({
   }, [providerMenuOpen]);
 
   const selectedProviderData = providers.find((p) => p.id === selectedProvider);
+  const providerDocsUrl = getProviderDocsUrl(selectedProviderData, i18n.language);
+  const effectiveProviderDocsUrl = selectedProvider === 'ark' && arkMode === 'codeplan'
+    ? (selectedProviderData?.codePlanDocsUrl || providerDocsUrl)
+    : providerDocsUrl;
   const selectedProviderIconUrl = selectedProviderData
     ? getProviderIconUrl(selectedProviderData.id)
     : undefined;
   const showBaseUrlField = selectedProviderData?.showBaseUrl ?? false;
   const showModelIdField = shouldShowProviderModelId(selectedProviderData, devModeUnlocked);
+  const codePlanPreset = selectedProviderData?.codePlanPresetBaseUrl && selectedProviderData?.codePlanPresetModelId
+    ? {
+      baseUrl: selectedProviderData.codePlanPresetBaseUrl,
+      modelId: selectedProviderData.codePlanPresetModelId,
+    }
+    : null;
   const requiresKey = selectedProviderData?.requiresApiKey ?? false;
   const isOAuth = selectedProviderData?.isOAuth ?? false;
   const supportsApiKey = selectedProviderData?.supportsApiKey ?? false;
-  const useOAuthFlow = isOAuth && (!supportsApiKey || authMode === 'oauth');
+  const useOAuthFlow = !isManagedMode && isOAuth && (!supportsApiKey || authMode === 'oauth');
 
   const handleValidateAndSave = async () => {
     if (!selectedProvider) return;
@@ -995,14 +1098,30 @@ function ProviderContent({
     setKeyValid(null);
 
     try {
+      const managedApiKey = isManagedMode ? (managedConfig?.apiKey || '') : apiKey;
+      const managedBaseUrl = isManagedMode ? (managedConfig?.baseUrl || '') : baseUrl;
+      const managedModelId = isManagedMode ? (managedConfig?.modelId || modelId) : modelId;
+      const managedProtocol = isManagedMode
+        ? (managedConfig?.apiProtocol || apiProtocol)
+        : apiProtocol;
+
+      if (isManagedMode && (!managedConfig?.enabled || !managedApiKey || !managedBaseUrl)) {
+        throw new Error(t('provider.managedConfigMissing'));
+      }
+
       // Validate key if the provider requires one and a key was entered
       const isApiKeyRequired = requiresKey || (supportsApiKey && authMode === 'apikey');
-      if (isApiKeyRequired && apiKey) {
+      if (isApiKeyRequired && managedApiKey) {
         const result = await invokeIpc(
           'provider:validateKey',
           selectedAccountId || selectedProvider,
-          apiKey,
-          { baseUrl: baseUrl.trim() || undefined }
+          managedApiKey,
+          {
+            baseUrl: managedBaseUrl.trim() || undefined,
+            apiProtocol: (selectedProvider === 'custom' || selectedProvider === 'ollama')
+              ? managedProtocol
+              : undefined,
+          }
         ) as { valid: boolean; error?: string };
 
         setKeyValid(result.valid);
@@ -1018,7 +1137,7 @@ function ProviderContent({
 
       const effectiveModelId = resolveProviderModelForSave(
         selectedProviderData,
-        modelId,
+        managedModelId,
         devModeUnlocked
       );
       const snapshot = await fetchProviderSnapshot();
@@ -1028,7 +1147,7 @@ function ProviderContent({
         snapshot.vendors,
       );
 
-      const effectiveApiKey = resolveProviderApiKeyForSave(selectedProvider, apiKey);
+      const effectiveApiKey = resolveProviderApiKeyForSave(selectedProvider, managedApiKey);
       const accountPayload: ProviderAccount = {
         id: accountIdForSave,
         vendorId: selectedProvider as ProviderType,
@@ -1038,7 +1157,10 @@ function ProviderContent({
         authMode: selectedProvider === 'ollama'
           ? 'local'
           : 'api_key',
-        baseUrl: baseUrl.trim() || undefined,
+        baseUrl: managedBaseUrl.trim() || undefined,
+        apiProtocol: (selectedProvider === 'custom' || selectedProvider === 'ollama')
+          ? managedProtocol
+          : undefined,
         model: effectiveModelId,
         enabled: true,
         isDefault: false,
@@ -1056,6 +1178,7 @@ function ProviderContent({
                 label: accountPayload.label,
                 authMode: accountPayload.authMode,
                 baseUrl: accountPayload.baseUrl,
+                apiProtocol: accountPayload.apiProtocol,
                 model: accountPayload.model,
                 enabled: accountPayload.enabled,
               },
@@ -1098,13 +1221,15 @@ function ProviderContent({
 
   // Can the user submit?
   const isApiKeyRequired = requiresKey || (supportsApiKey && authMode === 'apikey');
+  const managedReady = Boolean(managedConfig?.enabled && managedConfig.baseUrl && managedConfig.apiKey);
   const canSubmit =
     selectedProvider
-    && (isApiKeyRequired ? apiKey.length > 0 : true)
-    && (showModelIdField ? modelId.trim().length > 0 : true)
+    && (isManagedMode ? managedReady : (isApiKeyRequired ? apiKey.length > 0 : true))
+    && (isManagedMode ? true : (showModelIdField ? modelId.trim().length > 0 : true))
     && !useOAuthFlow;
 
   const handleSelectProvider = (providerId: string) => {
+    if (isManagedMode) return;
     onSelectProvider(providerId);
     setSelectedAccountId(null);
     onConfiguredChange(false);
@@ -1112,23 +1237,84 @@ function ProviderContent({
     setKeyValid(null);
     setProviderMenuOpen(false);
     setAuthMode('oauth');
+    setArkMode('apikey');
   };
 
   return (
     <div className="space-y-6">
+      <div className="space-y-2">
+        <Label>{t('provider.connectionMode')}</Label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setConnectionMode('personal')}
+            className={cn(
+              'rounded-md border px-3 py-2 text-left text-sm transition-colors',
+              !isManagedMode
+                ? 'border-primary bg-primary/10'
+                : 'border-border bg-muted/30 hover:bg-muted/50'
+            )}
+          >
+            <div className="font-medium">{t('provider.connectionModes.personal')}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {t('provider.connectionModes.personalDesc')}
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setConnectionMode('managed')}
+            className={cn(
+              'rounded-md border px-3 py-2 text-left text-sm transition-colors',
+              isManagedMode
+                ? 'border-primary bg-primary/10'
+                : 'border-border bg-muted/30 hover:bg-muted/50'
+            )}
+          >
+            <div className="font-medium">{t('provider.connectionModes.managed')}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {t('provider.connectionModes.managedDesc')}
+            </div>
+          </button>
+        </div>
+        {isManagedMode && (
+          <p className={cn('text-xs', managedReady ? 'text-muted-foreground' : 'text-red-400')}>
+            {loadingManagedConfig
+              ? t('provider.managedConfigLoading')
+              : managedReady
+                ? t('provider.managedConfigReady')
+                : t('provider.managedConfigMissing')}
+          </p>
+        )}
+      </div>
+
       {/* Provider selector — dropdown */}
       <div className="space-y-2">
-        <Label>{t('provider.label')}</Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label>{t('provider.label')}</Label>
+          {selectedProvider && effectiveProviderDocsUrl && (
+            <a
+              href={effectiveProviderDocsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[13px] text-blue-500 hover:text-blue-600 font-medium inline-flex items-center gap-1"
+            >
+              {t('settings:aiProviders.dialog.customDoc')}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
         <div className="relative" ref={providerMenuRef}>
           <button
             type="button"
             aria-haspopup="listbox"
             aria-expanded={providerMenuOpen}
+            disabled={isManagedMode}
             onClick={() => setProviderMenuOpen((open) => !open)}
             className={cn(
               'w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
               'flex items-center justify-between gap-2',
-              'focus:outline-none focus:ring-2 focus:ring-ring'
+              'focus:outline-none focus:ring-2 focus:ring-ring',
+              isManagedMode && 'cursor-not-allowed opacity-70'
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -1205,6 +1391,68 @@ function ProviderContent({
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4"
         >
+          {codePlanPreset && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label>{t('provider.codePlanPreset')}</Label>
+                {selectedProviderData?.codePlanDocsUrl && (
+                  <a
+                    href={selectedProviderData.codePlanDocsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[13px] text-blue-500 hover:text-blue-600 font-medium inline-flex items-center gap-1"
+                  >
+                    {t('provider.codePlanDoc')}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+              <div className="flex gap-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArkMode('apikey');
+                    setBaseUrl(selectedProviderData?.defaultBaseUrl || '');
+                    if (modelId.trim() === codePlanPreset.modelId) {
+                      setModelId(selectedProviderData?.defaultModelId || '');
+                    }
+                    onConfiguredChange(false);
+                  }}
+                  className={cn(
+                    'flex-1 py-2 px-3 rounded-lg border transition-colors',
+                    arkMode === 'apikey'
+                      ? 'bg-primary/10 border-primary/30 font-medium'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {t('settings:aiProviders.authModes.apiKey')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArkMode('codeplan');
+                    setBaseUrl(codePlanPreset.baseUrl);
+                    setModelId(codePlanPreset.modelId);
+                    onConfiguredChange(false);
+                  }}
+                  className={cn(
+                    'flex-1 py-2 px-3 rounded-lg border transition-colors',
+                    arkMode === 'codeplan'
+                      ? 'bg-primary/10 border-primary/30 font-medium'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {t('provider.codePlanMode')}
+                </button>
+              </div>
+              {arkMode === 'codeplan' && (
+                <p className="text-xs text-muted-foreground">
+                  {t('provider.codePlanPresetDesc')}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Base URL field (for siliconflow, ollama, custom) */}
           {showBaseUrlField && (
             <div className="space-y-2">
@@ -1212,8 +1460,9 @@ function ProviderContent({
               <Input
                 id="baseUrl"
                 type="text"
-                placeholder="https://api.example.com/v1"
+                placeholder={getProtocolBaseUrlPlaceholder(apiProtocol)}
                 value={baseUrl}
+                disabled={isManagedMode}
                 onChange={(e) => {
                   setBaseUrl(e.target.value);
                   onConfiguredChange(false);
@@ -1233,6 +1482,7 @@ function ProviderContent({
                 type="text"
                 placeholder={selectedProviderData?.modelIdPlaceholder || 'e.g. deepseek-ai/DeepSeek-V3'}
                 value={modelId}
+                disabled={isManagedMode}
                 onChange={(e) => {
                   setModelId(e.target.value);
                   onConfiguredChange(false);
@@ -1246,8 +1496,64 @@ function ProviderContent({
             </div>
           )}
 
+          {selectedProvider === 'custom' && (
+            <div className="space-y-2">
+              <Label>{t('provider.protocol')}</Label>
+              <div className="flex gap-2 text-sm">
+                <button
+                  type="button"
+                  disabled={isManagedMode}
+                  onClick={() => {
+                    setApiProtocol('openai-completions');
+                    onConfiguredChange(false);
+                  }}
+                  className={cn(
+                    'flex-1 py-2 px-3 rounded-lg border transition-colors',
+                    apiProtocol === 'openai-completions'
+                      ? 'bg-primary/10 border-primary/30 font-medium'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {t('provider.protocols.openaiCompletions')}
+                </button>
+                <button
+                  type="button"
+                  disabled={isManagedMode}
+                  onClick={() => {
+                    setApiProtocol('openai-responses');
+                    onConfiguredChange(false);
+                  }}
+                  className={cn(
+                    'flex-1 py-2 px-3 rounded-lg border transition-colors',
+                    apiProtocol === 'openai-responses'
+                      ? 'bg-primary/10 border-primary/30 font-medium'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {t('provider.protocols.openaiResponses')}
+                </button>
+                <button
+                  type="button"
+                  disabled={isManagedMode}
+                  onClick={() => {
+                    setApiProtocol('anthropic-messages');
+                    onConfiguredChange(false);
+                  }}
+                  className={cn(
+                    'flex-1 py-2 px-3 rounded-lg border transition-colors',
+                    apiProtocol === 'anthropic-messages'
+                      ? 'bg-primary/10 border-primary/30 font-medium'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {t('provider.protocols.anthropic')}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Auth mode toggle for providers supporting both */}
-          {isOAuth && supportsApiKey && (
+          {isOAuth && supportsApiKey && !isManagedMode && (
             <div className="flex rounded-lg border overflow-hidden text-sm">
               <button
                 onClick={() => setAuthMode('oauth')}
@@ -1280,6 +1586,7 @@ function ProviderContent({
                   type={showKey ? 'text' : 'password'}
                   placeholder={selectedProviderData?.placeholder}
                   value={apiKey}
+                  readOnly={isManagedMode}
                   onChange={(e) => {
                     onApiKeyChange(e.target.value);
                     onConfiguredChange(false);
@@ -1290,6 +1597,7 @@ function ProviderContent({
                 />
                 <button
                   type="button"
+                  disabled={isManagedMode}
                   onClick={() => setShowKey(!showKey)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
@@ -1437,7 +1745,9 @@ function ProviderContent({
             {validating ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : null}
-            {requiresKey ? t('provider.validateSave') : t('provider.save')}
+            {isManagedMode
+              ? t('provider.applyManaged')
+              : (requiresKey ? t('provider.validateSave') : t('provider.save'))}
           </Button>
 
           {keyValid !== null && (

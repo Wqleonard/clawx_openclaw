@@ -11,6 +11,9 @@ import {
   ExternalLink,
   Copy,
   FileText,
+  LogOut,
+  FolderPlus,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -40,6 +43,7 @@ import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
 import { hostApiFetch } from '@/lib/host-api';
 import { cn } from '@/lib/utils';
+import { useLoginStore } from '@/stores/loginStore';
 type ControlUiInfo = {
   url: string;
   token: string;
@@ -77,9 +81,15 @@ export function Settings() {
     setDevModeUnlocked,
     telemetryEnabled,
     setTelemetryEnabled,
+    // workspaceRoots,
+    // setWorkspaceRoots,
+    workspaceRoots,
+    setWorkspaceRoots,
   } = useSettingsStore();
 
   const { status: gatewayStatus, restart: restartGateway } = useGatewayStore();
+  const userInfo = useLoginStore((state) => state.userInfo);
+  const logout = useLoginStore((state) => state.logout);
   const currentVersion = useUpdateStore((state) => state.currentVersion);
   const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
   const [controlUiInfo, setControlUiInfo] = useState<ControlUiInfo | null>(null);
@@ -100,6 +110,19 @@ export function Settings() {
   const showCliTools = true;
   const [showLogs, setShowLogs] = useState(false);
   const [logContent, setLogContent] = useState('');
+  const [doctorRunningMode, setDoctorRunningMode] = useState<'diagnose' | 'fix' | null>(null);
+  const [doctorResult, setDoctorResult] = useState<{
+    mode: 'diagnose' | 'fix';
+    success: boolean;
+    exitCode: number | null;
+    stdout: string;
+    stderr: string;
+    command: string;
+    cwd: string;
+    durationMs: number;
+    timedOut?: boolean;
+    error?: string;
+  } | null>(null);
 
   const handleShowLogs = async () => {
     try {
@@ -120,6 +143,72 @@ export function Settings() {
       }
     } catch {
       // ignore
+    }
+  };
+
+  const handleRunOpenClawDoctor = async (mode: 'diagnose' | 'fix') => {
+    setDoctorRunningMode(mode);
+    try {
+      const result = await hostApiFetch<{
+        mode: 'diagnose' | 'fix';
+        success: boolean;
+        exitCode: number | null;
+        stdout: string;
+        stderr: string;
+        command: string;
+        cwd: string;
+        durationMs: number;
+        timedOut?: boolean;
+        error?: string;
+      }>('/api/app/openclaw-doctor', {
+        method: 'POST',
+        body: JSON.stringify({ mode }),
+      });
+      setDoctorResult(result);
+      if (result.success) {
+        toast.success(mode === 'fix' ? t('developer.doctorFixSucceeded') : t('developer.doctorSucceeded'));
+      } else {
+        toast.error(result.error || (mode === 'fix' ? t('developer.doctorFixFailed') : t('developer.doctorFailed')));
+      }
+    } catch (error) {
+      const message = toUserMessage(error) || (mode === 'fix' ? t('developer.doctorFixRunFailed') : t('developer.doctorRunFailed'));
+      toast.error(message);
+      setDoctorResult({
+        mode,
+        success: false,
+        exitCode: null,
+        stdout: '',
+        stderr: '',
+        command: 'openclaw doctor',
+        cwd: '',
+        durationMs: 0,
+        error: message,
+      });
+    } finally {
+      setDoctorRunningMode(null);
+    }
+  };
+
+  const handleCopyDoctorOutput = async () => {
+    if (!doctorResult) return;
+    const payload = [
+      `command: ${doctorResult.command}`,
+      `cwd: ${doctorResult.cwd}`,
+      `exitCode: ${doctorResult.exitCode ?? 'null'}`,
+      `durationMs: ${doctorResult.durationMs}`,
+      '',
+      '[stdout]',
+      doctorResult.stdout.trim() || '(empty)',
+      '',
+      '[stderr]',
+      doctorResult.stderr.trim() || '(empty)',
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(payload);
+      toast.success(t('developer.doctorCopied'));
+    } catch (error) {
+      toast.error(`Failed to copy doctor output: ${String(error)}`);
     }
   };
 
@@ -368,8 +457,56 @@ export function Settings() {
     );
   };
 
+
+
+  // const handleReconfigureOpenClaw = () => {
+  //   setSetupComplete(false);
+  //   navigate('/setup');
+  // }
+  // const handlePickWorkspaceRoot = async () => {
+  //   try {
+  //     const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
+  //       properties: ['openDirectory'],
+  //       defaultPath: workspaceRoots[0],
+  //     });
+  //     if (result.canceled || !result.filePaths?.length) return;
+  //     const selected = result.filePaths[0];
+  //     const next = Array.from(new Set([...workspaceRoots, selected]));
+  //     setWorkspaceRoots(next);
+  //     toast.success(t('workspace.saved'));
+  //   } catch (error) {
+  //     toast.error(`${t('workspace.saveFailed')}: ${toUserMessage(error)}`);
+  //   }
+  // };
+
+  // const handleRemoveWorkspaceRoot = (target: string) => {
+  //   const next = workspaceRoots.filter((item) => item !== target);
+  //   setWorkspaceRoots(next);
+  //   toast.success(t('workspace.saved'));
+  // };
+
+  const handlePickWorkspaceRoot = async () => {
+    try {
+      const result = await invokeIpc<{ canceled: boolean; filePaths?: string[] }>('dialog:open', {
+        properties: ['openDirectory'],
+        defaultPath: workspaceRoots || undefined,
+      });
+      if (result.canceled || !result.filePaths?.length) return;
+      const selected = result.filePaths[0];
+      setWorkspaceRoots(selected);
+      toast.success(t('workspace.saved'));
+    } catch (error) {
+      toast.error(`${t('workspace.saveFailed')}: ${toUserMessage(error)}`);
+    }
+  };
+
+  const handleRemoveWorkspaceRoot = () => {
+    setWorkspaceRoots('');
+    toast.success(t('workspace.saved'));
+  };
+
   return (
-    <div className="flex flex-col -m-6 dark:bg-background h-[calc(100vh-2.5rem)] overflow-hidden">
+    <div className="flex flex-col -m-6 dark:bg-background overflow-hidden">
       <div className="w-full max-w-5xl mx-auto flex flex-col h-full p-10 pt-16">
 
         {/* Header */}
@@ -449,6 +586,44 @@ export function Settings() {
                   onCheckedChange={setLaunchAtStartup}
                 />
               </div>
+
+              <div className="space-y-3">
+                <Label className="text-[15px] font-medium text-foreground/80">{t('workspace.title')}</Label>
+                <p className="text-[13px] text-muted-foreground">
+                  {t('workspace.desc')}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handlePickWorkspaceRoot()}
+                    className="rounded-xl h-10 px-4 bg-transparent border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5"
+                  >
+                    <FolderPlus className="h-4 w-4 mr-2" />
+                    {t('workspace.pick')}
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {!workspaceRoots ? (
+                    <p className="text-[12px] text-muted-foreground">{t('workspace.empty')}</p>
+                  ) : (
+                    <div
+                      className="flex items-center justify-between rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-3 py-2"
+                    >
+                      <span className="truncate text-[12px] font-mono text-foreground/80 pr-3">{workspaceRoots}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRemoveWorkspaceRoot}
+                        className="h-8 px-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -522,6 +697,23 @@ export function Settings() {
                   checked={gatewayAutoStart}
                   onCheckedChange={setGatewayAutoStart}
                 />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-[15px] font-medium text-foreground">{t('openclawSetup.title')}</Label>
+                  <p className="text-[13px] text-muted-foreground mt-1">
+                    {t('openclawSetup.description')}
+                  </p>
+                </div>
+                {/* <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReconfigureOpenClaw}
+                  className="rounded-full h-8 px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  {t('openclawSetup.action')}
+                </Button> */}
               </div>
 
 
@@ -738,6 +930,86 @@ export function Settings() {
                   )}
 
                   <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label className="text-[14px] font-medium text-foreground">{t('developer.doctor')}</Label>
+                        <p className="text-[13px] text-muted-foreground mt-1">
+                          {t('developer.doctorDesc')}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void handleRunOpenClawDoctor('diagnose')}
+                          disabled={doctorRunningMode !== null}
+                          className="rounded-xl h-10 px-4 bg-transparent border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5"
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2${doctorRunningMode === 'diagnose' ? ' animate-spin' : ''}`} />
+                          {doctorRunningMode === 'diagnose' ? t('common:status.running') : t('developer.runDoctor')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void handleRunOpenClawDoctor('fix')}
+                          disabled={doctorRunningMode !== null}
+                          className="rounded-xl h-10 px-4 bg-transparent border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5"
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2${doctorRunningMode === 'fix' ? ' animate-spin' : ''}`} />
+                          {doctorRunningMode === 'fix' ? t('common:status.running') : t('developer.runDoctorFix')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleCopyDoctorOutput}
+                          disabled={!doctorResult}
+                          className="rounded-xl h-10 px-4 bg-transparent border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5"
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          {t('common:actions.copy')}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {doctorResult && (
+                      <div className="space-y-3 rounded-2xl border border-black/10 dark:border-white/10 p-5 bg-black/5 dark:bg-white/5">
+                        <div className="flex flex-wrap gap-2 text-[12px]">
+                          <Badge variant={doctorResult.success ? 'secondary' : 'destructive'} className="rounded-full px-3 py-1">
+                            {doctorResult.mode === 'fix'
+                              ? (doctorResult.success ? t('developer.doctorFixOk') : t('developer.doctorFixIssue'))
+                              : (doctorResult.success ? t('developer.doctorOk') : t('developer.doctorIssue'))}
+                          </Badge>
+                          <Badge variant="outline" className="rounded-full px-3 py-1">
+                            {t('developer.doctorExitCode')}: {doctorResult.exitCode ?? 'null'}
+                          </Badge>
+                          <Badge variant="outline" className="rounded-full px-3 py-1">
+                            {t('developer.doctorDuration')}: {Math.round(doctorResult.durationMs)}ms
+                          </Badge>
+                        </div>
+                        <div className="space-y-1 text-[12px] text-muted-foreground font-mono break-all">
+                          <p>{t('developer.doctorCommand')}: {doctorResult.command}</p>
+                          <p>{t('developer.doctorWorkingDir')}: {doctorResult.cwd || '-'}</p>
+                          {doctorResult.error && <p>{t('developer.doctorError')}: {doctorResult.error}</p>}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-[12px] font-semibold text-foreground/80">{t('developer.doctorStdout')}</p>
+                            <pre className="max-h-72 overflow-auto rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-card p-3 text-[11px] font-mono whitespace-pre-wrap break-words">
+                              {doctorResult.stdout.trim() || t('developer.doctorOutputEmpty')}
+                            </pre>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-[12px] font-semibold text-foreground/80">{t('developer.doctorStderr')}</p>
+                            <pre className="max-h-72 overflow-auto rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-card p-3 text-[11px] font-mono whitespace-pre-wrap break-words">
+                              {doctorResult.stderr.trim() || t('developer.doctorOutputEmpty')}
+                            </pre>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between rounded-2xl border border-black/10 dark:border-white/10 p-5 bg-transparent">
                       <div>
                         <Label className="text-[14px] font-medium text-foreground">{t('developer.wsDiagnostic')}</Label>
@@ -888,6 +1160,34 @@ export function Settings() {
 
           <Separator className="bg-black/5 dark:bg-white/5" />
 
+          {/* Account */}
+          <div>
+            <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+              {t('account.title')}
+            </h2>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-[15px] font-medium text-foreground">
+                  {userInfo?.username || t('account.guest')}
+                </Label>
+                {userInfo?.role && (
+                  <p className="text-[13px] text-muted-foreground mt-1">{userInfo.role}</p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={logout}
+                className="flex items-center gap-2 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-red-900 dark:hover:bg-red-950"
+              >
+                <LogOut className="h-4 w-4" />
+                {t('account.logout')}
+              </Button>
+            </div>
+          </div>
+
+          <Separator className="bg-black/5 dark:bg-white/5" />
+
           {/* About */}
           <div>
             <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
@@ -903,17 +1203,25 @@ export function Settings() {
                 <Button
                   variant="link"
                   className="h-auto p-0 text-[14px] text-blue-500 hover:text-blue-600 font-medium"
-                  onClick={() => window.electron.openExternal('https://claw-x.com')}
+                  onClick={() => window.electron.openExternal('https://www.baowenmao.com')}
                 >
                   {t('about.docs')}
                 </Button>
-                <Button
+                {/* <Button
                   variant="link"
                   className="h-auto p-0 text-[14px] text-blue-500 hover:text-blue-600 font-medium"
                   onClick={() => window.electron.openExternal('https://github.com/ValueCell-ai/ClawX')}
                 >
                   {t('about.github')}
-                </Button>
+
+                </Button> */}
+                {/* <Button
+                  variant="link"
+                  className="h-auto p-0 text-[14px] text-blue-500 hover:text-blue-600 font-medium"
+                  onClick={() => window.electron.openExternal('https://icnnp7d0dymg.feishu.cn/wiki/UyfOwQ2cAiJIP6kqUW8cte5Bnlc')}
+                >
+                  {t('about.faq')}
+                </Button> */}
               </div>
             </div>
           </div>

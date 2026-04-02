@@ -4,7 +4,7 @@
  * with markdown, thinking sections, images, and tool cards.
  */
 import { useState, useCallback, useEffect, memo } from 'react';
-import { Sparkles, Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createPortal } from 'react-dom';
@@ -26,6 +26,7 @@ interface ChatMessageProps {
     durationMs?: number;
     summary?: string;
   }>;
+  onImportToEditor?: (text: string) => void;
 }
 
 interface ExtractedImage { url?: string; data?: string; mimeType: string; }
@@ -42,6 +43,7 @@ export const ChatMessage = memo(function ChatMessage({
   showThinking,
   isStreaming = false,
   streamingTools = [],
+  onImportToEditor,
 }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const role = typeof message.role === 'string' ? message.role.toLowerCase() : '';
@@ -71,16 +73,16 @@ export const ChatMessage = memo(function ChatMessage({
       )}
     >
       {/* Avatar */}
-      {!isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
-          <Sparkles className="h-4 w-4" />
-        </div>
-      )}
+      {/*{!isUser && (*/}
+      {/*  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">*/}
+      {/*    <Sparkles className="h-4 w-4" />*/}
+      {/*  </div>*/}
+      {/*)}*/}
 
       {/* Content */}
       <div
         className={cn(
-          'flex flex-col w-full min-w-0 max-w-[80%] space-y-2',
+          'flex flex-col w-full min-w-0 max-w-full space-y-2',
           isUser ? 'items-end' : 'items-start',
         )}
       >
@@ -95,7 +97,7 @@ export const ChatMessage = memo(function ChatMessage({
 
         {/* Tool use cards */}
         {visibleTools.length > 0 && (
-          <div className="space-y-1">
+          <div className="space-y-1 w-full">
             {visibleTools.map((tool, i) => (
               <ToolCard key={tool.id || i} name={tool.name} input={tool.input} />
             ))}
@@ -124,7 +126,7 @@ export const ChatMessage = memo(function ChatMessage({
         )}
 
         {/* File attachments — images above text for user, file cards below */}
-        {isUser && attachedFiles.length > 0 && (
+        {/* {isUser && attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {attachedFiles.map((file, i) => {
               const isImage = file.mimeType.startsWith('image/');
@@ -153,7 +155,7 @@ export const ChatMessage = memo(function ChatMessage({
               return <FileCard key={`local-${i}`} file={file} />;
             })}
           </div>
-        )}
+        )} */}
 
         {/* Main text bubble */}
         {hasText && (
@@ -185,7 +187,7 @@ export const ChatMessage = memo(function ChatMessage({
         )}
 
         {/* File attachments — assistant messages (below text) */}
-        {!isUser && attachedFiles.length > 0 && (
+        {/* {!isUser && attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {attachedFiles.map((file, i) => {
               const isImage = file.mimeType.startsWith('image/');
@@ -212,7 +214,7 @@ export const ChatMessage = memo(function ChatMessage({
               return <FileCard key={`local-${i}`} file={file} />;
             })}
           </div>
-        )}
+        )} */}
 
         {/* Hover row for user messages — timestamp only */}
         {isUser && message.timestamp && (
@@ -223,7 +225,7 @@ export const ChatMessage = memo(function ChatMessage({
 
         {/* Hover row for assistant messages — only when there is real text content */}
         {!isUser && hasText && (
-          <AssistantHoverBar text={text} timestamp={message.timestamp} />
+          <AssistantHoverBar text={text} timestamp={message.timestamp} onImportToEditor={onImportToEditor} />
         )}
       </div>
 
@@ -294,8 +296,11 @@ function ToolStatusBar({
 
 // ── Assistant hover bar (timestamp + copy, shown on group hover) ─
 
-function AssistantHoverBar({ text, timestamp }: { text: string; timestamp?: number }) {
+function AssistantHoverBar({ text, timestamp, 
+  // onImportToEditor 
+}: { text: string; timestamp?: number; onImportToEditor?: (text: string) => void }) {
   const [copied, setCopied] = useState(false);
+  // const [imported, setImported] = useState(false);
 
   const copyContent = useCallback(() => {
     navigator.clipboard.writeText(text);
@@ -303,19 +308,39 @@ function AssistantHoverBar({ text, timestamp }: { text: string; timestamp?: numb
     setTimeout(() => setCopied(false), 2000);
   }, [text]);
 
+  // const importToEditor = useCallback(() => {
+  //   onImportToEditor?.(text);
+  //   setImported(true);
+  //   setTimeout(() => setImported(false), 2000);
+  // }, [text, onImportToEditor]);
+
   return (
     <div className="flex items-center justify-between w-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 select-none px-1">
       <span className="text-xs text-muted-foreground">
         {timestamp ? formatTimestamp(timestamp) : ''}
       </span>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6"
-        onClick={copyContent}
-      >
-        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-      </Button>
+      <div className="flex items-center gap-0.5">
+        {/*{onImportToEditor && (*/}
+        {/*  <Button*/}
+        {/*    variant="ghost"*/}
+        {/*    size="icon"*/}
+        {/*    className="h-6 w-6"*/}
+        {/*    onClick={importToEditor}*/}
+        {/*    title="导入到编辑器"*/}
+        {/*  >*/}
+        {/*    {imported ? <Check className="h-3 w-3 text-green-500" /> : <ClipboardPaste className="h-3 w-3" />}*/}
+        {/*  </Button>*/}
+        {/*)}*/}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 hover:bg-black/5 dark:hover:bg-white/10"
+          onClick={copyContent}
+          title="复制"
+        >
+          {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -334,11 +359,11 @@ function MessageBubble({
   return (
     <div
       className={cn(
-        'relative rounded-2xl px-4 py-3',
+        'relative rounded-2xl py-3',
         !isUser && 'w-full',
         isUser
-          ? 'bg-[#0a84ff] text-white shadow-sm'
-          : 'bg-black/5 dark:bg-white/5 text-foreground',
+          ? 'bg-[#0a84ff] text-white shadow-sm  px-4'
+          : 'text-foreground',
       )}
     >
       {isUser ? (
@@ -378,7 +403,8 @@ function MessageBubble({
             {text}
           </ReactMarkdown>
           {isStreaming && (
-            <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />
+            // <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />
+            <StreamingIndicator />
           )}
         </div>
       )}
@@ -393,7 +419,7 @@ function ThinkingBlock({ content }: { content: string }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[14px]">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[14px]">
       <button
         className="flex items-center gap-2 w-full px-3 py-2 text-muted-foreground hover:text-foreground transition-colors"
         onClick={() => setExpanded(!expanded)}
@@ -402,8 +428,8 @@ function ThinkingBlock({ content }: { content: string }) {
         <span className="font-medium">Thinking</span>
       </button>
       {expanded && (
-        <div className="px-3 pb-3 text-muted-foreground">
-          <div className="prose prose-sm dark:prose-invert max-w-none opacity-75">
+        <div className="px-3 pb-3 text-muted-foreground min-w-0 max-w-full overflow-x-auto">
+          <div className="prose prose-sm dark:prose-invert max-w-none opacity-75 break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
         </div>
@@ -431,8 +457,21 @@ function FileIcon({ mimeType, className }: { mimeType: string; className?: strin
 }
 
 function FileCard({ file }: { file: AttachedFileMeta }) {
+  const handleOpen = useCallback(() => {
+    if (file.filePath) {
+      invokeIpc('shell:openPath', file.filePath);
+    }
+  }, [file.filePath]);
+
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-black/10 dark:border-white/10 px-3 py-2.5 bg-black/5 dark:bg-white/5 max-w-[220px]">
+    <div 
+      className={cn(
+        "flex items-center gap-3 rounded-xl border border-black/10 dark:border-white/10 px-3 py-2.5 bg-black/5 dark:bg-white/5 max-w-[220px]",
+        file.filePath && "cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+      )}
+      onClick={handleOpen}
+      title={file.filePath ? "Open file" : undefined}
+    >
       <FileIcon mimeType={file.mimeType} className="h-5 w-5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 overflow-hidden">
         <p className="text-xs font-medium truncate">{file.fileName}</p>
@@ -590,21 +629,44 @@ function ToolCard({ name, input }: { name: string; input: unknown }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[14px]">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[14px]">
       <button
-        className="flex items-center gap-2 w-full px-3 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center gap-2 w-full min-w-0 px-3 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
         <Wrench className="h-3 w-3 shrink-0 opacity-60" />
-        <span className="font-mono text-xs">{name}</span>
+        <span className="min-w-0 truncate font-mono text-xs">{name}</span>
         {expanded ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
       </button>
       {expanded && input != null && (
-        <pre className="px-3 pb-2 text-xs text-muted-foreground overflow-x-auto">
+        <pre className="w-full max-w-full overflow-x-auto px-3 pb-2 text-xs text-muted-foreground text-wrap">
           {typeof input === 'string' ? input : JSON.stringify(input, null, 2) as string}
         </pre>
       )}
+    </div>
+  );
+}
+
+function StreamingIndicator() {
+  return (
+    <div className="flex gap-3">
+      <div className="text-foreground rounded-2xl px-1 py-3">
+        <div className="flex gap-1">
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '0ms' }}
+          />
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+            style={{ animationDelay: '300ms' }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

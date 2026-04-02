@@ -13,22 +13,54 @@ import { createMenu } from './menu';
 import { appUpdater, registerUpdateHandlers } from './updater';
 import { logger } from '../utils/logger';
 import { warmupNetworkOptimization } from '../utils/uv-env';
-import { initTelemetry, shutdownTelemetry } from '../utils/telemetry';
+import { initTelemetry } from '../utils/telemetry';
 
 import { ClawHubService } from '../gateway/clawhub';
+import { SkillHubService } from '../services/skillhub-service';
 import { ensureClawXContext, repairClawXOnlyBootstrapFiles } from '../utils/openclaw-workspace';
 import { autoInstallCliIfNeeded, generateCompletionCache, installCompletionToProfile } from '../utils/openclaw-cli';
 import { isQuitting, setQuitting } from './app-state';
 import { applyProxySettings } from './proxy';
 import { syncLaunchAtStartupSettingFromStore } from './launch-at-startup';
+import {
+  clearPendingSecondInstanceFocus,
+  consumeMainWindowReady,
+  createMainWindowFocusState,
+  requestSecondInstanceFocus,
+} from './main-window-focus';
+import {
+  createQuitLifecycleState,
+  markQuitCleanupCompleted,
+  requestQuitLifecycleAction,
+} from './quit-lifecycle';
+import { createSignalQuitHandler } from './signal-quit';
+import { acquireProcessInstanceFileLock } from './process-instance-lock';
 import { getSetting } from '../utils/store';
+
+
 import { ensureBuiltinSkillsInstalled, ensurePreinstalledSkillsInstalled } from '../utils/skill-config';
+import { ensureAllBundledPluginsInstalled } from '../utils/plugin-install';
+
 import { startHostApiServer } from '../api/server';
 import { HostEventBus } from '../api/event-bus';
 import { deviceOAuthManager } from '../utils/device-oauth';
 import { browserOAuthManager } from '../utils/browser-oauth';
 import { whatsAppLoginManager } from '../utils/whatsapp-login';
 import { syncAllProviderAuthToRuntime } from '../services/providers/provider-runtime-sync';
+import { contentSafetyManager } from '../utils/content-safety-manager';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
+import { ensureBoomSearchPlugin } from '../services/boom-search/plugin-deploy';
+import { ensureAiExecAuditPlugin } from '../services/ai-exec-audit/plugin-deploy';
+import { ensureBoomExecutorGuardPlugin } from '../services/boom-lowpriv-executor/plugin-deploy';
+import {
+  startActiveReportHeartbeat,
+  stopActiveReportHeartbeat,
+} from '../utils/active-report-heartbeat';
+
+// Store app data under the branded directory.
+app.setPath('userData', join(app.getPath('appData'), 'storyclaw'));
+
+const WINDOWS_APP_USER_MODEL_ID = 'app.storyclaw.desktop';
 
 // Disable GPU hardware acceleration globally for maximum stability across
 // all GPU configurations (no GPU, integrated, discrete).
@@ -46,29 +78,75 @@ import { syncAllProviderAuthToRuntime } from '../services/providers/provider-run
 // set `"disable-hardware-acceleration": false` in the app config (future).
 app.disableHardwareAcceleration();
 
+// Enable Chromium remote debugging for Electron.
+// - Development default: 9222
+// - Override via ELECTRON_REMOTE_DEBUGGING_PORT
+// - Disable by setting ELECTRON_REMOTE_DEBUGGING_PORT=0
+const remoteDebugPortFromEnv = process.env.ELECTRON_REMOTE_DEBUGGING_PORT?.trim();
+const remoteDebugPort =
+  remoteDebugPortFromEnv ??
+  (process.env.NODE_ENV === 'development' || !app.isPackaged ? '9222' : '');
+
+if (remoteDebugPort && remoteDebugPort !== '0') {
+  app.commandLine.appendSwitch('remote-debugging-port', remoteDebugPort);
+}
+
 // On Linux, set CHROME_DESKTOP so Chromium can find the correct .desktop file.
-// On Wayland this maps the running window to clawx.desktop (→ icon + app grouping);
+// On Wayland this maps the running window to storyclaw.desktop (→ icon + app grouping);
 // on X11 it supplements the StartupWMClass matching.
 // Must be called before app.whenReady() / before any window is created.
 if (process.platform === 'linux') {
-  app.setDesktopName('clawx.desktop');
+  (app as Electron.App & { setDesktopName?: (name: string) => void }).setDesktopName?.('storyclaw.desktop');
 }
 
 // Prevent multiple instances of the app from running simultaneously.
 // Without this, two instances each spawn their own gateway process on the
 // same port, then each treats the other's gateway as "orphaned" and kills
 // it — creating an infinite kill/restart loop on Windows.
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
+// The losing process must exit immediately so it never reaches Gateway startup.
+const gotElectronLock = app.requestSingleInstanceLock();
+if (!gotElectronLock) {
+  console.info('[ClawX] Another instance already holds the single-instance lock; exiting duplicate process');
+  app.exit(0);
 }
+let releaseProcessInstanceFileLock: () => void = () => {};
+let gotFileLock = true;
+if (gotElectronLock) {
+  try {
+    const fileLock = acquireProcessInstanceFileLock({
+      userDataDir: app.getPath('userData'),
+      lockName: 'clawx',
+    });
+    gotFileLock = fileLock.acquired;
+    releaseProcessInstanceFileLock = fileLock.release;
+    if (!fileLock.acquired) {
+      const ownerDescriptor = fileLock.ownerPid
+        ? `${fileLock.ownerFormat ?? 'legacy'} pid=${fileLock.ownerPid}`
+        : fileLock.ownerFormat === 'unknown'
+          ? 'unknown lock format/content'
+          : 'unknown owner';
+      console.info(
+        `[ClawX] Another instance already holds process lock (${fileLock.lockPath}, ${ownerDescriptor}); exiting duplicate process`,
+      );
+      app.exit(0);
+    }
+  } catch (error) {
+    console.warn('[ClawX] Failed to acquire process instance file lock; continuing with Electron single-instance lock only', error);
+  }
+}
+const gotTheLock = gotElectronLock && gotFileLock;
 
 // Global references
 let mainWindow: BrowserWindow | null = null;
-const gatewayManager = new GatewayManager();
-const clawHubService = new ClawHubService();
-const hostEventBus = new HostEventBus();
+
+const skillHubService = new SkillHubService();
+let gatewayManager!: GatewayManager;
+let clawHubService!: ClawHubService;
+let hostEventBus!: HostEventBus;
+
 let hostApiServer: Server | null = null;
+const mainWindowFocusState = createMainWindowFocusState();
+const quitLifecycleState = createQuitLifecycleState();
 
 /**
  * Resolve the icons directory path (works in both dev and packaged mode)
@@ -102,6 +180,8 @@ function getAppIcon(): Electron.NativeImage | undefined {
  */
 function createWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin';
+  const isWindows = process.platform === 'win32';
+  const useCustomTitleBar = isWindows;
 
   const win = new BrowserWindow({
     width: 1280,
@@ -116,15 +196,10 @@ function createWindow(): BrowserWindow {
       sandbox: false,
       webviewTag: true, // Enable <webview> for embedding OpenClaw Control UI
     },
-    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    titleBarStyle: isMac ? 'hiddenInset' : useCustomTitleBar ? 'hidden' : 'default',
     trafficLightPosition: isMac ? { x: 16, y: 16 } : undefined,
-    frame: isMac,
+    frame: isMac || !useCustomTitleBar,
     show: false,
-  });
-
-  // Show window when ready to prevent visual flash
-  win.once('ready-to-show', () => {
-    win.show();
   });
 
   // Handle external links
@@ -132,6 +207,25 @@ function createWindow(): BrowserWindow {
     shell.openExternal(url);
     return { action: 'deny' };
   });
+
+  const allowDevShortcuts = !app.isPackaged || process.env.STORYCLAW_ENABLE_DEV_SHORTCUTS === '1';
+  if (!allowDevShortcuts) {
+    // Block dev-only shortcuts in packaged builds.
+    win.webContents.on('before-input-event', (event, input) => {
+      const key = input.key.toLowerCase();
+      const isReload =
+        key === 'f5' ||
+        (key === 'r' && (input.control || input.meta));
+      const isToggleDevTools =
+        key === 'f12' ||
+        (key === 'i' && input.alt && input.meta) ||
+        (key === 'i' && input.control && input.shift);
+
+      if (isReload || isToggleDevTools) {
+        event.preventDefault();
+      }
+    });
+  }
 
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -144,19 +238,84 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+function focusWindow(win: BrowserWindow): void {
+  if (win.isDestroyed()) {
+    return;
+  }
+
+  if (win.isMinimized()) {
+    win.restore();
+  }
+
+  win.show();
+  win.focus();
+}
+
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  clearPendingSecondInstanceFocus(mainWindowFocusState);
+  focusWindow(mainWindow);
+}
+
+function createMainWindow(): BrowserWindow {
+  const win = createWindow();
+
+  win.once('ready-to-show', () => {
+    if (mainWindow !== win) {
+      return;
+    }
+
+    const action = consumeMainWindowReady(mainWindowFocusState);
+    if (action === 'focus') {
+      focusWindow(win);
+      return;
+    }
+
+    win.show();
+  });
+
+  win.on('close', (event) => {
+    if (!isQuitting()) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
+
+  win.on('closed', () => {
+    if (mainWindow === win) {
+      mainWindow = null;
+    }
+  });
+
+  mainWindow = win;
+  return win;
+}
+
 /**
  * Initialize the application
  */
 async function initialize(): Promise<void> {
   // Initialize logger first
   logger.init();
-  logger.info('=== ClawX Application Starting ===');
+  logger.info(`=== ${APP_DISPLAY_NAME} Application Starting ===`);
   logger.debug(
-    `Runtime: platform=${process.platform}/${process.arch}, electron=${process.versions.electron}, node=${process.versions.node}, packaged=${app.isPackaged}`
+    `Runtime: platform=${process.platform}/${process.arch}, electron=${process.versions.electron}, node=${process.versions.node}, packaged=${app.isPackaged}, pid=${process.pid}, ppid=${process.ppid}`
   );
+  if (remoteDebugPort && remoteDebugPort !== '0') {
+    logger.info(`Chromium remote debugging enabled at 127.0.0.1:${remoteDebugPort}`);
+  }
 
   // Warm up network optimization (non-blocking)
   void warmupNetworkOptimization();
+  startActiveReportHeartbeat();
+
+  // Start content safety worker (non-blocking; checks fail-open until ready)
+  void contentSafetyManager.start().catch((err) => {
+    logger.warn('Failed to start content safety worker:', err);
+  });
 
   // Initialize Telemetry early
   await initTelemetry();
@@ -169,10 +328,10 @@ async function initialize(): Promise<void> {
   createMenu();
 
   // Create the main window
-  mainWindow = createWindow();
+  const window = createMainWindow();
 
   // Create system tray
-  createTray(mainWindow);
+  createTray(window);
 
   // Override security headers ONLY for the OpenClaw Gateway Control UI.
   // The URL filter ensures this callback only fires for gateway requests,
@@ -198,32 +357,26 @@ async function initialize(): Promise<void> {
   );
 
   // Register IPC handlers
-  registerIpcHandlers(gatewayManager, clawHubService, mainWindow);
+  registerIpcHandlers(gatewayManager, clawHubService, window);
 
-  hostApiServer = startHostApiServer({
-    gatewayManager,
-    clawHubService,
-    eventBus: hostEventBus,
-    mainWindow,
-  });
+  try {
+    hostApiServer = await startHostApiServer({
+      gatewayManager,
+      clawHubService,
+      skillHubService,
+      eventBus: hostEventBus,
+      mainWindow: window,
+    });
+  } catch (error) {
+    hostApiServer = null;
+    logger.error('Failed to start Host API server; app will continue without local host-api bridge:', error);
+  }
 
   // Register update handlers
-  registerUpdateHandlers(appUpdater, mainWindow);
+  registerUpdateHandlers(appUpdater, window);
 
   // Note: Auto-check for updates is driven by the renderer (update store init)
   // so it respects the user's "Auto-check for updates" setting.
-
-  // Minimize to tray on close instead of quitting (macOS & Windows)
-  mainWindow.on('close', (event) => {
-    if (!isQuitting()) {
-      event.preventDefault();
-      mainWindow?.hide();
-    }
-  });
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
 
   // Repair any bootstrap files that only contain ClawX markers (no OpenClaw
   // template content). This fixes a race condition where ensureClawXContext()
@@ -245,13 +398,36 @@ async function initialize(): Promise<void> {
     logger.warn('Failed to install preinstalled skills:', error);
   });
 
+
+  // Deploy BoomClaw built-in web search plugin to ~/.openclaw/extensions/boom-search/
+  // and inject the required config (tools.web.search.enabled: false + plugin enabled).
+  void ensureBoomSearchPlugin().catch((error) => {
+    logger.warn('Failed to deploy boom-search plugin:', error);
+  });
+
+  void ensureAiExecAuditPlugin().catch((error) => {
+    logger.warn('Failed to deploy ai-exec-audit plugin:', error);
+  });
+
+  void ensureBoomExecutorGuardPlugin().catch((error) => {
+    logger.warn('Failed to deploy boom-executor-guard plugin:', error);
+  });
+
+
+  // Pre-deploy/upgrade bundled OpenClaw plugins (dingtalk, wecom, qqbot, feishu, wechat)
+
+  // to ~/.openclaw/extensions/ so they are always up-to-date after an app update.
+  void ensureAllBundledPluginsInstalled().catch((error) => {
+    logger.warn('Failed to install/upgrade bundled plugins:', error);
+  });
+
   // Bridge gateway and host-side events before any auto-start logic runs, so
   // renderer subscribers observe the full startup lifecycle.
   gatewayManager.on('status', (status: { state: string }) => {
     hostEventBus.emit('gateway:status', status);
     if (status.state === 'running') {
       void ensureClawXContext().catch((error) => {
-        logger.warn('Failed to re-merge ClawX context after gateway reconnect:', error);
+        logger.warn(`Failed to re-merge ${APP_DISPLAY_NAME} context after gateway reconnect:`, error);
       });
     }
   });
@@ -336,11 +512,11 @@ async function initialize(): Promise<void> {
     logger.info('Gateway auto-start disabled in settings');
   }
 
-  // Merge ClawX context snippets into the workspace bootstrap files.
+  // Merge BoomClaw context snippets into the workspace bootstrap files.
   // The gateway seeds workspace files asynchronously after its HTTP server
   // is ready, so ensureClawXContext will retry until the target files appear.
   void ensureClawXContext().catch((error) => {
-    logger.warn('Failed to merge ClawX context into workspace:', error);
+    logger.warn(`Failed to merge ${APP_DISPLAY_NAME} context into workspace:`, error);
   });
 
   // Auto-install openclaw CLI and shell completions (non-blocking).
@@ -354,52 +530,137 @@ async function initialize(): Promise<void> {
   });
 }
 
-// When a second instance is launched, focus the existing window instead.
-app.on('second-instance', () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
+if (gotTheLock) {
+  const requestQuitOnSignal = createSignalQuitHandler({
+    logInfo: (message) => logger.info(message),
+    requestQuit: () => app.quit(),
+  });
+
+  process.on('exit', () => {
+    releaseProcessInstanceFileLock();
+  });
+
+  process.once('SIGINT', () => requestQuitOnSignal('SIGINT'));
+  process.once('SIGTERM', () => requestQuitOnSignal('SIGTERM'));
+
+  app.on('will-quit', () => {
+    releaseProcessInstanceFileLock();
+  });
+
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
   }
-});
 
-// Application lifecycle
-app.whenReady().then(() => {
-  initialize();
+  gatewayManager = new GatewayManager();
+  clawHubService = new ClawHubService();
+  hostEventBus = new HostEventBus();
 
-  // Register activate handler AFTER app is ready to prevent
-  // "Cannot create BrowserWindow before app is ready" on macOS.
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = createWindow();
-    } else if (mainWindow && !mainWindow.isDestroyed()) {
-      // On macOS, clicking the dock icon should show the window if it's hidden
-      mainWindow.show();
-      mainWindow.focus();
+  // When a second instance is launched, focus the existing window instead.
+  app.on('second-instance', () => {
+    logger.info('Second ClawX instance detected; redirecting to the existing window');
+
+    const focusRequest = requestSecondInstanceFocus(
+      mainWindowFocusState,
+      Boolean(mainWindow && !mainWindow.isDestroyed()),
+    );
+
+    if (focusRequest === 'focus-now') {
+      focusMainWindow();
+      return;
+    }
+
+    logger.debug('Main window is not ready yet; deferring second-instance focus until ready-to-show');
+  });
+
+  // Application lifecycle
+  app.whenReady().then(() => {
+    void initialize().catch((error) => {
+      logger.error('Application initialization failed:', error);
+    });
+
+    // Register activate handler AFTER app is ready to prevent
+    // "Cannot create BrowserWindow before app is ready" on macOS.
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow();
+      } else {
+        focusMainWindow();
+      }
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
     }
   });
-});
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+  app.on('before-quit', (event) => {
+    setQuitting();
+    const action = requestQuitLifecycleAction(quitLifecycleState);
 
-app.on('before-quit', () => {
-  setQuitting();
-  hostEventBus.closeAll();
-  hostApiServer?.close();
-  // Flush telemetry data
-  void shutdownTelemetry().catch((err) => {
-    logger.warn('Failed to shutdown telemetry:', err);
+    if (action === 'allow-quit') {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (action === 'cleanup-in-progress') {
+      logger.debug('Quit requested while cleanup already in progress; waiting for shutdown task to finish');
+      return;
+    }
+
+    hostEventBus.closeAll();
+    hostApiServer?.close();
+    stopActiveReportHeartbeat();
+
+    const stopPromise = gatewayManager.stop().catch((err) => {
+      logger.warn('gatewayManager.stop() error during quit:', err);
+    });
+    const timeoutPromise = new Promise<'timeout'>((resolve) => {
+      setTimeout(() => resolve('timeout'), 5000);
+    });
+
+    void Promise.race([stopPromise.then(() => 'stopped' as const), timeoutPromise]).then((result) => {
+      if (result === 'timeout') {
+        logger.warn('Gateway shutdown timed out during app quit; proceeding with forced quit');
+        void gatewayManager.forceTerminateOwnedProcessForQuit().then((terminated) => {
+          if (terminated) {
+            logger.warn('Forced gateway process termination completed after quit timeout');
+          }
+        }).catch((err) => {
+          logger.warn('Forced gateway termination failed after quit timeout:', err);
+        });
+      }
+      markQuitCleanupCompleted(quitLifecycleState);
+      app.quit();
+    });
   });
-  // Fire-and-forget: do not await gatewayManager.stop() here.
-  // Awaiting inside before-quit can stall Electron's quit sequence.
-  void gatewayManager.stop().catch((err) => {
-    logger.warn('gatewayManager.stop() error during quit:', err);
+
+  // Best-effort Gateway cleanup on unexpected crashes.
+  // These handlers attempt to terminate the Gateway child process within a
+  // short timeout before force-exiting, preventing orphaned processes.
+  const emergencyGatewayCleanup = (reason: string, error: unknown): void => {
+    logger.error(`${reason}:`, error);
+    try {
+      void gatewayManager?.stop().catch(() => { /* ignore */ });
+    } catch {
+      // ignore — stop() may not be callable if state is corrupted
+    }
+    // Give Gateway stop a brief window, then force-exit.
+    setTimeout(() => {
+      process.exit(1);
+    }, 3000).unref();
+  };
+
+  process.on('uncaughtException', (error) => {
+    emergencyGatewayCleanup('Uncaught exception in main process', error);
   });
-});
+
+  process.on('unhandledRejection', (reason) => {
+    emergencyGatewayCleanup('Unhandled promise rejection in main process', reason);
+  });
+}
 
 // Export for testing
 export { mainWindow, gatewayManager };

@@ -1,6 +1,6 @@
 {
     "title": "消息频道",
-    "subtitle": "连接到消息平台，配置仅对主 Agent 生效",
+    "subtitle": "统一管理消息频道、账号、账号与智能体的绑定关系，以及频道默认账号",
     "refresh": "刷新",
     "addChannel": "添加频道",
     "stats": {
@@ -9,6 +9,7 @@
         "disconnected": "未连接"
     },
     "gatewayWarning": "网关未运行。未启用网关时无法管理频道。",
+    "gatewayRestartingWarning": "网关正在重启或重连，频道状态将自动刷新，请稍候。",
     "availableChannels": "可用频道",
     "supportedChannels": "支持的频道",
     "pluginBadge": "插件",
@@ -22,10 +23,50 @@
     "toast": {
         "whatsappConnected": "WhatsApp 连接成功",
         "whatsappFailed": "WhatsApp 连接失败: {{error}}",
+        "qrConnected": "{{name}} 连接成功",
+        "qrFailed": "{{name}} 连接失败: {{error}}",
         "channelSaved": "频道 {{name}} 已保存",
         "channelConnecting": "正在连接 {{name}}...",
+        "savedButRefreshFailed": "配置已保存，但刷新页面数据失败，请手动刷新查看最新状态",
         "restartManual": "请手动重启网关",
-        "configFailed": "配置失败: {{error}}"
+        "configFailed": "配置失败: {{error}}",
+        "bindingUpdated": "账号绑定已更新",
+        "defaultUpdated": "默认账号已更新",
+        "accountDeleted": "账号已删除",
+        "channelDeleted": "频道已删除"
+    },
+    "account": {
+        "add": "添加账号",
+        "edit": "编辑",
+        "delete": "删除账号",
+        "deleteChannel": "删除频道",
+        "deleteConfirm": "确定要删除该账号吗？",
+        "default": "当前默认",
+        "setDefault": "设为频道默认账号",
+        "bindAgentLabel": "绑定 Agent",
+        "unassigned": "未绑定",
+        "mainAccount": "主账号",
+        "customIdLabel": "账号 ID",
+        "customIdPlaceholder": "例如：feishu-sales-bot",
+        "customIdHint": "可自定义账号 ID，用于区分同一频道下的多个账号。",
+        "invalidId": "账号 ID 不能为空",
+        "idLabel": "ID: {{id}}",
+        "boundTo": "绑定对象：{{agent}}",
+        "handledBy": "由 {{agent}} 处理",
+        "bindingStatusLabel": "绑定状态：{{status}}",
+        "connectionStatusLabel": "连接状态：{{status}}",
+        "bindingStatus": {
+            "bound": "已绑定",
+            "unbound": "未绑定"
+        },
+        "connectionStatus": {
+            "connected": "已连接",
+            "connecting": "连接中",
+            "disconnected": "未连接",
+            "error": "异常"
+        },
+        "accountIdPrompt": "请输入该频道的新账号 ID",
+        "accountIdExists": "账号 ID {{accountId}} 已存在"
     },
     "dialog": {
         "updateTitle": "更新 {{name}}",
@@ -119,6 +160,16 @@
                 "系统将自动识别您的手机号"
             ]
         },
+        "wechat": {
+            "description": "通过腾讯官方 OpenClaw 插件扫码连接个人微信",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/UFHBw0qdEi4wdwkgKktcfvkonkf",
+            "instructions": [
+                "点击生成二维码，StoryClaw 会在 OpenClaw 中安装并启用官方微信插件",
+                "使用微信扫描下方二维码，并在手机上确认连接",
+                "连接成功后，微信里会自动出现新的「微信 ClawBot」对话",
+                "之后可再次通过扫码流程添加更多微信账号，或重新连接已有账号"
+            ]
+        },
         "dingtalk": {
             "description": "通过 OpenClaw 渠道插件连接钉钉（Stream 模式）",
             "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/Y5eNwiSiZidkLskrwtJc1rUln0b#doxcnr8KfaA2mNPeQUeHO83eDPh",
@@ -168,7 +219,7 @@
         },
         "feishu": {
             "description": "通过飞书官方推出的 OpenClaw 插件连接飞书/Lark 机器人",
-            "docsUrl": "https://www.feishu.cn/content/article/7613711414611463386",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/Ci2hwURlgiknYlk1yO6cIcFbn0d",
             "fields": {
                 "appId": {
                     "label": "应用 ID (App ID)",
@@ -189,7 +240,7 @@
         },
         "wecom": {
             "description": "通过插件连接企业微信机器人",
-            "docsUrl": "https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21657",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/BcEXwKY4LiglcukyyKXcOob1nBf",
             "fields": {
                 "botId": {
                     "label": "机器人 Bot ID",
@@ -320,7 +371,7 @@
         },
         "qqbot": {
             "description": "通过 @sliverp/qqbot 插件连接 QQ 机器人",
-            "docsUrl": "https://github.com/sliverp/qqbot/blob/main/README.zh.md",
+            "docsUrl": "https://icnirh1t37sj.feishu.cn/wiki/KymzwSn5YiixiDkoF0KcfQgtnaf",
             "fields": {
                 "appId": {
                     "label": "App ID",

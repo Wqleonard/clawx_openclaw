@@ -1,7 +1,7 @@
 {
     "steps": {
         "welcome": {
-            "title": "ClawXへようこそ",
+            "title": "{{appName}}へようこそ",
             "description": "AIアシスタントの設定準備が整いました"
         },
         "runtime": {
@@ -22,12 +22,12 @@
         },
         "complete": {
             "title": "完了！",
-            "description": "ClawXを使用する準備が整いました"
+            "description": "{{appName}}を使用する準備が整いました"
         }
     },
     "welcome": {
-        "title": "ClawXへようこそ",
-        "description": "ClawXはOpenClawのグラフィカルインターフェースで、お気に入りのメッセージングプラットフォームでAIアシスタントを簡単に使用できます。",
+        "title": "{{appName}}へようこそ",
+        "description": "{{appName}}はOpenClawのグラフィカルインターフェースで、お気に入りのメッセージングプラットフォームでAIアシスタントを簡単に使用できます。",
         "features": {
             "noCommand": "コマンドライン不要",
             "modernUI": "モダンで美しいインターフェース",
@@ -63,10 +63,32 @@
     },
     "provider": {
         "label": "モデルプロバイダー",
+        "connectionMode": "接続モード",
+        "connectionModes": {
+            "personal": "自分の API キーを使用",
+            "personalDesc": "自分のプロバイダー認証情報を設定します。",
+            "managed": "{{appName}} 管理設定を使用",
+            "managedDesc": "組織で設定された OpenClaw 接続情報を使用します。"
+        },
+        "managedConfigLoading": "管理された OpenClaw 設定を読み込み中...",
+        "managedConfigReady": "管理された OpenClaw 設定の準備ができました。",
+        "managedConfigMissing": "管理された OpenClaw 設定が利用できません。管理者に STORYCLAW_OPENCLAW_BASE_URL と STORYCLAW_OPENCLAW_API_KEY の設定を依頼してください。",
+        "applyManaged": "管理設定を適用",
         "selectPlaceholder": "プロバイダーを選択...",
         "baseUrl": "ベース URL",
         "modelId": "モデル ID",
         "modelIdDesc": "プロバイダーのモデル識別子（例：deepseek-ai/DeepSeek-V3）",
+        "codePlanPreset": "Code Plan プリセット",
+        "codePlanMode": "Code Plan",
+        "useCodePlanPreset": "Ark Code Plan プリセットを使用",
+        "codePlanPresetDesc": "Code Plan は https://ark.cn-beijing.volces.com/api/coding/v3 と model ark-code-latest を使います。Code Plan 通信に /api/v3 を使わないでください。",
+        "codePlanDoc": "Code Plan ドキュメント",
+        "protocol": "プロトコル",
+        "protocols": {
+            "openaiCompletions": "OpenAI Completions",
+            "openaiResponses": "OpenAI Responses",
+            "anthropic": "Anthropic 互換"
+        },
         "apiKey": "API キー",
         "save": "保存",
         "validateSave": "検証して保存",
@@ -102,7 +124,7 @@
     },
     "complete": {
         "title": "セットアップ完了！",
-        "subtitle": "ClawXの構成が完了し、使用準備が整いました。AIアシスタントとのチャットを開始できます。",
+        "subtitle": "{{appName}}の構成が完了し、使用準備が整いました。AIアシスタントとのチャットを開始できます。",
         "provider": "AI プロバイダー",
         "components": "コンポーネント",
         "gateway": "ゲートウェイ",

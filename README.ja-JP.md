@@ -47,27 +47,27 @@ ClawXはベストプラクティスのモデルプロバイダーが事前設定
 ## スクリーンショット
 
 <p align="center">
-  <img src="resources/screenshot/chat.png" style="width: 100%; height: auto;">
+  <img src="resources/screenshot/jp/chat.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="resources/screenshot/cron_task.png" style="width: 100%; height: auto;">
+  <img src="resources/screenshot/jp/cron.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="resources/screenshot/skills.png" style="width: 100%; height: auto;">
-</p>
-
-<!-- <p align="center">
-  <img src="resources/screenshot/channels.png" style="width: 100%; height: auto;">
-</p> -->
-
-<p align="center">
-  <img src="resources/screenshot/dashboard.png" style="width: 100%; height: auto;">
+  <img src="resources/screenshot/jp/skills.png" style="width: 100%; height: auto;">
 </p>
 
 <p align="center">
-  <img src="resources/screenshot/settings.png" style="width: 100%; height: auto;">
+  <img src="resources/screenshot/jp/channels.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="resources/screenshot/jp/models.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="resources/screenshot/jp/settings.png" style="width: 100%; height: auto;">
 </p>
 
 ---
@@ -103,21 +103,24 @@ ClawXは公式の**OpenClaw**コアを直接ベースに構築されています
 
 ### 📡 マルチチャネル管理
 複数のAIチャネルを同時に設定・監視できます。各チャネルは独立して動作するため、異なるタスクに特化したエージェントを実行できます。
+現在は各チャンネルで複数アカウントを扱え、Channels ページでアカウントの Agent 紐付けやデフォルトアカウント切替を直接管理できます。
+ClawX には Tencent 公式の個人 WeChat チャンネルプラグインも同梱されており、Channels ページからアプリ内 QR フローで直接 WeChat を連携できます。
 
 ### ⏰ Cronベースの自動化
 AIタスクを自動的に実行するようスケジュール設定できます。トリガーを定義し、間隔を設定することで、手動介入なしにAIエージェントを24時間稼働させることができます。
 
 ### 🧩 拡張可能なスキルシステム
 事前構築されたスキルでAIエージェントを拡張できます。統合スキルパネルからスキルの閲覧、インストール、管理が可能です。パッケージマネージャーは不要です。
-ClawX はドキュメント処理スキル（`pdf`、`xlsx`、`docx`、`pptx`）もフル内容で同梱し、起動時に `~/.openclaw/skills` へ自動配備し、初回インストール時に既定で有効化します。追加の同梱スキル（`find-skills`、`self-improving-agent`、`tavily-search`、`brave-web-search`、`bocha-skill`）も既定で有効化されますが、必要な API キーが未設定の場合は OpenClaw が実行時に設定エラーを表示します。
+ClawX はドキュメント処理スキル（`pdf`、`xlsx`、`docx`、`pptx`）もフル内容で同梱し、起動時に管理スキルディレクトリ（既定 `~/.openclaw/skills`）へ自動配備し、初回インストール時に既定で有効化します。追加の同梱スキル（`find-skills`、`self-improving-agent`、`tavily-search`、`brave-web-search`）も既定で有効化されますが、必要な API キーが未設定の場合は OpenClaw が実行時に設定エラーを表示します。  
+Skills ページでは OpenClaw の複数ソース（管理ディレクトリ、workspace、追加スキルディレクトリ）から検出されたスキルを表示でき、各スキルの実際のパスを確認して実フォルダを直接開けます。
 
 主な検索スキルで必要な環境変数:
 - `BRAVE_SEARCH_API_KEY`: `brave-web-search` 用
 - `TAVILY_API_KEY`: `tavily-search` 用（上流ランタイムで OAuth 対応の場合あり）
-- `BOCHA_API_KEY`: `bocha-skill` 用
 
 ### 🔐 セキュアなプロバイダー統合
 複数のAIプロバイダー（OpenAI、Anthropicなど）に接続でき、資格情報はシステムのネイティブキーチェーンに安全に保存されます。OpenAI は API キーとブラウザ OAuth（Codex サブスクリプション）の両方に対応しています。
+OpenAI-compatible ゲートウェイを **Custom プロバイダー** で使う場合、**設定 → AI Providers → Provider 編集** でカスタム `User-Agent` を設定でき、互換性が必要なエンドポイントで有効です。
 
 ### 🌙 アダプティブテーマ
 ライトモード、ダークモード、またはシステム同期テーマ。ClawXはあなたの好みに自動的に適応します。
@@ -156,16 +159,20 @@ pnpm dev
 ```
 ### 初回起動
 
-ClawXを初めて起動すると、**セットアップウィザード**が以下の手順をガイドします：
+StoryClawを初めて起動すると、**セットアップウィザード**が以下の手順をガイドします：
 
 1. **言語と地域** – 使用する言語・地域の設定
-2. **AIプロバイダー** – APIキーまたは OAuth（ブラウザ/デバイスログイン対応プロバイダー）で追加
+2. **AIプロバイダー** – 自分の API キー/OAuth か、環境変数で注入された管理 OpenClaw 設定を選択
 3. **スキルバンドル** – 一般的なユースケース向けの事前設定スキルを選択
 4. **検証** – メインインターフェースに入る前に設定をテスト
 
+
+サポート対象のシステム言語がある場合、ウィザードはその言語を初期選択し、未対応の場合は英語にフォールバックします。
+
+
 ### プロキシ設定
 
-ClawXには、Electron、OpenClaw Gateway、またはTelegramなどのチャネルがローカルプロキシクライアントを介してインターネットにアクセスする必要がある環境向けに、組み込みのプロキシ設定が含まれています。
+StoryClawには、Electron、OpenClaw Gateway、またはTelegramなどのチャネルがローカルプロキシクライアントを介してインターネットにアクセスする必要がある環境向けに、組み込みのプロキシ設定が含まれています。
 
 **設定 → ゲートウェイ → プロキシ**を開いて以下を設定します：
 
@@ -187,6 +194,10 @@ ClawXには、Electron、OpenClaw Gateway、またはTelegramなどのチャネ�
 - 高度なプロキシフィールドが空の場合、ClawXは`プロキシサーバー`にフォールバックします。
 - プロキシ設定を保存すると、Electronのネットワーク設定が即座に再適用され、ゲートウェイが自動的に再起動されます。
 - ClawXはTelegramが有効な場合、プロキシをOpenClawのTelegramチャネル設定にも同期します。
+- ClawXのプロキシが無効な状態では、Gatewayの通常再起動時に既存のTelegramチャネルプロキシ設定を保持します。
+- OpenClaw設定のTelegramプロキシを明示的に消したい場合は、プロキシ無効の状態で一度「保存」を実行してください。
+- **設定 → 詳細 → 開発者** では **OpenClaw Doctor** を実行でき、`openclaw doctor --json` の診断出力をアプリ内で確認できます。
+- Windows のパッケージ版では、同梱された `openclaw` CLI/TUI は端末入力を安定させるため、同梱の `node.exe` エントリーポイント経由で実行されます。
 
 ---
 
@@ -247,6 +258,17 @@ ClawXは、**デュアルプロセス + Host API 統一アクセス**構成を�
 - **セキュアストレージ**: APIキーや機密データは、OSのネイティブセキュアストレージ機構を活用します
 - **CORSセーフ設計**: ローカルHTTPはMainプロキシ経由とし、Renderer側CORS問題を回避します
 
+### プロセスモデルと Gateway トラブルシューティング
+
+- ClawX は Electron アプリのため、**1つのアプリインスタンスでも複数プロセス（main/renderer/zygote/utility）が表示される**のが正常です。
+- 単一起動保護は Electron のロックに加え、ローカルのプロセスロックファイルも併用し、デスクトップ IPC / セッションバスが不安定な環境でも重複起動を防ぎます。
+- ローリングアップグレード中に旧版/新版が混在すると、単一起動保護の挙動が非対称になる場合があります。安定運用のため、デスクトップクライアントは可能な限り同一バージョンへ揃えてください。
+- ただし OpenClaw Gateway の待受は常に**単一**であるべきです。`127.0.0.1:18789` を Listen しているプロセスは1つだけです。
+- Listen プロセスの確認例:
+  - macOS/Linux: `lsof -nP -iTCP:18789 -sTCP:LISTEN`
+  - Windows (PowerShell): `Get-NetTCPConnection -LocalPort 18789 -State Listen`
+- ウィンドウの閉じるボタン（`X`）は既定でトレイへ最小化する動作で、完全終了ではありません。完全終了する場合はトレイメニューの **Quit ClawX** を使用してください。
+
 ---
 
 ## ユースケース
@@ -304,7 +326,7 @@ AI を開発ワークフローに統合できます。エージェントを使�
 ```bash
 # 開発
 pnpm run init             # 依存関係のインストール + uvのダウンロード
-pnpm dev                  # ホットリロードで起動
+pnpm dev                  # ホットリロードで起動（不足時は同梱スキルを自動準備）
 
 # コード品質
 pnpm lint                 # ESLintを実行
@@ -312,15 +334,29 @@ pnpm typecheck            # TypeScriptの型チェック
 
 # テスト
 pnpm test                 # ユニットテストを実行
+pnpm run comms:replay     # 通信リプレイ指標を算出
+pnpm run comms:baseline   # 通信ベースラインを更新
+pnpm run comms:compare    # リプレイ指標をベースライン閾値と比較
 
 # ビルド＆パッケージ
 pnpm run build:vite       # フロントエンドのみビルド
 pnpm build                # フルプロダクションビルド（パッケージアセット含む）
-pnpm package              # 現在のプラットフォーム向けにパッケージ化
+pnpm package              # 現在のプラットフォーム向けにパッケージ化（同梱プリインストールスキルを含む）
 pnpm package:mac          # macOS向けにパッケージ化
 pnpm package:win          # Windows向けにパッケージ化
 pnpm package:linux        # Linux向けにパッケージ化
 ```
+
+### 通信回帰チェック
+
+PR が通信経路（Gateway イベント、Chat 送受信フロー、Channel 配信、トランスポートのフォールバック）に触れる場合は、次を実行してください。
+
+```bash
+pnpm run comms:replay
+pnpm run comms:compare
+```
+
+CI の `comms-regression` が必須シナリオと閾値を検証します。
 ### 技術スタック
 
 | レイヤー | 技術 |
@@ -404,5 +440,5 @@ ClawXは[MITライセンス](LICENSE)の下でリリースされています。�
 ---
 
 <p align="center">
-  <sub>ValueCell Teamが❤️を込めて開発</sub>
+  <sub>Baowenmao Teamが❤️を込めて開発</sub>
 </p>

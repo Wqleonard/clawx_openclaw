@@ -1,154 +1,82 @@
-; ClawX Custom NSIS Installer/Uninstaller Script
+; StoryClaw Custom NSIS Installer/Uninstaller Script
 ;
-; Install: enables long paths, adds resources\cli to user PATH for openclaw CLI.
-; Uninstall: removes the PATH entry and optionally deletes user data.
-
-!ifndef nsProcess::FindProcess
-  !include "nsProcess.nsh"
-!endif
-
-!macro customCheckAppRunning
-  ; Pre-emptively remove old shortcuts to prevent the Windows "Missing Shortcut"
-  ; dialog during upgrades.  The built-in NSIS uninstaller deletes ClawX.exe
-  ; *before* removing shortcuts; Windows Shell link tracking can detect the
-  ; broken target in that brief window and pop a resolver dialog.
-  ; Delete is a silent no-op when the file doesn't exist (safe for fresh installs).
-  Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
-  Delete "$SMPROGRAMS\${PRODUCT_NAME}.lnk"
-
-  ${nsProcess::FindProcess} "${APP_EXECUTABLE_FILENAME}" $R0
-
-  ${if} $R0 == 0
-    ${if} ${isUpdated}
-      # allow app to exit without explicit kill
-      Sleep 1000
-      Goto doStopProcess
-    ${endIf}
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "$(appRunning)" /SD IDOK IDOK doStopProcess
-    Quit
-
-    doStopProcess:
-    DetailPrint `Closing running "${PRODUCT_NAME}"...`
-
-    # Silently kill the process using nsProcess instead of taskkill / cmd.exe
-    ${nsProcess::KillProcess} "${APP_EXECUTABLE_FILENAME}" $R0
-    
-    # to ensure that files are not "in-use"
-    Sleep 300
-
-    # Retry counter
-    StrCpy $R1 0
-
-    loop:
-      IntOp $R1 $R1 + 1
-
-      ${nsProcess::FindProcess} "${APP_EXECUTABLE_FILENAME}" $R0
-      ${if} $R0 == 0
-        # wait to give a chance to exit gracefully
-        Sleep 1000
-        ${nsProcess::KillProcess} "${APP_EXECUTABLE_FILENAME}" $R0
-        
-        ${nsProcess::FindProcess} "${APP_EXECUTABLE_FILENAME}" $R0
-        ${If} $R0 == 0
-          DetailPrint `Waiting for "${PRODUCT_NAME}" to close.`
-          Sleep 2000
-        ${else}
-          Goto not_running
-        ${endIf}
-      ${else}
-        Goto not_running
-      ${endIf}
-
-      # App likely running with elevated permissions.
-      # Ask user to close it manually
-      ${if} $R1 > 1
-        MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(appCannotBeClosed)" /SD IDCANCEL IDRETRY loop
-        Quit
-      ${else}
-        Goto loop
-      ${endIf}
-    not_running:
-      ${nsProcess::Unload}
-  ${endIf}
-!macroend
+; Low-risk version — removed behaviors that trigger AV heuristics:
+;   REMOVED: nsProcess FindProcess/KillProcess
+;   REMOVED: nsExec PowerShell execution
+;   REMOVED: EnumRegKey all-user profile enumeration
+;   REMOVED: WriteRegDWORD LongPathsEnabled (HKLM write, potential AV trigger)
+;   KEPT: PATH update via native NSIS registry ops (no PowerShell/plugins)
+;   KEPT: Session data cleanup on uninstall (current user only)
 
 !macro customInstall
-  ; Enable Windows long path support (Windows 10 1607+ / Windows 11).
-  ; pnpm virtual store paths can exceed the default MAX_PATH limit of 260 chars.
-  ; Writing to HKLM requires admin privileges; on per-user installs without
-  ; elevation this call silently fails — no crash, just no key written.
-  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Control\FileSystem" "LongPathsEnabled" 1
-
-  ; Use PowerShell to update the current user's PATH.
-  ; This avoids NSIS string-buffer limits and preserves long PATH values.
-  InitPluginsDir
-  ClearErrors
-  File "/oname=$PLUGINSDIR\update-user-path.ps1" "${PROJECT_DIR}\resources\cli\win32\update-user-path.ps1"
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\update-user-path.ps1" -Action add -CliDir "$INSTDIR\resources\cli"'
-  Pop $0
-  Pop $1
-  StrCmp $0 "error" 0 +2
-    DetailPrint "Warning: Failed to launch PowerShell while updating PATH."
-  StrCmp $0 "timeout" 0 +2
-    DetailPrint "Warning: PowerShell PATH update timed out."
-  StrCmp $0 "0" 0 +2
-    Goto _ci_done
-  DetailPrint "Warning: PowerShell PATH update exited with code $0."
-
-  _ci_done:
+  ; Add resources\cli to current user PATH via registry (no PowerShell needed).
+  ReadRegStr $0 HKCU "Environment" "PATH"
+  StrCmp $0 "" _addPath
+  StrCpy $1 "$0;$INSTDIR\resources\cli"
+  Goto _writePath
+  _addPath:
+  StrCpy $1 "$INSTDIR\resources\cli"
+  _writePath:
+  WriteRegExpandStr HKCU "Environment" "PATH" "$1"
+  SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
 
 !macro customUnInstall
-  ; Remove resources\cli from user PATH via PowerShell so long PATH values are handled safely
-  InitPluginsDir
-  ClearErrors
-  File "/oname=$PLUGINSDIR\update-user-path.ps1" "${PROJECT_DIR}\resources\cli\win32\update-user-path.ps1"
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\update-user-path.ps1" -Action remove -CliDir "$INSTDIR\resources\cli"'
-  Pop $0
-  Pop $1
-  StrCmp $0 "error" 0 +2
-    DetailPrint "Warning: Failed to launch PowerShell while removing PATH entry."
-  StrCmp $0 "timeout" 0 +2
-    DetailPrint "Warning: PowerShell PATH removal timed out."
-  StrCmp $0 "0" 0 +2
-    Goto _cu_pathDone
-  DetailPrint "Warning: PowerShell PATH removal exited with code $0."
+  ; Remove resources\cli from current user PATH via registry.
+  ; Use StrCpy/StrLen to strip the entry without WordFunc.nsh dependency.
+  ReadRegStr $0 HKCU "Environment" "PATH"
+  StrLen $1 "$INSTDIR\resources\cli"
 
-  _cu_pathDone:
+  ; Try removing ";$INSTDIR\resources\cli" (entry in middle or end)
+  StrCpy $2 "$0" "" -$1
+  StrCmp $2 "$INSTDIR\resources\cli" _stripEnd
+  Goto _tryStart
+  _stripEnd:
+    StrLen $3 "$0"
+    IntOp $3 $3 - $1
+    IntOp $3 $3 - 1
+    StrCpy $0 "$0" $3
+    Goto _writePath
 
-  ; Ask user if they want to completely remove all user data
+  _tryStart:
+  ; Try removing "$INSTDIR\resources\cli;" (entry at start)
+  StrCpy $2 "$0" $1
+  StrCmp $2 "$INSTDIR\resources\cli" _stripStart
+  Goto _writePath
+  _stripStart:
+    IntOp $3 $1 + 1
+    StrCpy $0 "$0" "" $3
+
+  _writePath:
+  WriteRegExpandStr HKCU "Environment" "PATH" "$0"
+  SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
+
+  ; Always clear auth/session cache so reinstall requires login again.
+  DetailPrint "Clearing login session data..."
+  RMDir /r "$APPDATA\storyclaw\Local Storage"
+  RMDir /r "$APPDATA\storyclaw\Session Storage"
+  RMDir /r "$APPDATA\storyclaw\IndexedDB"
+  RMDir /r "$LOCALAPPDATA\storyclaw\Local Storage"
+  RMDir /r "$LOCALAPPDATA\storyclaw\Session Storage"
+  RMDir /r "$LOCALAPPDATA\storyclaw\IndexedDB"
+  Delete "$APPDATA\storyclaw\Cookies"
+  Delete "$APPDATA\storyclaw\Cookies-journal"
+  Delete "$APPDATA\storyclaw\Network\Cookies"
+  Delete "$APPDATA\storyclaw\Network\Cookies-journal"
+  Delete "$LOCALAPPDATA\storyclaw\Cookies"
+  Delete "$LOCALAPPDATA\storyclaw\Cookies-journal"
+  Delete "$LOCALAPPDATA\storyclaw\Network\Cookies"
+  Delete "$LOCALAPPDATA\storyclaw\Network\Cookies-journal"
+
+  ; Ask whether to remove all remaining user data (current user only).
   MessageBox MB_YESNO|MB_ICONQUESTION \
-    "Do you want to completely remove all ClawX user data?$\r$\n$\r$\nThis will delete:$\r$\n  • .openclaw folder (configuration & skills)$\r$\n  • AppData\Local\clawx (local app data)$\r$\n  • AppData\Roaming\clawx (roaming app data)$\r$\n$\r$\nSelect 'No' to keep your data for future reinstallation." \
+    "Do you want to completely remove all StoryClaw user data?$\r$\n$\r$\nLogin session data is always cleared.$\r$\n$\r$\nIf you choose YES, this will also delete:$\r$\n  - .openclaw folder$\r$\n  - AppData\Local\storyclaw$\r$\n  - AppData\Roaming\storyclaw" \
     /SD IDNO IDYES _cu_removeData IDNO _cu_skipRemove
 
   _cu_removeData:
-    ; --- Always remove current user's data first ---
     RMDir /r "$PROFILE\.openclaw"
-    RMDir /r "$LOCALAPPDATA\clawx"
-    RMDir /r "$APPDATA\clawx"
+    RMDir /r "$LOCALAPPDATA\storyclaw"
+    RMDir /r "$APPDATA\storyclaw"
 
-    ; --- For per-machine (all users) installs, enumerate all user profiles ---
-    StrCpy $R0 0
-
-  _cu_enumLoop:
-    EnumRegKey $R1 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" $R0
-    StrCmp $R1 "" _cu_enumDone
-
-    ReadRegStr $R2 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$R1" "ProfileImagePath"
-    StrCmp $R2 "" _cu_enumNext
-
-    ExpandEnvStrings $R2 $R2
-    StrCmp $R2 $PROFILE _cu_enumNext
-
-    RMDir /r "$R2\.openclaw"
-    RMDir /r "$R2\AppData\Local\clawx"
-    RMDir /r "$R2\AppData\Roaming\clawx"
-
-  _cu_enumNext:
-    IntOp $R0 $R0 + 1
-    Goto _cu_enumLoop
-
-  _cu_enumDone:
   _cu_skipRemove:
 !macroend
-

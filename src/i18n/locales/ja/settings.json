@@ -1,6 +1,38 @@
 {
   "title": "設定",
-  "subtitle": "ClawX の体験をカスタマイズ",
+  "subtitle": "{{appName}} の体験をカスタマイズ",
+  "preferencesNav": {
+    "groups": {
+      "myAccount": "マイアカウント",
+      "aiCapabilities": "AI 機能",
+      "workspacePrivacy": "ワークスペースとデータ保存",
+      "helpInfo": "ヘルプと情報"
+    },
+    "items": {
+      "account": "アカウント",
+      "accountSecurity": "アカウントとセキュリティ",
+      "appPreferences": "アプリ環境設定",
+      "billingUsage": "ポイントと利用状況",
+      "models": "モデルとゲートウェイ",
+      "skills": "スキル",
+      "channels": "ボット連携",
+      "workspace": "ワークスペース",
+      "privacy": "データ保存",
+      "feedback": "フィードバック送信",
+      "about": "バージョン情報",
+      "points": "ポイント",
+      "usage": "利用状況"
+    },
+    "tabs": {
+      "models": "モデル",
+      "gateway": "ゲートウェイ"
+    }
+  },
+  "account": {
+    "title": "アカウント",
+    "guest": "未ログイン",
+    "logout": "ログアウト"
+  },
   "appearance": {
     "title": "通用",
     "description": "外観とスタイルをカスタマイズ",
@@ -10,7 +42,17 @@
     "system": "システム",
     "language": "言語",
     "launchAtStartup": "システム起動時に自動起動",
-    "launchAtStartupDesc": "ログイン時に ClawX を自動的に起動します"
+    "launchAtStartupDesc": "ログイン時に {{appName}} を自動的に起動します"
+  },
+  "workspace": {
+    "title": "ワークスペース",
+    "desc": "許可するワークスペースのルートフォルダーを設定します。サイドバーのワークスペース選択では、これらのルートまたはその配下のみ選択できます。",
+    "placeholder": "ワークスペースのルートパスを入力",
+    "add": "追加",
+    "pick": "フォルダーを選択",
+    "empty": "ワークスペースのルートがまだ設定されていません",
+    "saved": "ワークスペース設定を保存しました",
+    "saveFailed": "ワークスペース設定の保存に失敗しました"
   },
   "aiProviders": {
     "title": "AI プロバイダー",
@@ -30,14 +72,18 @@
     },
     "sections": {
       "model": "モデル設定",
-      "fallback": "フォールバック設定"
+      "fallback": "フォールバック設定",
+      "builtinModels": "内蔵モデル",
+      "customModels": "カスタムモデル",
+      "addCustomModel": "+ カスタムモデルを追加",
+      "empty": "モデルがまだ設定されていません"
     },
     "add": "プロバイダーを追加",
     "custom": "カスタム",
     "notRequired": "不要",
     "empty": {
       "title": "プロバイダーが構成されていません",
-      "desc": "ClawX の使用を開始するには AI プロバイダーを追加してください",
+      "desc": "{{appName}} の使用を開始するには AI プロバイダーを追加してください",
       "cta": "最初のプロバイダーを追加"
     },
     "dialog": {
@@ -52,6 +98,15 @@
       "replaceApiKeyHelp": "現在保存されている API キーをそのまま使う場合は、この欄を空のままにしてください。",
       "baseUrl": "ベース URL",
       "modelId": "モデル ID",
+      "codePlanPreset": "Code Plan プリセット",
+      "codePlanMode": "Code Plan",
+      "useCodePlanPreset": "Ark Code Plan プリセットを使用",
+      "codePlanPresetDesc": "Code Plan は https://ark.cn-beijing.volces.com/api/coding/v3 と model ark-code-latest を使います。Code Plan 通信に /api/v3 を使わないでください。",
+      "codePlanDoc": "Code Plan ドキュメント",
+      "protocol": "プロトコル",
+      "advancedConfig": "詳細設定",
+      "userAgent": "User-Agent",
+      "userAgentPlaceholder": "StoryClaw/1.0",
       "fallbackModels": "フォールバックモデル",
       "fallbackProviders": "別プロバイダーへのフォールバック",
       "fallbackModelIds": "同一プロバイダーのフォールバックモデル ID",
@@ -75,6 +130,12 @@
       "setDefault": "デフォルトに設定",
       "editKey": "API キーを編集",
       "delete": "プロバイダーを削除"
+    },
+    "protocols": {
+      "openai": "OpenAI 互換",
+      "openaiCompletions": "OpenAI Completions",
+      "openaiResponses": "OpenAI Responses",
+      "anthropic": "Anthropic 互換"
     },
     "toast": {
       "added": "プロバイダーが正常に追加されました",
@@ -118,7 +179,7 @@
     "appLogs": "アプリケーションログ",
     "openFolder": "フォルダーを開く",
     "autoStart": "ゲートウェイ自動起動",
-    "autoStartDesc": "ClawX 起動時にゲートウェイを自動起動",
+    "autoStartDesc": "{{appName}} 起動時にゲートウェイを自動起動",
     "proxyTitle": "プロキシ",
     "proxyDesc": "Electron と Gateway の通信をローカルプロキシ経由にします。",
     "proxyServer": "プロキシサーバー",
@@ -133,13 +194,18 @@
     "hideAdvancedProxy": "高度なプロキシ項目を非表示",
     "proxyBypass": "バイパスルール",
     "proxyBypassHelp": "直接接続するホストをセミコロン、カンマ、または改行で区切って指定します。",
-    "proxyRestartNote": "保存すると Electron のネットワーク設定を再適用し、Gateway をすぐ再起動します。",
+    "proxyRestartNote": "保存すると Electron のネットワーク設定を再適用し、Gateway をすぐ再起動します。プロキシ無効時の通常再起動では Telegram チャネルの既存プロキシ設定を保持し、無効状態で保存すると明示的に削除されます。",
     "proxySaved": "プロキシ設定を保存しました",
     "proxySaveFailed": "プロキシ設定の保存に失敗しました"
   },
+  "openclawSetup": {
+    "title": "OpenClaw 接続設定",
+    "description": "初期セットアップを再度開き、個人 API キーと管理設定を切り替えます。",
+    "action": "再設定"
+  },
   "updates": {
     "title": "アップデート",
-    "description": "ClawX を最新に保つ",
+    "description": "{{appName}} を最新に保つ",
     "autoCheck": "自動更新チェック",
     "autoCheckDesc": "起動時に更新を確認",
     "autoDownload": "自動アップデート",
@@ -152,7 +218,8 @@
       "autoInstalling": "{{seconds}} 秒後に再起動して更新をインストールします...",
       "failed": "更新の確認に失敗しました",
       "latest": "最新バージョンです",
-      "check": "更新を確認して最新の機能を入手"
+      "check": "更新を確認して最新の機能を入手",
+      "needsReinstall": "手動インストールが必要です"
     },
     "action": {
       "checking": "確認中...",
@@ -161,11 +228,13 @@
       "install": "インストールして再起動",
       "cancelAutoInstall": "キャンセル",
       "retry": "再試行",
-      "check": "更新を確認"
+      "check": "更新を確認",
+      "downloadManually": "インストーラーをダウンロード"
     },
     "currentVersion": "現在のバージョン",
     "whatsNew": "更新内容：",
     "errorDetails": "エラー詳細：",
+    "reinstallHint": "署名の変更により、この更新は自動的にインストールできません。インストーラーを手動でダウンロードしてインストールしてください。",
     "help": "自動アップデートが有効な場合、更新は自動的にダウンロードされインストールされます。"
   },
   "advanced": {
@@ -209,6 +278,29 @@
     "cliPowershell": "PowerShell コマンド。",
     "cmdUnavailable": "コマンドが利用できません",
     "cmdCopied": "CLI コマンドをコピーしました",
+    "doctor": "OpenClaw Doctor",
+    "doctorDesc": "`openclaw doctor` を実行して診断の生出力を確認します。",
+    "runDoctor": "Doctor を実行",
+    "runDoctorFix": "Doctor 修復を実行",
+    "doctorSucceeded": "OpenClaw doctor が完了しました",
+    "doctorFailed": "OpenClaw doctor が問題を報告しました",
+    "doctorRunFailed": "OpenClaw doctor の実行に失敗しました",
+    "doctorFixSucceeded": "OpenClaw doctor 修復が完了しました",
+    "doctorFixFailed": "OpenClaw doctor 修復後も問題が残っています",
+    "doctorFixRunFailed": "OpenClaw doctor 修復の実行に失敗しました",
+    "doctorCopied": "診断出力をコピーしました",
+    "doctorOk": "正常",
+    "doctorIssue": "問題あり",
+    "doctorFixOk": "修復済み",
+    "doctorFixIssue": "修復失敗",
+    "doctorExitCode": "終了コード",
+    "doctorDuration": "所要時間",
+    "doctorCommand": "コマンド",
+    "doctorWorkingDir": "作業ディレクトリ",
+    "doctorError": "エラー",
+    "doctorStdout": "標準出力",
+    "doctorStderr": "標準エラー",
+    "doctorOutputEmpty": "（空）",
     "wsDiagnostic": "WS 診断モード",
     "wsDiagnosticDesc": "Gateway RPC デバッグのため一時的に WS/HTTP フォールバックを有効化します。",
     "wsDiagnosticEnabled": "WS 診断モードを有効化しました",
@@ -228,13 +320,22 @@
     "installMessage": "\"openclaw\" コマンドをインストールしますか？",
     "installDetail": "~/.local/bin/openclaw が作成されます。グローバルに実行するには ~/.local/bin が PATH に含まれていることを確認してください。"
   },
+  "compliance": {
+    "title": "コンプライアンス",
+    "icpLicense": "ICP ライセンス",
+    "algorithmRegistration": "アルゴリズム登録",
+    "llmRegistration": "大規模モデル登録",
+    "privacyPolicy": "プライバシーポリシー",
+    "termsOfService": "利用規約"
+  },
   "about": {
     "title": "バージョン情報",
-    "appName": "ClawX",
+    "appName": "{{appName}}",
     "tagline": "グラフィカル AI アシスタント",
     "basedOn": "OpenClaw ベース",
     "version": "バージョン {{version}}",
     "docs": "公式サイト",
-    "github": "GitHub"
+    "github": "GitHub",
+    "faq": "よくある質問"
   }
 }

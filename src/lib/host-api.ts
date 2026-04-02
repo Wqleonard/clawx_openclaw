@@ -129,6 +129,14 @@ function shouldFallbackToBrowser(message: string): boolean {
     || normalized.includes('window is not defined');
 }
 
+function allowLocalhostFallback(): boolean {
+  try {
+    return window.localStorage.getItem('clawx:allow-localhost-fallback') === '1';
+  } catch {
+    return false;
+  }
+}
+
 export async function hostApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const startedAt = Date.now();
   const method = init?.method || 'GET';
@@ -158,6 +166,17 @@ export async function hostApiFetch<T>(path: string, init?: RequestInit): Promise
       code: normalized.code,
     });
     if (!shouldFallbackToBrowser(message)) {
+      throw normalized;
+    }
+    if (!allowLocalhostFallback()) {
+      trackUiEvent('hostapi.fetch_error', {
+        path,
+        method,
+        source: 'ipc-proxy',
+        durationMs: Date.now() - startedAt,
+        message: 'localhost fallback blocked by policy',
+        code: 'CHANNEL_UNAVAILABLE',
+      });
       throw normalized;
     }
   }
@@ -190,4 +209,29 @@ export function createHostEventSource(path = '/api/events'): EventSource {
 
 export function getHostApiBase(): string {
   return HOST_API_BASE;
+}
+
+export type RuntimePluginToggleSnapshot = {
+  success: boolean;
+  aiExecAudit: { enabled: boolean };
+  boomExecutorGuard: { enabled: boolean };
+};
+
+export type RuntimePluginId = 'ai-exec-audit' | 'boom-executor-guard';
+
+export async function getRuntimePluginToggles(): Promise<RuntimePluginToggleSnapshot> {
+  return await hostApiFetch<RuntimePluginToggleSnapshot>('/api/plugins/runtime-config');
+}
+
+export async function setRuntimePluginToggle(
+  pluginId: RuntimePluginId,
+  enabled: boolean,
+): Promise<{ success: boolean; pluginId: RuntimePluginId; config: { enabled: boolean } }> {
+  return await hostApiFetch<{ success: boolean; pluginId: RuntimePluginId; config: { enabled: boolean } }>(
+    '/api/plugins/runtime-config',
+    {
+      method: 'POST',
+      body: JSON.stringify({ pluginId, enabled }),
+    },
+  );
 }

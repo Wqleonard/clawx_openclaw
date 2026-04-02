@@ -1,11 +1,14 @@
 import { app, utilityProcess } from 'electron';
 import path from 'path';
+import os from 'os';
 import { existsSync } from 'fs';
+import { readdir, readFile, rm } from 'fs/promises';
 import WebSocket from 'ws';
 import { getOpenClawDir, getOpenClawEntryPath } from '../utils/paths';
 import { getUvMirrorEnv } from '../utils/uv-env';
 import { isPythonReady, setupManagedPython } from '../utils/uv-setup';
 import { logger } from '../utils/logger';
+import { prependPathEntry } from '../utils/env-path';
 
 export function warmupManagedPythonReadiness(): void {
   void isPythonReady().then((pythonReady) => {
@@ -20,40 +23,114 @@ export function warmupManagedPythonReadiness(): void {
   });
 }
 
+/**
+ * On Windows, the Gateway's lock file can survive a process kill because the OS
+ * briefly keeps the PID "alive" in its process table after the signal is sent.
+ * This causes the next Gateway instance to wait the full 5-second lock timeout
+ * before giving up.  We pre-empt this by scanning the lock directory ourselves
+ * and removing any lock files whose owner PID is already dead.
+ *
+ * Lock directory: %TEMP%\openclaw\
+ * Lock file pattern: gateway.<8-char-hash>.lock
+ */
+export async function clearStaleGatewayLockFiles(): Promise<void> {
+  if (process.platform !== 'win32') return;
+
+  try {
+    const lockDir = path.join(os.tmpdir(), 'openclaw');
+
+    let files: string[];
+    try {
+      files = await readdir(lockDir);
+    } catch {
+      return; // directory doesn't exist yet — nothing to clean up
+    }
+
+    const lockFiles = files.filter((f) => f.startsWith('gateway.') && f.endsWith('.lock'));
+    if (lockFiles.length === 0) return;
+
+    for (const lockFile of lockFiles) {
+      const lockPath = path.join(lockDir, lockFile);
+      try {
+        const raw = await readFile(lockPath, 'utf-8');
+        const payload = JSON.parse(raw) as { pid?: number };
+        if (typeof payload?.pid !== 'number') continue;
+
+        const pid = payload.pid;
+        let alive = false;
+        try {
+          process.kill(pid, 0);
+          alive = true;
+        } catch {
+          alive = false;
+        }
+
+        if (!alive) {
+          await rm(lockPath, { force: true });
+          logger.info(`Cleared stale gateway lock file ${lockPath} (pid=${pid} no longer running)`);
+        }
+      } catch {
+        // file may have been removed by a concurrent process — ignore
+      }
+    }
+  } catch (err) {
+    logger.warn('Failed to clear stale gateway lock files:', err);
+  }
+}
+
 export async function terminateOwnedGatewayProcess(child: Electron.UtilityProcess): Promise<void> {
-  let exited = false;
+  const terminateWindowsProcessTree = async (pid: number): Promise<void> => {
+    const cp = await import('child_process');
+    await new Promise<void>((resolve) => {
+      cp.exec(`taskkill /F /PID ${pid} /T`, { timeout: 5000, windowsHide: true }, () => resolve());
+    });
+  };
 
   await new Promise<void>((resolve) => {
+    let exited = false;
+
+    // Register a single exit listener before any kill attempt to avoid
+    // the race where exit fires between two separate `once('exit')` calls.
     child.once('exit', () => {
       exited = true;
+      clearTimeout(timeout);
       resolve();
     });
 
     const pid = child.pid;
     logger.info(`Sending kill to Gateway process (pid=${pid ?? 'unknown'})`);
-    try {
-      child.kill();
-    } catch {
-      // ignore if already exited
+
+    if (process.platform === 'win32' && pid) {
+      void terminateWindowsProcessTree(pid).catch((err) => {
+        logger.warn(`Windows process-tree kill failed for Gateway pid=${pid}:`, err);
+      });
+    } else {
+      try {
+        child.kill();
+      } catch {
+        // ignore if already exited
+      }
     }
 
     const timeout = setTimeout(() => {
       if (!exited) {
         logger.warn(`Gateway did not exit in time, force-killing (pid=${pid ?? 'unknown'})`);
         if (pid) {
-          try {
-            process.kill(pid, 'SIGKILL');
-          } catch {
-            // ignore
+          if (process.platform === 'win32') {
+            void terminateWindowsProcessTree(pid).catch((err) => {
+              logger.warn(`Forced Windows process-tree kill failed for Gateway pid=${pid}:`, err);
+            });
+          } else {
+            try {
+              process.kill(pid, 'SIGKILL');
+            } catch {
+              // ignore
+            }
           }
         }
       }
       resolve();
     }, 5000);
-
-    child.once('exit', () => {
-      clearTimeout(timeout);
-    });
   });
 }
 
@@ -225,6 +302,9 @@ export async function findExistingGatewayProcess(options: {
       const pids = await getListeningProcessIds(port);
       if (pids.length > 0 && (!ownedPid || !pids.includes(String(ownedPid)))) {
         await terminateOrphanedProcessIds(port, pids);
+        if (process.platform === 'win32') {
+          await waitForPortFree(port, 10000);
+        }
         return null;
       }
     } catch (err) {
@@ -269,9 +349,10 @@ export async function runOpenClawDoctorRepair(): Promise<boolean> {
     ? path.join(process.resourcesPath, 'bin')
     : path.join(process.cwd(), 'resources', 'bin', target);
   const binPathExists = existsSync(binPath);
-  const finalPath = binPathExists
-    ? `${binPath}${path.delimiter}${process.env.PATH || ''}`
-    : process.env.PATH || '';
+  const baseProcessEnv = process.env as Record<string, string | undefined>;
+  const baseEnvPatched = binPathExists
+    ? prependPathEntry(baseProcessEnv, binPath).env
+    : baseProcessEnv;
 
   const uvEnv = await getUvMirrorEnv();
   const doctorArgs = ['doctor', '--fix', '--yes', '--non-interactive'];
@@ -281,8 +362,7 @@ export async function runOpenClawDoctorRepair(): Promise<boolean> {
 
   return await new Promise<boolean>((resolve) => {
     const forkEnv: Record<string, string | undefined> = {
-      ...process.env,
-      PATH: finalPath,
+      ...baseEnvPatched,
       ...uvEnv,
       OPENCLAW_NO_RESPAWN: '1',
     };

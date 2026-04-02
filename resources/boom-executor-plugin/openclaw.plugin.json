@@ -1,0 +1,19 @@
+{
+  "id": "boom-executor-guard",
+  "name": "Boom Executor Guard",
+  "description": "Uniformly downgrade exec tool commands via boom-executor.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true
+      },
+      "auditLog": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  }
+}

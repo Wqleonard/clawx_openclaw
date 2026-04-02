@@ -1,5 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
+import { APP_DISPLAY_NAME } from '../shared/app-brand';
+import { proxyAwareFetch } from './proxy-fetch';
+
 
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize';
@@ -18,7 +21,7 @@ const SUCCESS_HTML = `<!doctype html>
   <title>Authentication successful</title>
 </head>
 <body>
-  <p>Authentication successful. Return to ClawX to continue.</p>
+  <p>Authentication successful. Return to ${APP_DISPLAY_NAME} to continue.</p>
 </body>
 </html>`;
 
@@ -206,7 +209,7 @@ async function exchangeAuthorizationCode(
   code: string,
   verifier: string,
 ): Promise<{ access: string; refresh: string; expires: number }> {
-  const response = await fetch(TOKEN_URL, {
+  const response = await proxyAwareFetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({

@@ -123,6 +123,8 @@ const electronAPI = {
         'log:getFilePath',
         'log:getDir',
         'log:listFiles',
+        'log:clientEvent',
+        'log:chatRecord',
         // File staging & media
         'file:stage',
         'file:stageBuffer',
@@ -137,6 +139,26 @@ const electronAPI = {
         'openclaw:getConfigDir',
         'openclaw:getSkillsDir',
         'openclaw:getCliCommand',
+        // Workspace file system
+        'fs:open-folder',
+        'fs:set-workspace',
+        'fs:get-workspace',
+        'fs:read-tree',
+        'fs:read-file',
+        'fs:write-file',
+        'fs:create-file',
+        'fs:create-folder',
+        'fs:rename',
+        'fs:move',
+        'fs:copy',
+        'fs:delete',
+        'fs:watch-start',
+        'fs:watch-stop',
+        'fs:add-to-context',
+        'fs:remove-from-context',
+        'fs:list-context',
+        'fs:project-state:get',
+        'fs:project-state:set',
       ];
 
       if (validChannels.includes(channel)) {
@@ -159,6 +181,9 @@ const electronAPI = {
         'channel:whatsapp-qr',
         'channel:whatsapp-success',
         'channel:whatsapp-error',
+        'channel:wechat-qr',
+        'channel:wechat-success',
+        'channel:wechat-error',
         'gateway:exit',
         'gateway:error',
         'navigate',
@@ -175,6 +200,7 @@ const electronAPI = {
         'oauth:success',
         'oauth:error',
         'openclaw:cli-installed',
+        'fs:changed',
       ];
 
       if (validChannels.includes(channel)) {
@@ -203,6 +229,12 @@ const electronAPI = {
         'gateway:notification',
         'gateway:channel-status',
         'gateway:chat-message',
+        'channel:whatsapp-qr',
+        'channel:whatsapp-success',
+        'channel:whatsapp-error',
+        'channel:wechat-qr',
+        'channel:wechat-success',
+        'channel:wechat-error',
         'gateway:exit',
         'gateway:error',
         'navigate',
@@ -256,6 +288,45 @@ const electronAPI = {
    * Check if running in development
    */
   isDev: process.env.NODE_ENV === 'development' || !!process.env.VITE_DEV_SERVER_URL,
+
+  /**
+   * Workspace file system API (phase 1: read-only)
+   */
+  fs: {
+    openFolder: () => ipcRenderer.invoke('fs:open-folder'),
+    setWorkspace: (dirPath: string) => ipcRenderer.invoke('fs:set-workspace', dirPath),
+    getWorkspace: () => ipcRenderer.invoke('fs:get-workspace'),
+    readTree: (dirPath?: string) => ipcRenderer.invoke('fs:read-tree', dirPath),
+    readFile: (filePath: string) => ipcRenderer.invoke('fs:read-file', filePath),
+    writeFile: (filePath: string, content: string) => ipcRenderer.invoke('fs:write-file', filePath, content),
+    createFile: (filePath: string) => ipcRenderer.invoke('fs:create-file', filePath),
+    createFolder: (dirPath: string) => ipcRenderer.invoke('fs:create-folder', dirPath),
+    rename: (oldPath: string, newPath: string) => ipcRenderer.invoke('fs:rename', oldPath, newPath),
+    move: (sourcePath: string, targetPath: string) => ipcRenderer.invoke('fs:move', sourcePath, targetPath),
+    copy: (sourcePath: string, targetPath: string) => ipcRenderer.invoke('fs:copy', sourcePath, targetPath),
+    delete: (targetPath: string) => ipcRenderer.invoke('fs:delete', targetPath),
+    watchStart: (dirPath?: string) => ipcRenderer.invoke('fs:watch-start', dirPath),
+    watchStop: () => ipcRenderer.invoke('fs:watch-stop'),
+    addToContext: (filePath: string, agentId?: string) => ipcRenderer.invoke('fs:add-to-context', filePath, agentId),
+    removeFromContext: (filePath: string, agentId?: string) => ipcRenderer.invoke('fs:remove-from-context', filePath, agentId),
+    listContext: (agentId?: string) => ipcRenderer.invoke('fs:list-context', agentId),
+    getProjectState: () => ipcRenderer.invoke('fs:project-state:get'),
+    setProjectState: (payload: {
+      projectPath: string | null;
+      defaultProjectPath: string | null;
+      projectBindings: Record<string, string>;
+      projectShortcuts: string[];
+    }) => ipcRenderer.invoke('fs:project-state:set', payload),
+    onChanged: (callback: (data: { event: string; path: string }) => void) => {
+      const subscription = (_event: Electron.IpcRendererEvent, data: { event: string; path: string }) => {
+        callback(data);
+      };
+      ipcRenderer.on('fs:changed', subscription);
+      return () => {
+        ipcRenderer.removeListener('fs:changed', subscription);
+      };
+    },
+  },
 };
 
 // Expose the API to the renderer process

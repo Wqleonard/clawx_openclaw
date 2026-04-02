@@ -8,6 +8,7 @@
         "channels": "Channels",
         "dashboard": "Dashboard",
         "settings": "Settings",
+        "preferences": "Preferences",
         "devConsole": "Developer Console",
         "models": "Models",
         "deleteSessionConfirm": "Are you sure you want to delete session \"{{label}}\"?",
@@ -35,12 +36,16 @@
         "restart": "Restart",
         "show": "Show",
         "hide": "Hide",
-        "clear": "Clear"
+        "clear": "Clear",
+        "openInFileExplorer": "Open in File Explorer",
+        "openDevTools": "Open DevTools",
+        "resizePanel": "Drag to resize panel"
     },
     "status": {
         "running": "Running",
         "stopped": "Stopped",
         "error": "Error",
+        "agentCreated": "Agent created successfully",
         "connected": "Connected",
         "disconnected": "Disconnected",
         "enabled": "Enabled",
@@ -55,5 +60,12 @@
         "notRunning": "Gateway Not Running",
         "notRunningDesc": "The OpenClaw Gateway needs to be running to use this feature. It will start automatically, or you can start it from Settings.",
         "warning": "Gateway is not running."
+    },
+    "projectDialog": {
+        "title": "New Project",
+        "description": "Enter a project name and a folder will be created automatically under the workspace root.",
+        "placeholder": "Project name",
+        "create": "Create",
+        "creating": "Creating..."
     }
 }

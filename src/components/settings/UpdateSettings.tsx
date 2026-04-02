@@ -3,11 +3,13 @@
  * Displays update status and allows manual update checking/installation
  */
 import { useEffect, useCallback } from 'react';
-import { Download, RefreshCw, Loader2, Rocket, XCircle } from 'lucide-react';
+import { Download, RefreshCw, Loader2, Rocket, XCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useUpdateStore } from '@/stores/update';
 import { useTranslation } from 'react-i18next';
+import { logClientEvent } from '@/lib/client-log';
+import { invokeIpc } from '@/lib/api-client';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -35,15 +37,50 @@ export function UpdateSettings() {
     clearError,
   } = useUpdateStore();
 
-  // Initialize on mount
   useEffect(() => {
     init();
   }, [init]);
 
+  useEffect(() => {
+    if (!isInitialized) return;
+    logClientEvent('info', {
+      source: 'update-settings',
+      message: 'state:render',
+      data: {
+        status,
+        currentVersion,
+        updateVersion: updateInfo?.version || null,
+        hasError: Boolean(error),
+      },
+    });
+  }, [isInitialized, status, currentVersion, updateInfo?.version, error]);
+
   const handleCheckForUpdates = useCallback(async () => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:check-for-updates' });
     clearError();
     await checkForUpdates();
   }, [checkForUpdates, clearError]);
+
+  const handleDownloadUpdate = useCallback(async () => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:download-update' });
+    await downloadUpdate();
+  }, [downloadUpdate]);
+
+  const handleInstallUpdate = useCallback(() => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:install-update' });
+    installUpdate();
+  }, [installUpdate]);
+
+  const handleCancelAutoInstall = useCallback(async () => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:cancel-auto-install' });
+    await cancelAutoInstall();
+  }, [cancelAutoInstall]);
+
+  const handleOpenManualDownload = useCallback(async () => {
+    logClientEvent('info', { source: 'update-settings', message: 'click:manual-download' });
+    const url = await invokeIpc<string>('update:getManualDownloadUrl');
+    if (url) invokeIpc('shell:openExternal', url);
+  }, []);
 
   const renderStatusIcon = () => {
     switch (status) {
@@ -54,6 +91,8 @@ export function UpdateSettings() {
         return <Download className="h-4 w-4 text-primary" />;
       case 'downloaded':
         return <Rocket className="h-4 w-4 text-primary" />;
+      case 'needs-reinstall':
+        return <AlertTriangle className="h-4 w-4 text-amber-500" />;
       case 'error':
         return <RefreshCw className="h-4 w-4 text-destructive" />;
       default:
@@ -74,6 +113,8 @@ export function UpdateSettings() {
         return t('updates.status.available', { version: updateInfo?.version });
       case 'downloaded':
         return t('updates.status.downloaded', { version: updateInfo?.version });
+      case 'needs-reinstall':
+        return t('updates.status.needsReinstall');
       case 'error':
         return error || t('updates.status.failed');
       case 'not-available':
@@ -101,7 +142,7 @@ export function UpdateSettings() {
         );
       case 'available':
         return (
-          <Button onClick={downloadUpdate} size="sm">
+          <Button onClick={handleDownloadUpdate} size="sm">
             <Download className="h-4 w-4 mr-2" />
             {t('updates.action.download')}
           </Button>
@@ -109,16 +150,23 @@ export function UpdateSettings() {
       case 'downloaded':
         if (autoInstallCountdown != null && autoInstallCountdown >= 0) {
           return (
-            <Button onClick={cancelAutoInstall} size="sm" variant="outline">
+            <Button onClick={handleCancelAutoInstall} size="sm" variant="outline">
               <XCircle className="h-4 w-4 mr-2" />
               {t('updates.action.cancelAutoInstall')}
             </Button>
           );
         }
         return (
-          <Button onClick={installUpdate} size="sm" variant="default">
+          <Button onClick={handleInstallUpdate} size="sm" variant="default">
             <Rocket className="h-4 w-4 mr-2" />
             {t('updates.action.install')}
+          </Button>
+        );
+      case 'needs-reinstall':
+        return (
+          <Button onClick={handleOpenManualDownload} size="sm" variant="default">
+            <Download className="h-4 w-4 mr-2" />
+            {t('updates.action.downloadManually')}
           </Button>
         );
       case 'error':
@@ -197,6 +245,17 @@ export function UpdateSettings() {
               <p className="whitespace-pre-wrap">{updateInfo.releaseNotes}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Reinstall Hint */}
+      {status === 'needs-reinstall' && (
+        <div className="rounded-lg bg-amber-50 dark:bg-amber-900/10 p-4 text-amber-700 dark:text-amber-400 text-sm">
+          <p className="font-medium mb-1 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {t('updates.status.needsReinstall')}
+          </p>
+          <p>{t('updates.reinstallHint')}</p>
         </div>
       )}
 

@@ -2,12 +2,13 @@
     "gatewayNotRunning": "网关未运行",
     "gatewayRequired": "OpenClaw 网关需要运行才能使用聊天。它将自动启动，或者您可以从设置中启动。",
     "welcome": {
-        "title": "ClawX 聊天",
-        "subtitle": "您的 AI 助手已就绪。在下方开始对话。",
-        "askQuestions": "提问",
-        "askQuestionsDesc": "获取任何话题的答案",
-        "creativeTasks": "创意任务",
-        "creativeTasksDesc": "写作、头脑风暴、创意"
+        "title": "{{appName}} 聊天",
+        "subtitle": "我能为你做些什么？",
+        "askQuestions": "处理任务",
+        "askQuestionsDesc": "处理面向任务的请求",
+        "creativeTasks": "持续执行",
+        "creativeTasksDesc": "持续推进多步骤工作",
+        "brainstorming": "多智能体并行"
     },
     "noLogs": "（暂无日志）",
     "toolbar": {
@@ -25,6 +26,9 @@
         "gatewayDisconnectedPlaceholder": "网关未连接...",
         "send": "发送",
         "stop": "停止",
+        "modelSelectorTitle": "切换对话模型",
+        "noAvailableModels": "暂无可用模型",
+        "localAgentNotice": "Agent 在本地运行，内容由 AI 生成",
         "gatewayConnected": "已连接",
         "gatewayStatus": "gateway {{state}} | port: {{port}} {{pid}}",
         "retryFailedAttachments": "重试失败的附件"
@@ -36,5 +40,60 @@
         "withinTwoWeeks": "两周内",
         "withinMonth": "一个月内",
         "older": "一个月之前"
+    },
+    "projectRequired": "未选择项目，请先选择一个项目。",
+    "workspaceRequired": {
+        "title": "请先设置工作区",
+        "description": "在聊天前需要先配置一个本地工作区目录，用于项目与上下文管理。"
+    },
+    "projectScreen": {
+        "tagline": "世界正在等待你的故事",
+        "createNow": "立即创作"
+    },
+    "fileTree": {
+        "title": "文件",
+        "noWorkspace": "未选择工作目录",
+        "emptyFolder": "当前目录为空",
+        "openFolder": "打开目录",
+        "refresh": "刷新",
+        "newFile": "新建文件",
+        "newMarkdownFile": "新建 Markdown 文件",
+        "newFolder": "新建文件夹",
+        "rename": "重命名",
+        "openInFileManager": "在文件管理器中打开",
+        "moveTo": "移动到...",
+        "delete": "删除",
+        "createNamePrompt": "请输入名称",
+        "renamePrompt": "请输入新名称",
+        "movePrompt": "请输入新路径（可相对工作目录）",
+        "deleteConfirm": "确认删除此项？",
+        "cut": "剪切",
+        "copy": "复制",
+        "paste": "粘贴",
+        "cancel": "取消",
+        "confirm": "确认",
+        "operationFailed": "操作失败",
+        "targetExists": "目标路径已存在",
+        "addToContext": "添加到上下文",
+        "removeFromContext": "从上下文移除",
+        "defaultNewFolderName": "新建文件夹",
+        "defaultNewMarkdownFileName": "新建文件.md"
+    },
+    "markdownEditor": {
+        "toolbar": {
+            "undo": "撤销",
+            "redo": "重做",
+            "headingLevel": "标题级别",
+            "bold": "粗体",
+            "italic": "斜体",
+            "strikethrough": "删除线",
+            "inlineCode": "行内代码",
+            "bulletList": "无序列表",
+            "orderedList": "有序列表",
+            "blockquote": "引用",
+            "codeBlock": "代码块",
+            "switchToSource": "切换到源码模式",
+            "switchToRendered": "切换到预览模式"
+        }
     }
 }

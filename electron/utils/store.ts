@@ -4,10 +4,16 @@
  */
 
 import { randomBytes } from 'crypto';
+// import { app } from 'electron';
+// import { resolveSupportedLanguage } from '../../shared/language';
 
 // Lazy-load electron-store (ESM module)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let settingsStoreInstance: any = null;
+
+function ensureWorkspaceRootsValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
 
 /**
  * Generate a random token for gateway authentication
@@ -28,6 +34,8 @@ export interface AppSettings {
   telemetryEnabled: boolean;
   machineId: string;
   hasReportedInstall: boolean;
+  businessAuthToken: string;
+  businessApiBaseUrl: string;
 
   // Gateway
   gatewayAutoStart: boolean;
@@ -49,6 +57,7 @@ export interface AppSettings {
   // UI State
   sidebarCollapsed: boolean;
   devModeUnlocked: boolean;
+  workspaceRoots: string;
 
   // Presets
   selectedBundles: string[];
@@ -59,42 +68,69 @@ export interface AppSettings {
 /**
  * Default settings
  */
-const defaults: AppSettings = {
-  // General
-  theme: 'system',
-  language: 'en',
-  startMinimized: false,
-  launchAtStartup: false,
-  telemetryEnabled: true,
-  machineId: '',
-  hasReportedInstall: false,
 
-  // Gateway
-  gatewayAutoStart: true,
-  gatewayPort: 18789,
-  gatewayToken: generateToken(),
-  proxyEnabled: false,
-  proxyServer: '',
-  proxyHttpServer: '',
-  proxyHttpsServer: '',
-  proxyAllServer: '',
-  proxyBypassRules: '<local>;localhost;127.0.0.1;::1',
+// const defaults: AppSettings = {
+//   // General
+//   theme: 'system',
+//   language: 'zh',
+//   startMinimized: false,
+//   launchAtStartup: false,
+//   telemetryEnabled: true,
+//   machineId: '',
+//   hasReportedInstall: false,
+// };
+// function getSystemLocale(): string {
+//   const preferredLanguages =
+//     typeof app.getPreferredSystemLanguages === 'function' ? app.getPreferredSystemLanguages() : [];
+//   return (
+//     preferredLanguages[0] ||
+//     (typeof app.getLocale === 'function' ? app.getLocale() : '') ||
+//     Intl.DateTimeFormat().resolvedOptions().locale ||
+//     'en'
+//   );
+// }
 
-  // Update
-  updateChannel: 'stable',
-  autoCheckUpdate: true,
-  autoDownloadUpdate: false,
-  skippedVersions: [],
+function createDefaultSettings(): AppSettings {
+  return {
+    // General
+    theme: 'system',
+    language: 'zh', // resolveSupportedLanguage(getSystemLocale()),
+    startMinimized: false,
+    launchAtStartup: false,
+    telemetryEnabled: true,
+    machineId: '',
+    hasReportedInstall: false,
+    businessAuthToken: '',
+    businessApiBaseUrl: '',
 
-  // UI State
-  sidebarCollapsed: false,
-  devModeUnlocked: false,
+    // Gateway
+    gatewayAutoStart: true,
+    gatewayPort: 18789,
+    gatewayToken: generateToken(),
+    proxyEnabled: false,
+    proxyServer: '',
+    proxyHttpServer: '',
+    proxyHttpsServer: '',
+    proxyAllServer: '',
+    proxyBypassRules: '<local>;localhost;127.0.0.1;::1',
 
-  // Presets
-  selectedBundles: ['productivity', 'developer'],
-  enabledSkills: [],
-  disabledSkills: [],
-};
+    // UI State
+    sidebarCollapsed: false,
+    devModeUnlocked: false,
+    workspaceRoots: '',
+
+    // Update
+    updateChannel: 'stable',
+    autoCheckUpdate: true,
+    autoDownloadUpdate: false,
+    skippedVersions: [],
+
+    // Presets
+    selectedBundles: ['productivity', 'developer'],
+    enabledSkills: [],
+    disabledSkills: [],
+  };
+}
 
 /**
  * Get the settings store instance (lazy initialization)
@@ -104,7 +140,7 @@ async function getSettingsStore() {
     const Store = (await import('electron-store')).default;
     settingsStoreInstance = new Store<AppSettings>({
       name: 'settings',
-      defaults,
+      defaults: createDefaultSettings(),
     });
   }
   return settingsStoreInstance;
@@ -115,7 +151,15 @@ async function getSettingsStore() {
  */
 export async function getSetting<K extends keyof AppSettings>(key: K): Promise<AppSettings[K]> {
   const store = await getSettingsStore();
-  return store.get(key);
+  const value = store.get(key);
+  if (key === 'workspaceRoots') {
+    const normalized = ensureWorkspaceRootsValue(value);
+    if (value !== normalized) {
+      store.set('workspaceRoots', normalized);
+    }
+    return normalized as AppSettings[K];
+  }
+  return value;
 }
 
 /**
@@ -134,7 +178,16 @@ export async function setSetting<K extends keyof AppSettings>(
  */
 export async function getAllSettings(): Promise<AppSettings> {
   const store = await getSettingsStore();
-  return store.store;
+  const snapshot = store.store as AppSettings;
+  const normalizedWorkspaceRoots = ensureWorkspaceRootsValue(snapshot.workspaceRoots);
+  if (snapshot.workspaceRoots !== normalizedWorkspaceRoots) {
+    store.set('workspaceRoots', normalizedWorkspaceRoots);
+    return {
+      ...snapshot,
+      workspaceRoots: normalizedWorkspaceRoots,
+    };
+  }
+  return snapshot;
 }
 
 /**

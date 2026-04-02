@@ -1,6 +1,38 @@
 {
   "title": "Settings",
-  "subtitle": "Configure your ClawX experience",
+  "subtitle": "Configure your {{appName}} experience",
+  "preferencesNav": {
+    "groups": {
+      "myAccount": "My Account",
+      "aiCapabilities": "AI Capabilities",
+      "workspacePrivacy": "Workspace & Data Storage",
+      "helpInfo": "Help & Info"
+    },
+    "items": {
+      "account": "Account",
+      "accountSecurity": "Account & Security",
+      "appPreferences": "App Preferences",
+      "billingUsage": "Points & Usage",
+      "models": "Models & Gateway",
+      "skills": "Skills",
+      "channels": "Bot Integrations",
+      "workspace": "Workspace",
+      "privacy": "Data Storage",
+      "feedback": "Send Feedback",
+      "about": "About",
+      "points": "Points",
+      "usage": "Usage"
+    },
+    "tabs": {
+      "models": "Models",
+      "gateway": "Gateway"
+    }
+  },
+  "account": {
+    "title": "Account",
+    "guest": "Not logged in",
+    "logout": "Logout"
+  },
   "appearance": {
     "title": "General",
     "description": "Customize the look and feel",
@@ -10,7 +42,17 @@
     "system": "System",
     "language": "Language",
     "launchAtStartup": "Launch at system startup",
-    "launchAtStartupDesc": "Automatically launch ClawX when you log in"
+    "launchAtStartupDesc": "Automatically launch {{appName}} when you log in"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "desc": "Configure allowed workspace root folders. Sidebar workspace picker can only choose these roots or their subfolders.",
+    "placeholder": "Enter workspace root path",
+    "add": "Add",
+    "pick": "Pick Folder",
+    "empty": "No workspace roots configured yet",
+    "saved": "Workspace settings saved",
+    "saveFailed": "Failed to save workspace settings"
   },
   "aiProviders": {
     "title": "AI Providers",
@@ -30,14 +72,18 @@
     },
     "sections": {
       "model": "Model Settings",
-      "fallback": "Fallback Settings"
+      "fallback": "Fallback Settings",
+      "builtinModels": "Built-in Models",
+      "customModels": "Custom Models",
+      "addCustomModel": "+ Add Custom Model",
+      "empty": "No models configured"
     },
     "add": "Add Provider",
     "custom": "Custom",
     "notRequired": "Not required",
     "empty": {
       "title": "No providers configured",
-      "desc": "Add an AI provider to start using ClawX",
+      "desc": "Add an AI provider to start using {{appName}}",
       "cta": "Add Your First Provider"
     },
     "dialog": {
@@ -52,7 +98,15 @@
       "replaceApiKeyHelp": "Leave this field empty if you want to keep the currently stored API key.",
       "baseUrl": "Base URL",
       "modelId": "Model ID",
+      "codePlanPreset": "Code Plan Preset",
+      "codePlanMode": "Code Plan",
+      "useCodePlanPreset": "Use Ark Code Plan Preset",
+      "codePlanPresetDesc": "Code Plan uses https://ark.cn-beijing.volces.com/api/coding/v3 and model ark-code-latest. Do not use /api/v3 for Code Plan traffic.",
+      "codePlanDoc": "Code Plan docs",
       "protocol": "Protocol",
+      "advancedConfig": "Advanced configuration",
+      "userAgent": "User-Agent",
+      "userAgentPlaceholder": "StoryClaw/1.0",
       "fallbackModels": "Fallback Models",
       "fallbackProviders": "Fallback Providers",
       "fallbackModelIds": "Fallback Model IDs",
@@ -79,6 +133,8 @@
     },
     "protocols": {
       "openai": "OpenAI Compatible",
+      "openaiCompletions": "OpenAI Completions",
+      "openaiResponses": "OpenAI Responses",
       "anthropic": "Anthropic Compatible"
     },
     "toast": {
@@ -124,7 +180,7 @@
     "appLogs": "Application Logs",
     "openFolder": "Open Folder",
     "autoStart": "Auto-start Gateway",
-    "autoStartDesc": "Start Gateway when ClawX launches",
+    "autoStartDesc": "Start Gateway when {{appName}} launches",
     "proxyTitle": "Proxy",
     "proxyDesc": "Route Electron and Gateway traffic through your local proxy client.",
     "proxyServer": "Proxy Server",
@@ -139,13 +195,18 @@
     "hideAdvancedProxy": "Hide advanced proxy fields",
     "proxyBypass": "Bypass Rules",
     "proxyBypassHelp": "Semicolon, comma, or newline separated hosts that should connect directly.",
-    "proxyRestartNote": "Saving reapplies Electron networking and restarts the Gateway immediately.",
+    "proxyRestartNote": "Saving reapplies Electron networking and restarts the Gateway immediately. Regular Gateway restarts keep existing Telegram channel proxy values when proxy is disabled; save while disabled to clear them.",
     "proxySaved": "Proxy settings saved",
     "proxySaveFailed": "Failed to save proxy settings"
   },
+  "openclawSetup": {
+    "title": "OpenClaw Connection Setup",
+    "description": "Re-open the setup wizard to switch between your own API key and managed OpenClaw config.",
+    "action": "Reconfigure"
+  },
   "updates": {
     "title": "Updates",
-    "description": "Keep ClawX up to date",
+    "description": "Keep {{appName}} up to date",
     "autoCheck": "Auto-check for updates",
     "autoCheckDesc": "Check for updates on startup",
     "autoDownload": "Auto-update",
@@ -158,7 +219,8 @@
       "autoInstalling": "Restarting to install update in {{seconds}}s...",
       "failed": "Update check failed",
       "latest": "You have the latest version",
-      "check": "Check for updates to get the latest features"
+      "check": "Check for updates to get the latest features",
+      "needsReinstall": "Manual installation required"
     },
     "action": {
       "checking": "Checking...",
@@ -167,11 +229,13 @@
       "install": "Install & Restart",
       "cancelAutoInstall": "Cancel",
       "retry": "Retry",
-      "check": "Check for Updates"
+      "check": "Check for Updates",
+      "downloadManually": "Download Installer"
     },
     "currentVersion": "Current Version",
     "whatsNew": "What's New:",
     "errorDetails": "Error Details:",
+    "reinstallHint": "Due to a signature change, this update cannot be installed automatically. Please download and install the package manually.",
     "help": "When auto-update is enabled, updates are downloaded and installed automatically."
   },
   "advanced": {
@@ -199,7 +263,7 @@
     "devMode": "Developer Mode",
     "devModeDesc": "Show developer tools and shortcuts",
     "telemetry": "Anonymous Usage Data",
-    "telemetryDesc": "Allow providing anonymous basic usage data to improve ClawX"
+    "telemetryDesc": "Allow providing anonymous basic usage data to improve {{appName}}"
   },
   "developer": {
     "title": "Developer",
@@ -217,6 +281,29 @@
     "cliPowershell": "PowerShell command.",
     "cmdUnavailable": "Command unavailable",
     "cmdCopied": "CLI command copied",
+    "doctor": "OpenClaw Doctor",
+    "doctorDesc": "Run `openclaw doctor` and inspect the raw diagnostic output.",
+    "runDoctor": "Run Doctor",
+    "runDoctorFix": "Run Doctor Fix",
+    "doctorSucceeded": "OpenClaw doctor completed",
+    "doctorFailed": "OpenClaw doctor reported issues",
+    "doctorRunFailed": "Failed to run OpenClaw doctor",
+    "doctorFixSucceeded": "OpenClaw doctor fix completed",
+    "doctorFixFailed": "OpenClaw doctor fix reported issues",
+    "doctorFixRunFailed": "Failed to run OpenClaw doctor fix",
+    "doctorCopied": "Doctor output copied",
+    "doctorOk": "Healthy",
+    "doctorIssue": "Issues Found",
+    "doctorFixOk": "Fixed",
+    "doctorFixIssue": "Fix Failed",
+    "doctorExitCode": "Exit code",
+    "doctorDuration": "Duration",
+    "doctorCommand": "Command",
+    "doctorWorkingDir": "Working dir",
+    "doctorError": "Error",
+    "doctorStdout": "Stdout",
+    "doctorStderr": "Stderr",
+    "doctorOutputEmpty": "(empty)",
     "wsDiagnostic": "WS Diagnostic Mode",
     "wsDiagnosticDesc": "Temporarily enable WS/HTTP fallback chain for gateway RPC debugging.",
     "wsDiagnosticEnabled": "WS diagnostic mode enabled",
@@ -236,13 +323,22 @@
     "installMessage": "Install the \"openclaw\" command?",
     "installDetail": "This will create ~/.local/bin/openclaw. Ensure ~/.local/bin is on your PATH if you want to run it globally."
   },
+  "compliance": {
+    "title": "Compliance",
+    "icpLicense": "ICP License",
+    "algorithmRegistration": "Algorithm Registration",
+    "llmRegistration": "LLM Registration",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
+  },
   "about": {
     "title": "About",
-    "appName": "ClawX",
+    "appName": "{{appName}}",
     "tagline": "Graphical AI Assistant",
     "basedOn": "Based on OpenClaw",
     "version": "Version {{version}}",
     "docs": "Website",
-    "github": "GitHub"
+    "github": "GitHub",
+    "faq": "FAQ"
   }
 }

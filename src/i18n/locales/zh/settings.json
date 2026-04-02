@@ -1,6 +1,38 @@
 {
   "title": "设置",
-  "subtitle": "配置您的 ClawX 体验",
+  "subtitle": "配置您的 {{appName}} 体验",
+  "preferencesNav": {
+    "groups": {
+      "myAccount": "我的账户",
+      "aiCapabilities": "AI 能力",
+      "workspacePrivacy": "工作区与数据存储",
+      "helpInfo": "帮助与信息"
+    },
+    "items": {
+      "account": "账户",
+      "accountSecurity": "账户与安全",
+      "appPreferences": "应用偏好",
+      "billingUsage": "贝壳与用量",
+      "models": "模型与网关",
+      "skills": "技能",
+      "channels": "机器人集成",
+      "workspace": "工作区",
+      "privacy": "数据存储",
+      "feedback": "提交反馈",
+      "about": "关于",
+      "points": "贝壳",
+      "usage": "用量统计"
+    },
+    "tabs": {
+      "models": "模型",
+      "gateway": "网关"
+    }
+  },
+  "account": {
+    "title": "账户",
+    "guest": "未登录",
+    "logout": "退出登录"
+  },
   "appearance": {
     "title": "通用",
     "description": "自定义外观和风格",
@@ -10,7 +42,17 @@
     "system": "跟随系统",
     "language": "语言",
     "launchAtStartup": "开机自动启动",
-    "launchAtStartupDesc": "登录系统后自动启动 ClawX"
+    "launchAtStartupDesc": "登录系统后自动启动 {{appName}}"
+  },
+  "workspace": {
+    "title": "工作区",
+    "desc": "配置允许使用的工作区根目录。",
+    "placeholder": "输入工作区根目录路径",
+    "add": "添加",
+    "pick": "选择文件夹",
+    "empty": "尚未配置工作区根目录",
+    "saved": "工作区设置已保存",
+    "saveFailed": "保存工作区设置失败"
   },
   "aiProviders": {
     "title": "AI 模型提供商",
@@ -30,14 +72,18 @@
     },
     "sections": {
       "model": "模型配置",
-      "fallback": "回退配置"
+      "fallback": "回退配置",
+      "builtinModels": "内置模型",
+      "customModels": "自定义模型",
+      "addCustomModel": "+添加自定义模型",
+      "empty": "暂无模型配置"
     },
     "add": "添加提供商",
     "custom": "自定义",
     "notRequired": "非必填",
     "empty": {
       "title": "未配置提供商",
-      "desc": "添加 AI 提供商以开始使用 ClawX",
+      "desc": "添加 AI 提供商以开始使用 {{appName}}",
       "cta": "添加您的第一个提供商"
     },
     "dialog": {
@@ -52,7 +98,15 @@
       "replaceApiKeyHelp": "如果想保留当前已保存的 API key，这里留空即可。",
       "baseUrl": "基础 URL",
       "modelId": "模型 ID",
+      "codePlanPreset": "Code Plan 预设",
+      "codePlanMode": "Code Plan",
+      "useCodePlanPreset": "使用 Ark Code Plan 预设",
+      "codePlanPresetDesc": "Code Plan 使用 https://ark.cn-beijing.volces.com/api/coding/v3 与模型 ark-code-latest。请勿把 /api/v3 用于 Code Plan 流量。",
+      "codePlanDoc": "Code Plan 文档",
       "protocol": "协议",
+      "advancedConfig": "高级配置",
+      "userAgent": "User-Agent",
+      "userAgentPlaceholder": "StoryClaw/1.0",
       "fallbackModels": "回退模型",
       "fallbackProviders": "跨 Provider 回退",
       "fallbackModelIds": "同 Provider 回退模型 ID",
@@ -79,6 +133,8 @@
     },
     "protocols": {
       "openai": "OpenAI 兼容",
+      "openaiCompletions": "OpenAI Completions",
+      "openaiResponses": "OpenAI Responses",
       "anthropic": "Anthropic 兼容"
     },
     "toast": {
@@ -124,7 +180,7 @@
     "appLogs": "应用日志",
     "openFolder": "打开文件夹",
     "autoStart": "自动启动网关",
-    "autoStartDesc": "ClawX 启动时自动启动网关",
+    "autoStartDesc": "{{appName}} 启动时自动启动网关",
     "proxyTitle": "代理",
     "proxyDesc": "让 Electron 和 Gateway 的网络请求都走本地代理客户端。",
     "proxyServer": "代理服务器",
@@ -139,13 +195,18 @@
     "hideAdvancedProxy": "隐藏高级代理字段",
     "proxyBypass": "绕过规则",
     "proxyBypassHelp": "使用分号、逗号或换行分隔需要直连的主机。",
-    "proxyRestartNote": "保存后会立即重新应用 Electron 网络代理，并自动重启 Gateway。",
+    "proxyRestartNote": "保存后会立即重新应用 Electron 网络代理，并自动重启 Gateway。若代理已关闭，Gateway 常规重启会保留 Telegram 频道已有代理；如需清空，请在关闭代理后手动保存一次。",
     "proxySaved": "代理设置已保存",
     "proxySaveFailed": "保存代理设置失败"
   },
+  "openclawSetup": {
+    "title": "OpenClaw 连接配置",
+    "description": "重新打开初始化向导，在“自定义 API Key”和“托管配置”之间切换。",
+    "action": "重新配置"
+  },
   "updates": {
     "title": "更新",
-    "description": "保持 ClawX 最新",
+    "description": "保持 {{appName}} 最新",
     "autoCheck": "自动检查更新",
     "autoCheckDesc": "启动时检查更新",
     "autoDownload": "自动更新",
@@ -158,7 +219,8 @@
       "autoInstalling": "将在 {{seconds}} 秒后重启并安装更新...",
       "failed": "检查更新失败",
       "latest": "您已拥有最新版本",
-      "check": "检查更新以获取最新功能"
+      "check": "检查更新以获取最新功能",
+      "needsReinstall": "请手动安装此次更新"
     },
     "action": {
       "checking": "检查中...",
@@ -167,11 +229,13 @@
       "install": "安装并重启",
       "cancelAutoInstall": "取消",
       "retry": "重试",
-      "check": "检查更新"
+      "check": "检查更新",
+      "downloadManually": "手动下载安装包"
     },
     "currentVersion": "当前版本",
     "whatsNew": "更新内容：",
     "errorDetails": "错误详情：",
+    "reinstallHint": "由于签名验证限制，此版本无法通过自动更新安装，请手动下载安装包完成升级。",
     "help": "开启自动更新后，更新将自动下载并安装。"
   },
   "advanced": {
@@ -199,7 +263,7 @@
     "devMode": "开发者模式",
     "devModeDesc": "显示开发者工具和快捷方式",
     "telemetry": "匿名使用数据",
-    "telemetryDesc": "允许提供匿名的基础使用数据，用于改进 ClawX"
+    "telemetryDesc": "允许提供匿名的基础使用数据，用于改进 {{appName}}"
   },
   "developer": {
     "title": "开发者",
@@ -217,6 +281,29 @@
     "cliPowershell": "PowerShell 命令。",
     "cmdUnavailable": "命令不可用",
     "cmdCopied": "CLI 命令已复制",
+    "doctor": "OpenClaw Doctor 诊断",
+    "doctorDesc": "运行 `openclaw doctor` 并查看原始诊断输出。",
+    "runDoctor": "运行 Doctor",
+    "runDoctorFix": "运行 Doctor 并修复",
+    "doctorSucceeded": "OpenClaw doctor 已完成",
+    "doctorFailed": "OpenClaw doctor 检测到问题",
+    "doctorRunFailed": "运行 OpenClaw doctor 失败",
+    "doctorFixSucceeded": "OpenClaw doctor 修复已完成",
+    "doctorFixFailed": "OpenClaw doctor 修复后仍有问题",
+    "doctorFixRunFailed": "运行 OpenClaw doctor 修复失败",
+    "doctorCopied": "诊断输出已复制",
+    "doctorOk": "正常",
+    "doctorIssue": "发现问题",
+    "doctorFixOk": "已修复",
+    "doctorFixIssue": "修复失败",
+    "doctorExitCode": "退出码",
+    "doctorDuration": "耗时",
+    "doctorCommand": "命令",
+    "doctorWorkingDir": "工作目录",
+    "doctorError": "错误",
+    "doctorStdout": "标准输出",
+    "doctorStderr": "标准错误",
+    "doctorOutputEmpty": "（空）",
     "wsDiagnostic": "WS 诊断模式",
     "wsDiagnosticDesc": "临时启用 WS/HTTP 回退链，用于网关 RPC 调试。",
     "wsDiagnosticEnabled": "已启用 WS 诊断模式",
@@ -236,13 +323,22 @@
     "installMessage": "安装 \"openclaw\" 命令？",
     "installDetail": "这将创建 ~/.local/bin/openclaw。确保 ~/.local/bin 在您的 PATH 中。"
   },
+  "compliance": {
+    "title": "备案信息",
+    "icpLicense": "ICP 备案/许可证号",
+    "algorithmRegistration": "算法备案",
+    "llmRegistration": "大模型备案登记",
+    "privacyPolicy": "隐私政策",
+    "termsOfService": "用户协议"
+  },
   "about": {
     "title": "关于",
-    "appName": "ClawX",
+    "appName": "{{appName}}",
     "tagline": "图形化 AI 助手",
     "basedOn": "基于 OpenClaw",
     "version": "版本 {{version}}",
     "docs": "官网",
-    "github": "GitHub"
+    "github": "GitHub",
+    "faq": "常见问题"
   }
 }

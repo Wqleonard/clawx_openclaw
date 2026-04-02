@@ -6,11 +6,12 @@
 
 - 需要一个 AutoClaw 风格的桌面壳（Windows + macOS）。
 - 前端壳子必须实现。
-- 必须接入自家 AI 算法/API。
-- 终端能力和 OpenClaw 保留与否可以后续决定（可插拔）。
+- **OpenClaw 和终端能力完整保留**，不做裁剪。
+- 在原有功能基础上，**额外扩展接入自家 AI 模型、API 和业务接口**。
+- 新增登录/用户系统，支持自家账号体系。
 
-本次会话核心结论：  
-**最优路径是 `Fork ClawX + 做 OpenClaw 去中心化改造`，而不是从零重写，也不是直接照搬不改。**
+本次会话核心结论：
+**最优路径是 `Fork ClawX + 扩展自家 API/模型`，OpenClaw 和终端作为核心能力完整保留，自家 API 作为新增扩展并行存在。**
 
 ---
 
@@ -119,15 +120,17 @@
 ## 直接使用 ClawX（不改）
 
 - 优点：最快有现成体验。
-- 缺点：OpenClaw 强耦合；自家 API 会沦为外挂，长期维护受上游节奏影响。
+- 缺点：无法接入自家 API 和模型，功能受限。
 
 ## 推荐方案（最终）
 
-**Fork ClawX + 去 OpenClaw 中心化改造（Hybrid）**
+**Fork ClawX + 扩展自家 API/模型（增强型）**
 
 - 复用成熟壳层能力（UI、打包、更新、IPC、设置体系）。
-- 将核心执行链路切到自家 API（一等公民）。
-- OpenClaw 与终端做成可插拔模块，默认可关闭。
+- **完整保留 OpenClaw Gateway 和终端能力**（作为核心功能）。
+- **新增自家 API/模型支持**（作为扩展能力，与 OpenClaw 并行）。
+- 新增登录/用户系统，支持自家账号体系。
+- 新增业务接口调用能力（如自定义工具、企业功能等）。
 
 ---
 
@@ -136,56 +139,80 @@
 ### Phase 0（准备期，1-2天）
 
 - Fork `ValueCell-ai/ClawX`。
-- 创建 `provider-abstraction` 分支。
-- 冻结最小事件协议（`task.status` / `message.delta` / `tool.*` / `artifact`）。
+- 创建 `custom-api-extension` 分支。
+- 确认现有 OpenClaw 功能完整可用（Gateway、终端、技能市场等）。
 
-### Phase 1（必须完成，约1周）
+### Phase 1（必须完成，约1-2周）
 
-- 引入 `AgentProvider` 抽象接口：
-  - `createTask`
-  - `streamTask`
-  - `cancelTask`
-  - `listModels`
-  - `healthCheck`
-- 新增 `YourProvider`（接你们 API）。
-- UI 默认仅走 `YourProvider`。
-- OpenClaw 相关入口改为“可选开关”。
+- **新增登录/用户系统**：
+  - 登录页面（用户名/密码 或 OAuth）
+  - Token 管理（存储到系统 Keychain）
+  - 用户信息持久化
+- **新增自家 API 集成**：
+  - 引入 `CustomProvider`（接入自家 AI 模型 API）
+  - 实现流式对话接口（兼容现有聊天 UI）
+  - 模型列表获取与切换
+- **UI 扩展**：
+  - 设置页新增”自家模型”配置入口
+  - 聊天页支持切换 OpenClaw 模型 / 自家模型
+  - 保留 OpenClaw 所有现有功能入口
 
 验收标准：
 
 - Win/mac 均可安装启动。
-- 可创建任务、流式显示、取消任务、查看历史。
+- OpenClaw 功能完整可用（终端、技能、Agent 等）。
+- 可登录自家账号，使用自家模型进行对话。
+- 可在 OpenClaw 模型和自家模型之间自由切换。
 
 ### Phase 2（增强期，1-2周）
 
-- 终端模块（xterm + pty）改为 feature flag。
-- OpenClawProvider 插件化（保留兼容能力但不影响主链路）。
-- 增加诊断日志导出、断线重连、错误码归一。
+- **新增业务接口调用**：
+  - 自定义工具/函数调用（Tool Calling）
+  - 企业功能集成（如审批、日志、权限等）
+- **多模型协同**：
+  - 支持同时使用 OpenClaw 和自家模型
+  - 模型能力互补（如 OpenClaw 负责终端操作，自家模型负责业务逻辑）
+- **增强体验**：
+  - 诊断日志导出
+  - 断线重连
+  - 错误码归一
 
 ### Phase 3（企业化，可后续）
 
 - 权限审批（高危操作确认）。
 - 组织策略（模型白名单、速率限制）。
 - 审计与脱敏日志。
+- 多租户支持。
 
 ---
 
 ## 7) 目标工程形态（建议）
 
 ```text
-your-desktop-app/
-├── electron/                      # ClawX 主进程层（保留并改造）
+boom-claw/
+├── electron/                      # ClawX 主进程层（保留并扩展）
 │   ├── main/
 │   ├── preload/
 │   ├── api/
+│   ├── gateway/                   # OpenClaw Gateway（完整保留）
 │   └── services/
 │       ├── providers/
-│       │   ├── your-provider.ts   # 新增：自家API适配
-│       │   └── openclaw-provider.ts (optional)
-│       └── runtime/
-├── src/                           # React renderer（保留并改造）
+│       │   ├── openclaw-provider.ts   # 保留：OpenClaw 原有能力
+│       │   └── custom-provider.ts     # 新增：自家 API 适配
+│       ├── auth/                  # 新增：登录/用户系统
+│       └── business/              # 新增：业务接口封装
+├── src/                           # React renderer（保留并扩展）
 │   ├── stores/
+│   │   ├── chat/                  # 保留：聊天状态（支持多 Provider）
+│   │   ├── gateway.ts             # 保留：OpenClaw Gateway 状态
+│   │   ├── auth.ts                # 新增：登录/用户状态
+│   │   └── custom-models.ts       # 新增：自家模型状态
 │   ├── pages/
+│   │   ├── Login/                 # 新增：登录页
+│   │   ├── Chat/                  # 保留并扩展：支持多模型切换
+│   │   ├── Agents/                # 保留：OpenClaw Agent 管理
+│   │   ├── Skills/                # 保留：OpenClaw 技能市场
+│   │   └── Settings/              # 扩展：新增自家模型配置
 │   └── lib/
 ├── resources/                     # 打包资源
 └── electron-builder.yml
@@ -195,16 +222,19 @@ your-desktop-app/
 
 ## 8) 风险与规避
 
-- 风险：继续将 OpenClaw 作为主链路，后续改造成本爆炸。  
-  规避：先做 Provider 抽象，先切主链路到自家 API。
+- 风险：OpenClaw 和自家 API 两套系统维护成本高。
+  规避：做好 Provider 抽象层，统一接口规范，降低维护复杂度。
 
-- 风险：Renderer 越权（安全问题）。  
+- 风险：Renderer 越权（安全问题）。
   规避：坚持 `preload + contextIsolation + IPC白名单`。
 
-- 风险：协议不稳定导致 UI 频繁返工。  
+- 风险：多模型切换导致 UI 状态混乱。
+  规避：明确模型状态隔离，避免状态污染。
+
+- 风险：自家 API 协议变更导致频繁返工。
   规避：先冻结事件 schema，再做页面开发。
 
-- 风险：Windows 打包/升级链路拖慢进度。  
+- 风险：Windows 打包/升级链路拖慢进度。
   规避：第一周即跑通 `package:win` 和基础更新检查。
 
 ---
@@ -214,13 +244,15 @@ your-desktop-app/
 ```text
 我已决定 Fork ClawX 做二开。目标是：
 1) 前端壳子（Electron + React）必须上线；
-2) 主链路必须接入我们自己的 API（create/stream/cancel）；
-3) OpenClaw 和终端能力改为可选模块，不影响主流程。
+2) OpenClaw 和终端能力完整保留（作为核心功能）；
+3) 在原有基础上扩展接入我们自己的 API/模型（作为新增能力）；
+4) 新增登录/用户系统，支持自家账号体系；
+5) 支持在 OpenClaw 模型和自家模型之间自由切换。
 
-请先基于当前仓库给我做“文件级改造计划”：
-- 必须改的文件（按优先级）
-- 可后改的文件
-- 可删除/可禁用的 OpenClaw 强耦合模块
+请先基于当前仓库给我做”文件级改造计划”：
+- 必须新增的文件（登录、自家 API、用户系统）
+- 必须修改的文件（UI 扩展、模型切换）
+- 完整保留的模块（OpenClaw Gateway、终端、技能市场）
 - 第一周日程（每天可验收）
 并从第一步代码修改开始执行。
 ```
@@ -242,5 +274,5 @@ your-desktop-app/
 
 ## 11) 最终结论（一句话版）
 
-**现在最优解：Fork ClawX，复用成熟桌面壳能力；同时尽快做 Provider 抽象，把主链路切到你们自家 API，OpenClaw/终端变成可选插件。**
+**现在最优解：Fork ClawX，完整保留 OpenClaw 和终端能力作为核心功能；同时扩展接入自家 API/模型，新增登录/用户系统，实现双引擎并行的增强型桌面应用。**
 

@@ -8,6 +8,7 @@
         "channels": "チャンネル",
         "dashboard": "ダッシュボード",
         "settings": "設定",
+        "preferences": "環境設定",
         "devConsole": "開発者コンソール",
         "models": "モデル",
         "deleteSessionConfirm": "セッション \"{{label}}\" を削除してもよろしいですか？",
@@ -35,12 +36,16 @@
         "restart": "再起動",
         "show": "表示",
         "hide": "非表示",
-        "clear": "クリア"
+        "clear": "クリア",
+        "openInFileExplorer": "ファイルエクスプローラーで開く",
+        "openDevTools": "開発者ツールを開く",
+        "resizePanel": "ドラッグして幅を調整"
     },
     "status": {
         "running": "実行中",
         "stopped": "停止",
         "error": "エラー",
+        "agentCreated": "Agent の作成に成功しました",
         "connected": "接続済み",
         "disconnected": "切断",
         "enabled": "有効",
@@ -55,5 +60,12 @@
         "notRunning": "ゲートウェイが停止中",
         "notRunningDesc": "この機能を使用するには OpenClaw ゲートウェイが実行されている必要があります。自動的に起動するか、設定から起動できます。",
         "warning": "ゲートウェイが停止中です。"
+    },
+    "projectDialog": {
+        "title": "新規プロジェクト",
+        "description": "プロジェクト名を入力すると、ワークスペースのルート配下にフォルダーが自動作成されます。",
+        "placeholder": "プロジェクト名",
+        "create": "作成",
+        "creating": "作成中..."
     }
 }

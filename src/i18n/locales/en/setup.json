@@ -1,7 +1,7 @@
 {
     "steps": {
         "welcome": {
-            "title": "Welcome to ClawX",
+            "title": "Welcome to {{appName}}",
             "description": "Your AI assistant is ready to be configured"
         },
         "runtime": {
@@ -22,12 +22,12 @@
         },
         "complete": {
             "title": "All Set!",
-            "description": "ClawX is ready to use"
+            "description": "{{appName}} is ready to use"
         }
     },
     "welcome": {
-        "title": "Welcome to ClawX",
-        "description": "ClawX is a graphical interface for OpenClaw, making it easy to use AI assistants across your favorite messaging platforms.",
+        "title": "Welcome to {{appName}}",
+        "description": "{{appName}} is a graphical interface for OpenClaw, making it easy to use AI assistants across your favorite messaging platforms.",
         "features": {
             "noCommand": "Zero command-line required",
             "modernUI": "Modern, beautiful interface",
@@ -63,10 +63,32 @@
     },
     "provider": {
         "label": "Model Provider",
+        "connectionMode": "Connection Mode",
+        "connectionModes": {
+            "personal": "Use My Own API Key",
+            "personalDesc": "Configure your own provider credentials.",
+            "managed": "Use {{appName}} Managed Config",
+            "managedDesc": "Use the managed OpenClaw endpoint configured by your organization."
+        },
+        "managedConfigLoading": "Loading managed OpenClaw configuration...",
+        "managedConfigReady": "Managed OpenClaw configuration is ready.",
+        "managedConfigMissing": "Managed OpenClaw configuration is unavailable. Ask your administrator to set STORYCLAW_OPENCLAW_BASE_URL and STORYCLAW_OPENCLAW_API_KEY.",
+        "applyManaged": "Apply Managed Config",
         "selectPlaceholder": "Select a provider...",
         "baseUrl": "Base URL",
         "modelId": "Model ID",
         "modelIdDesc": "The model identifier from your provider (e.g. deepseek-ai/DeepSeek-V3)",
+        "codePlanPreset": "Code Plan Preset",
+        "codePlanMode": "Code Plan",
+        "useCodePlanPreset": "Use Ark Code Plan Preset",
+        "codePlanPresetDesc": "Code Plan uses https://ark.cn-beijing.volces.com/api/coding/v3 and model ark-code-latest. Do not use /api/v3 for Code Plan traffic.",
+        "codePlanDoc": "Code Plan docs",
+        "protocol": "Protocol",
+        "protocols": {
+            "openaiCompletions": "OpenAI Completions",
+            "openaiResponses": "OpenAI Responses",
+            "anthropic": "Anthropic Compatible"
+        },
         "apiKey": "API Key",
         "save": "Save",
         "validateSave": "Validate & Save",
@@ -102,7 +124,7 @@
     },
     "complete": {
         "title": "Setup Complete!",
-        "subtitle": "ClawX is configured and ready to use. You can now start chatting with your AI assistant.",
+        "subtitle": "{{appName}} is configured and ready to use. You can now start chatting with your AI assistant.",
         "provider": "AI Provider",
         "components": "Components",
         "gateway": "Gateway",

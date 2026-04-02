@@ -5,6 +5,7 @@ import {
   mapBackendErrorCode,
   normalizeAppError,
 } from './error-model';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 export { AppError } from './error-model';
 
 export type TransportKind = 'ipc' | 'ws' | 'http';
@@ -203,7 +204,7 @@ function logApiAttempt(entry: {
   if (!shouldLogApiRequests()) return;
   const base = `[api-client] id=${entry.requestId} channel=${entry.channel} transport=${entry.transport} attempt=${entry.attempt} durationMs=${entry.durationMs}`;
   if (entry.ok) {
-    console.info(`${base} result=ok`);
+    // console.info(`${base} result=ok`);
   } else {
     console.warn(`${base} result=error`, entry.error);
   }
@@ -551,6 +552,7 @@ export function createGatewayHttpTransportInvoker(
     if (typeof method !== 'string') {
       throw new Error('gateway:rpc requires method string');
     }
+    validateGatewayRpcParams(method, params);
 
     const timeoutMs =
       typeof timeoutOverride === 'number' && timeoutOverride > 0
@@ -706,7 +708,7 @@ export function createGatewayWsTransportInvoker(options: GatewayWsTransportOptio
         maxProtocol: 3,
         client: {
           id: 'openclaw-control-ui',
-          displayName: 'ClawX UI',
+          displayName: `${APP_DISPLAY_NAME} UI`,
           version: '1.0.0',
           platform: window.electron?.platform ?? 'unknown',
           mode: 'webchat',
@@ -857,6 +859,7 @@ export function createGatewayWsTransportInvoker(options: GatewayWsTransportOptio
     if (typeof method !== 'string') {
       throw new Error('gateway:rpc requires method string');
     }
+    validateGatewayRpcParams(method, params);
 
     const requestTimeoutMs =
       typeof timeoutOverride === 'number' && timeoutOverride > 0
@@ -885,6 +888,17 @@ export function createGatewayWsTransportInvoker(options: GatewayWsTransportOptio
       });
     });
   };
+}
+
+function validateGatewayRpcParams(method: string, params: unknown): void {
+  if (method !== 'config.patch') return;
+  if (!params || typeof params !== 'object' || Array.isArray(params)) {
+    throw new Error('gateway:rpc config.patch requires object params');
+  }
+  const patch = (params as Record<string, unknown>).patch;
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    throw new Error('gateway:rpc config.patch requires object patch');
+  }
 }
 
 let defaultTransportsInitialized = false;

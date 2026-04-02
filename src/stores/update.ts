@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { useSettingsStore } from './settings';
 import { invokeIpc } from '@/lib/api-client';
+import { logClientEvent } from '@/lib/client-log';
 
 export interface UpdateInfo {
   version: string;
@@ -20,14 +21,15 @@ export interface ProgressInfo {
   bytesPerSecond: number;
 }
 
-export type UpdateStatus = 
+export type UpdateStatus =
   | 'idle'
   | 'checking'
   | 'available'
   | 'not-available'
   | 'downloading'
   | 'downloaded'
-  | 'error';
+  | 'error'
+  | 'needs-reinstall';
 
 interface UpdateState {
   status: UpdateStatus;
@@ -61,13 +63,24 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
 
   init: async () => {
     if (get().isInitialized) return;
+    logClientEvent('info', { source: 'update-store', message: 'init:start' });
 
     // Get current version
     try {
       const version = await invokeIpc<string>('update:version');
       set({ currentVersion: version as string });
+      logClientEvent('info', {
+        source: 'update-store',
+        message: 'init:version-loaded',
+        data: { version: String(version) },
+      });
     } catch (error) {
       console.error('Failed to get version:', error);
+      logClientEvent('error', {
+        source: 'update-store',
+        message: 'init:version-load-failed',
+        data: { error: String(error) },
+      });
     }
 
     // Get current status
@@ -84,8 +97,22 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         progress: status.progress || null,
         error: status.error || null,
       });
+      logClientEvent('info', {
+        source: 'update-store',
+        message: 'init:status-loaded',
+        data: {
+          status: status.status,
+          hasInfo: Boolean(status.info),
+          hasError: Boolean(status.error),
+        },
+      });
     } catch (error) {
       console.error('Failed to get update status:', error);
+      logClientEvent('error', {
+        source: 'update-store',
+        message: 'init:status-load-failed',
+        data: { error: String(error) },
+      });
     }
 
     // Listen for update events
@@ -98,17 +125,36 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         progress?: ProgressInfo;
         error?: string;
       };
+      const previousStatus = get().status;
       set({
         status: status.status,
         updateInfo: status.info || null,
         progress: status.progress || null,
         error: status.error || null,
       });
+
+      if (previousStatus !== status.status) {
+        logClientEvent('info', {
+          source: 'update-store',
+          message: 'event:status-changed',
+          data: {
+            from: previousStatus,
+            to: status.status,
+            version: status.info?.version || null,
+            error: status.error || null,
+          },
+        });
+      }
     });
 
     window.electron.ipcRenderer.on('update:auto-install-countdown', (data) => {
       const { seconds, cancelled } = data as { seconds: number; cancelled?: boolean };
       set({ autoInstallCountdown: cancelled ? null : seconds });
+      logClientEvent('info', {
+        source: 'update-store',
+        message: 'event:auto-install-countdown',
+        data: { seconds, cancelled: Boolean(cancelled) },
+      });
     });
 
     set({ isInitialized: true });
@@ -119,19 +165,35 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     // Sync auto-download preference to the main process
     if (autoDownloadUpdate) {
       invokeIpc('update:setAutoDownload', true).catch(() => {});
+      logClientEvent('info', {
+        source: 'update-store',
+        message: 'init:auto-download-sync',
+        data: { enable: true },
+      });
     }
 
     // Auto-check for updates on startup (respects user toggle)
     if (autoCheckUpdate) {
+      logClientEvent('info', {
+        source: 'update-store',
+        message: 'init:auto-check-scheduled',
+        data: { delayMs: 10000 },
+      });
       setTimeout(() => {
         get().checkForUpdates().catch(() => {});
       }, 10000);
     }
+
+    logClientEvent('info', { source: 'update-store', message: 'init:done' });
   },
 
   checkForUpdates: async () => {
+    logClientEvent('info', { source: 'update-store', message: 'action:check:start' });
     set({ status: 'checking', error: null });
-    
+
+    const isNetworkOrYmlError = (msg: string) =>
+      /net::|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|404|sha512|checksum|timed out/i.test(msg);
+
     try {
       const result = await Promise.race([
         invokeIpc('update:check'),
@@ -146,30 +208,68 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
           error?: string;
         };
       };
-      
+
       if (result.status) {
+        // Silently treat yml-unreachable / checksum errors as not-available
+        const isYmlError = result.status.status === 'error' && result.status.error && isNetworkOrYmlError(result.status.error);
         set({
-          status: result.status.status,
+          status: isYmlError ? 'not-available' : result.status.status,
           updateInfo: result.status.info || null,
           progress: result.status.progress || null,
-          error: result.status.error || null,
+          error: isYmlError ? null : (result.status.error || null),
+        });
+        logClientEvent('info', {
+          source: 'update-store',
+          message: 'action:check:completed',
+          data: {
+            success: result.success,
+            status: result.status.status,
+            version: result.status.info?.version || null,
+            error: result.status.error || null,
+          },
         });
       } else if (!result.success) {
-        set({ status: 'error', error: result.error || 'Failed to check for updates' });
+        const errMsg = result.error || 'Failed to check for updates';
+        if (isNetworkOrYmlError(errMsg)) {
+          set({ status: 'not-available', error: null });
+        } else {
+          set({ status: 'error', error: errMsg });
+        }
+        logClientEvent('error', {
+          source: 'update-store',
+          message: 'action:check:failed-no-status',
+          data: { error: errMsg },
+        });
       }
     } catch (error) {
-      set({ status: 'error', error: String(error) });
+      const errMsg = String(error);
+      if (isNetworkOrYmlError(errMsg)) {
+        set({ status: 'not-available', error: null });
+      } else {
+        set({ status: 'error', error: errMsg });
+      }
+      logClientEvent('error', {
+        source: 'update-store',
+        message: 'action:check:exception',
+        data: { error: errMsg },
+      });
     } finally {
       // In dev mode autoUpdater skips without emitting events, so the
-      // status may still be 'checking' or even 'idle'. Catch both.
+      // status may still be 'checking' or even 'idle'. Treat as not-available.
       const currentStatus = get().status;
       if (currentStatus === 'checking' || currentStatus === 'idle') {
-        set({ status: 'error', error: 'Update check completed without a result. This usually means the app is running in dev mode.' });
+        set({ status: 'not-available', error: null });
+        logClientEvent('warn', {
+          source: 'update-store',
+          message: 'action:check:ended-without-result',
+          data: { status: currentStatus },
+        });
       }
     }
   },
 
   downloadUpdate: async () => {
+    logClientEvent('info', { source: 'update-store', message: 'action:download:start' });
     set({ status: 'downloading', error: null });
     
     try {
@@ -180,39 +280,83 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       
       if (!result.success) {
         set({ status: 'error', error: result.error || 'Failed to download update' });
+        logClientEvent('error', {
+          source: 'update-store',
+          message: 'action:download:failed',
+          data: { error: result.error || 'Failed to download update' },
+        });
+      } else {
+        logClientEvent('info', { source: 'update-store', message: 'action:download:accepted' });
       }
     } catch (error) {
       set({ status: 'error', error: String(error) });
+      logClientEvent('error', {
+        source: 'update-store',
+        message: 'action:download:exception',
+        data: { error: String(error) },
+      });
     }
   },
 
   installUpdate: () => {
+    logClientEvent('info', { source: 'update-store', message: 'action:install:triggered' });
     void invokeIpc('update:install');
   },
 
   cancelAutoInstall: async () => {
     try {
       await invokeIpc('update:cancelAutoInstall');
+      logClientEvent('info', { source: 'update-store', message: 'action:auto-install-cancelled' });
     } catch (error) {
       console.error('Failed to cancel auto-install:', error);
+      logClientEvent('error', {
+        source: 'update-store',
+        message: 'action:auto-install-cancel-failed',
+        data: { error: String(error) },
+      });
     }
   },
 
   setChannel: async (channel) => {
     try {
       await invokeIpc('update:setChannel', channel);
+      logClientEvent('info', {
+        source: 'update-store',
+        message: 'action:set-channel',
+        data: { channel },
+      });
     } catch (error) {
       console.error('Failed to set update channel:', error);
+      logClientEvent('error', {
+        source: 'update-store',
+        message: 'action:set-channel-failed',
+        data: { channel, error: String(error) },
+      });
     }
   },
 
   setAutoDownload: async (enable) => {
     try {
       await invokeIpc('update:setAutoDownload', enable);
+      logClientEvent('info', {
+        source: 'update-store',
+        message: 'action:set-auto-download',
+        data: { enable },
+      });
     } catch (error) {
       console.error('Failed to set auto-download:', error);
+      logClientEvent('error', {
+        source: 'update-store',
+        message: 'action:set-auto-download-failed',
+        data: { enable, error: String(error) },
+      });
     }
   },
 
-  clearError: () => set({ error: null, status: 'idle' }),
+  clearError: () => {
+    // Don't reset needs-reinstall — user must manually install
+    if (get().status === 'needs-reinstall') return;
+    set({ error: null, status: 'idle' });
+    logClientEvent('info', { source: 'update-store', message: 'action:clear-error' });
+  },
 }));

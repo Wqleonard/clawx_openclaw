@@ -2,12 +2,13 @@
     "gatewayNotRunning": "Gateway Not Running",
     "gatewayRequired": "The OpenClaw Gateway needs to be running to use chat. It will start automatically, or you can start it from Settings.",
     "welcome": {
-        "title": "ClawX Chat",
-        "subtitle": "Your AI assistant is ready. Start a conversation below.",
-        "askQuestions": "Ask Questions",
-        "askQuestionsDesc": "Get answers on any topic",
-        "creativeTasks": "Creative Tasks",
-        "creativeTasksDesc": "Writing, brainstorming, ideas"
+        "title": "{{appName}} Chat",
+        "subtitle": "What can I do for you?",
+        "askQuestions": "Handle Tasks",
+        "askQuestionsDesc": "Work on task-oriented requests",
+        "creativeTasks": "Continuous Execution",
+        "creativeTasksDesc": "Keep running through multi-step work",
+        "brainstorming": "Multi-Agent Parallel"
     },
     "noLogs": "(No logs available yet)",
     "toolbar": {
@@ -25,6 +26,9 @@
         "gatewayDisconnectedPlaceholder": "Gateway not connected...",
         "send": "Send",
         "stop": "Stop",
+        "modelSelectorTitle": "Switch chat model",
+        "noAvailableModels": "No available model",
+        "localAgentNotice": "Agent runs locally, content is AI-generated",
         "gatewayConnected": "connected",
         "gatewayStatus": "gateway {{state}} | port: {{port}} {{pid}}",
         "retryFailedAttachments": "Retry failed attachments"
@@ -36,5 +40,60 @@
         "withinTwoWeeks": "Within 2 Weeks",
         "withinMonth": "Within 1 Month",
         "older": "Older than 1 Month"
+    },
+    "projectRequired": "No project selected. Please choose a project first.",
+    "workspaceRequired": {
+        "title": "Set Workspace First",
+        "description": "Before chatting, configure a local workspace directory for project and context management."
+    },
+    "projectScreen": {
+        "tagline": "The world is waiting for your story",
+        "createNow": "Start Creating"
+    },
+    "fileTree": {
+        "title": "Files",
+        "noWorkspace": "No workspace selected",
+        "emptyFolder": "Folder is empty",
+        "openFolder": "Open Folder",
+        "refresh": "Refresh",
+        "newFile": "New File",
+        "newMarkdownFile": "New Markdown File",
+        "newFolder": "New Folder",
+        "rename": "Rename",
+        "openInFileManager": "Open in File Manager",
+        "moveTo": "Move to...",
+        "delete": "Delete",
+        "createNamePrompt": "Input name",
+        "renamePrompt": "Input new name",
+        "movePrompt": "Input new path (relative to workspace allowed)",
+        "deleteConfirm": "Delete this item?",
+        "cut": "Cut",
+        "copy": "Copy",
+        "paste": "Paste",
+        "cancel": "Cancel",
+        "confirm": "Confirm",
+        "operationFailed": "Operation failed",
+        "targetExists": "Target path already exists",
+        "addToContext": "Add to Context",
+        "removeFromContext": "Remove from Context",
+        "defaultNewFolderName": "new-folder",
+        "defaultNewMarkdownFileName": "new-file.md"
+    },
+    "markdownEditor": {
+        "toolbar": {
+            "undo": "Undo",
+            "redo": "Redo",
+            "headingLevel": "Heading level",
+            "bold": "Bold",
+            "italic": "Italic",
+            "strikethrough": "Strikethrough",
+            "inlineCode": "Inline code",
+            "bulletList": "Bullet list",
+            "orderedList": "Ordered list",
+            "blockquote": "Blockquote",
+            "codeBlock": "Code block",
+            "switchToSource": "Switch to source mode",
+            "switchToRendered": "Switch to rendered mode"
+        }
     }
 }

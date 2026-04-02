@@ -12,6 +12,7 @@ export const PROVIDER_TYPES = [
   'google',
   'openrouter',
   'ark',
+  'baowenmao',
   'moonshot',
   'siliconflow',
   'minimax-portal',
@@ -44,6 +45,7 @@ export interface ProviderConfig {
   type: ProviderType;
   baseUrl?: string;
   apiProtocol?: 'openai-completions' | 'openai-responses' | 'anthropic-messages';
+  headers?: Record<string, string>;
   model?: string;
   fallbackModels?: string[];
   fallbackProviderIds?: string[];
@@ -73,19 +75,16 @@ export interface ProviderTypeInfo {
   isOAuth?: boolean;
   supportsApiKey?: boolean;
   apiKeyUrl?: string;
+  docsUrl?: string;
+  docsUrlZh?: string;
+  codePlanPresetBaseUrl?: string;
+  codePlanPresetModelId?: string;
+  codePlanDocsUrl?: string;
 }
 
-export type ProviderAuthMode =
-  | 'api_key'
-  | 'oauth_device'
-  | 'oauth_browser'
-  | 'local';
+export type ProviderAuthMode = 'api_key' | 'oauth_device' | 'oauth_browser' | 'local';
 
-export type ProviderVendorCategory =
-  | 'official'
-  | 'compatible'
-  | 'local'
-  | 'custom';
+export type ProviderVendorCategory = 'official' | 'compatible' | 'local' | 'custom';
 
 export interface ProviderVendorInfo extends ProviderTypeInfo {
   category: ProviderVendorCategory;
@@ -95,6 +94,13 @@ export interface ProviderVendorInfo extends ProviderTypeInfo {
   supportsMultipleAccounts: boolean;
 }
 
+export interface BaowenmaoPresetAccount {
+  id: string;
+  model: string;
+  label: string;
+  isDefault?: boolean;
+}
+
 export interface ProviderAccount {
   id: string;
   vendorId: ProviderType;
@@ -102,6 +108,7 @@ export interface ProviderAccount {
   authMode: ProviderAuthMode;
   baseUrl?: string;
   apiProtocol?: 'openai-completions' | 'openai-responses' | 'anthropic-messages';
+  headers?: Record<string, string>;
   model?: string;
   fallbackModels?: string[];
   fallbackAccountIds?: string[];
@@ -121,7 +128,15 @@ import { providerIcons } from '@/assets/providers';
 
 /** All supported provider types with UI metadata */
 export const PROVIDER_TYPE_INFO: ProviderTypeInfo[] = [
-  { id: 'anthropic', name: 'Anthropic', icon: '🤖', placeholder: 'sk-ant-api03-...', model: 'Claude', requiresApiKey: true },
+  {
+    id: 'anthropic',
+    name: 'Anthropic',
+    icon: '🤖',
+    placeholder: 'sk-ant-api03-...',
+    model: 'Claude',
+    requiresApiKey: true,
+    docsUrl: 'https://platform.claude.com/docs/en/api/overview',
+  },
   {
     id: 'openai',
     name: 'OpenAI',
@@ -145,15 +160,159 @@ export const PROVIDER_TYPE_INFO: ProviderTypeInfo[] = [
     defaultModelId: 'gemini-3.1-pro-preview',
     apiKeyUrl: 'https://aistudio.google.com/app/apikey',
   },
-  { id: 'openrouter', name: 'OpenRouter', icon: '🌐', placeholder: 'sk-or-v1-...', model: 'Multi-Model', requiresApiKey: true, showModelId: true, modelIdPlaceholder: 'anthropic/claude-opus-4.6', defaultModelId: 'anthropic/claude-opus-4.6' },
-  { id: 'ark', name: 'ByteDance Ark', icon: 'A', placeholder: 'your-ark-api-key', model: 'Doubao', requiresApiKey: true, defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3', showBaseUrl: true, showModelId: true, modelIdPlaceholder: 'ep-20260228000000-xxxxx' },
-  { id: 'moonshot', name: 'Moonshot (CN)', icon: '🌙', placeholder: 'sk-...', model: 'Kimi', requiresApiKey: true, defaultBaseUrl: 'https://api.moonshot.cn/v1', defaultModelId: 'kimi-k2.5' },
-  { id: 'siliconflow', name: 'SiliconFlow (CN)', icon: '🌊', placeholder: 'sk-...', model: 'Multi-Model', requiresApiKey: true, defaultBaseUrl: 'https://api.siliconflow.cn/v1', showModelId: true, showModelIdInDevModeOnly: true, modelIdPlaceholder: 'deepseek-ai/DeepSeek-V3', defaultModelId: 'deepseek-ai/DeepSeek-V3' },
-  { id: 'minimax-portal', name: 'MiniMax (Global)', icon: '☁️', placeholder: 'sk-...', model: 'MiniMax', requiresApiKey: false, isOAuth: true, supportsApiKey: true, defaultModelId: 'MiniMax-M2.5', apiKeyUrl: 'https://intl.minimaxi.com/' },
-  { id: 'minimax-portal-cn', name: 'MiniMax (CN)', icon: '☁️', placeholder: 'sk-...', model: 'MiniMax', requiresApiKey: false, isOAuth: true, supportsApiKey: true, defaultModelId: 'MiniMax-M2.5', apiKeyUrl: 'https://platform.minimaxi.com/' },
-  { id: 'qwen-portal', name: 'Qwen', icon: '☁️', placeholder: 'sk-...', model: 'Qwen', requiresApiKey: false, isOAuth: true, defaultModelId: 'coder-model' },
-  { id: 'ollama', name: 'Ollama', icon: '🦙', placeholder: 'Not required', requiresApiKey: false, defaultBaseUrl: 'http://localhost:11434/v1', showBaseUrl: true, showModelId: true, modelIdPlaceholder: 'qwen3:latest' },
-  { id: 'custom', name: 'Custom', icon: '⚙️', placeholder: 'API key...', requiresApiKey: true, showBaseUrl: true, showModelId: true, modelIdPlaceholder: 'your-provider/model-id' },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    icon: '🌐',
+    placeholder: 'sk-or-v1-...',
+    model: 'Multi-Model',
+    requiresApiKey: true,
+    showModelId: true,
+    modelIdPlaceholder: 'openai/gpt-5.4',
+    defaultModelId: 'openai/gpt-5.4',
+    docsUrl: 'https://openrouter.ai/models',
+  },
+  {
+    id: 'ark',
+    name: 'ByteDance Ark',
+    icon: 'A',
+    placeholder: 'your-ark-api-key',
+    model: 'Doubao',
+    requiresApiKey: true,
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    showBaseUrl: true,
+    showModelId: true,
+    modelIdPlaceholder: 'ep-20260228000000-xxxxx',
+    docsUrl: 'https://www.volcengine.com/',
+    codePlanPresetBaseUrl: 'https://ark.cn-beijing.volces.com/api/coding/v3',
+    codePlanPresetModelId: 'ark-code-latest',
+    codePlanDocsUrl: 'https://www.volcengine.com/docs/82379/1928261?lang=zh',
+  },
+  {
+    id: 'baowenmao',
+    name: 'Baowenmao',
+    icon: '🐱',
+    placeholder: 'Baowenmao API key...',
+    model: 'Baowenmao',
+    requiresApiKey: true,
+    showBaseUrl: true,
+    showModelId: true,
+    modelIdPlaceholder: 'aliyun:qwen3-max',
+  },
+  {
+    id: 'moonshot',
+    name: 'Moonshot (CN)',
+    icon: '🌙',
+    placeholder: 'sk-...',
+    model: 'Kimi',
+    requiresApiKey: true,
+    defaultBaseUrl: 'https://api.moonshot.cn/v1',
+    defaultModelId: 'kimi-k2.5',
+    docsUrl: 'https://platform.moonshot.cn/',
+  },
+  {
+    id: 'siliconflow',
+    name: 'SiliconFlow (CN)',
+    icon: '🌊',
+    placeholder: 'sk-...',
+    model: 'Multi-Model',
+    requiresApiKey: true,
+    defaultBaseUrl: 'https://api.siliconflow.cn/v1',
+    showModelId: true,
+    showModelIdInDevModeOnly: true,
+    modelIdPlaceholder: 'deepseek-ai/DeepSeek-V3',
+    defaultModelId: 'deepseek-ai/DeepSeek-V3',
+    docsUrl: 'https://docs.siliconflow.cn/cn/userguide/introduction',
+  },
+  {
+    id: 'minimax-portal',
+    name: 'MiniMax (Global)',
+    icon: '☁️',
+    placeholder: 'sk-...',
+    model: 'MiniMax',
+    requiresApiKey: false,
+    isOAuth: true,
+    supportsApiKey: true,
+    defaultModelId: 'MiniMax-M2.5',
+    apiKeyUrl: 'https://intl.minimaxi.com/',
+  },
+  {
+    id: 'minimax-portal-cn',
+    name: 'MiniMax (CN)',
+    icon: '☁️',
+    placeholder: 'sk-...',
+    model: 'MiniMax',
+    requiresApiKey: false,
+    isOAuth: true,
+    supportsApiKey: true,
+    defaultModelId: 'MiniMax-M2.5',
+    apiKeyUrl: 'https://platform.minimaxi.com/',
+  },
+  {
+    id: 'qwen-portal',
+    name: 'Qwen (Global)',
+    icon: '☁️',
+    placeholder: 'sk-...',
+    model: 'Qwen',
+    requiresApiKey: false,
+    isOAuth: true,
+    defaultModelId: 'coder-model',
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    icon: '🦙',
+    placeholder: 'Not required',
+    requiresApiKey: false,
+    defaultBaseUrl: 'http://localhost:11434/v1',
+    showBaseUrl: true,
+    showModelId: true,
+    modelIdPlaceholder: 'qwen3:latest',
+  },
+  {
+    id: 'custom',
+    name: 'Custom',
+    icon: '⚙️',
+    placeholder: 'API key...',
+    requiresApiKey: true,
+    showBaseUrl: true,
+    showModelId: true,
+    modelIdPlaceholder: 'your-provider/model-id',
+    docsUrl:
+      'https://icnnp7d0dymg.feishu.cn/wiki/BmiLwGBcEiloZDkdYnGc8RWnn6d#Ee1ldfvKJoVGvfxc32mcILwenth',
+    docsUrlZh:
+      'https://icnnp7d0dymg.feishu.cn/wiki/BmiLwGBcEiloZDkdYnGc8RWnn6d#IWQCdfe5fobGU3xf3UGcgbLynGh',
+  },
+];
+
+/** Preconfigured Baowenmao accounts that are auto-managed by the app */
+export const BAOWENMAO_PRESET_ACCOUNTS: BaowenmaoPresetAccount[] = [
+  {
+    id: 'qwen3-max:custom-baowenmao',
+    model: 'qwen3-max',
+    label: 'Qwen3-max',
+    isDefault: true,
+  },
+  {
+    id: 'glm-5:custom-baowenmao',
+    model: 'glm-5',
+    label: 'GLM-5',
+  },
+  {
+    id: 'kimi-k2.5:custom-baowenmao',
+    model: 'kimi-k2.5',
+    label: 'Kimi-k2.5',
+  },
+  {
+    id: 'doubao-seed-1.8:custom-baowenmao',
+    model: 'doubao-seed-1.8',
+    label: 'Doubao-seed-1.8',
+  },
+  // {
+  //   id: 'doubao-seed-1.6-flash:custom-baowenmao',
+  //   model: 'doubao-seed-1.6-flash',
+  //   label: 'Doubao-seed-1.6-flash',
+  // },
 ];
 
 /** Get the SVG logo URL for a provider type, falls back to undefined */
@@ -174,6 +333,21 @@ export function getProviderTypeInfo(type: ProviderType): ProviderTypeInfo | unde
   return PROVIDER_TYPE_INFO.find((t) => t.id === type);
 }
 
+export function getProviderDocsUrl(
+  provider: Pick<ProviderTypeInfo, 'docsUrl' | 'docsUrlZh'> | undefined,
+  language: string
+): string | undefined {
+  if (!provider?.docsUrl) {
+    return undefined;
+  }
+
+  if (language.startsWith('zh') && provider.docsUrlZh) {
+    return provider.docsUrlZh;
+  }
+
+  return provider.docsUrl;
+}
+
 export function shouldShowProviderModelId(
   provider: Pick<ProviderTypeInfo, 'showModelId' | 'showModelIdInDevModeOnly'> | undefined,
   devModeUnlocked: boolean
@@ -184,7 +358,9 @@ export function shouldShowProviderModelId(
 }
 
 export function resolveProviderModelForSave(
-  provider: Pick<ProviderTypeInfo, 'defaultModelId' | 'showModelId' | 'showModelIdInDevModeOnly'> | undefined,
+  provider:
+    | Pick<ProviderTypeInfo, 'defaultModelId' | 'showModelId' | 'showModelIdInDevModeOnly'>
+    | undefined,
   modelId: string,
   devModeUnlocked: boolean
 ): string | undefined {
@@ -197,7 +373,10 @@ export function resolveProviderModelForSave(
 }
 
 /** Normalize provider API key before saving; Ollama uses a local placeholder when blank. */
-export function resolveProviderApiKeyForSave(type: ProviderType | string, apiKey: string): string | undefined {
+export function resolveProviderApiKeyForSave(
+  type: ProviderType | string,
+  apiKey: string
+): string | undefined {
   const trimmed = apiKey.trim();
   if (type === 'ollama') {
     return trimmed || OLLAMA_PLACEHOLDER_API_KEY;

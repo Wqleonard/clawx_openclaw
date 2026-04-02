@@ -4,6 +4,7 @@
  */
 import { Tray, Menu, BrowserWindow, app, nativeImage } from 'electron';
 import { join } from 'path';
+import { APP_DISPLAY_NAME, APP_TAGLINE } from '../shared/app-brand';
 
 let tray: Tray | null = null;
 
@@ -57,7 +58,7 @@ export function createTray(mainWindow: BrowserWindow): Tray {
   tray = new Tray(icon);
   
   // Set tooltip
-  tray.setToolTip('ClawX - AI Assistant');
+  tray.setToolTip(`${APP_DISPLAY_NAME} - ${APP_TAGLINE}`);
   
   const showWindow = () => {
     if (mainWindow.isDestroyed()) return;
@@ -68,69 +69,61 @@ export function createTray(mainWindow: BrowserWindow): Tray {
   // Create context menu
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Show ClawX',
+      label: '打开应用',
       click: showWindow,
     },
+    // {
+    //   type: 'separator',
+    // },
+    // {
+    //   label: 'Gateway Status',
+    //   enabled: false,
+    // },
+    // {
+    //   label: '  Running',
+    //   type: 'checkbox',
+    //   checked: true,
+    //   enabled: false,
+    // },
+    // {
+    //   type: 'separator',
+    // },
+    // {
+    //   label: 'Quick Actions',
+    //   submenu: [
+    //     {
+    //       label: 'Open Chat',
+    //       click: () => {
+    //         if (mainWindow.isDestroyed()) return;
+    //         mainWindow.show();
+    //         mainWindow.webContents.send('navigate', '/');
+    //       },
+    //     },
+    //     {
+    //       label: 'Open Settings',
+    //       click: () => {
+    //         if (mainWindow.isDestroyed()) return;
+    //         mainWindow.show();
+    //         mainWindow.webContents.send('navigate', '/settings');
+    //       },
+    //     },
+    //   ],
+    // },
+    // {
+    //   type: 'separator',
+    // },
+    // {
+    //   label: 'Check for Updates...',
+    //   click: () => {
+    //     if (mainWindow.isDestroyed()) return;
+    //     mainWindow.webContents.send('update:check');
+    //   },
+    // },
     {
       type: 'separator',
     },
     {
-      label: 'Gateway Status',
-      enabled: false,
-    },
-    {
-      label: '  Running',
-      type: 'checkbox',
-      checked: true,
-      enabled: false,
-    },
-    {
-      type: 'separator',
-    },
-    {
-      label: 'Quick Actions',
-      submenu: [
-        {
-          label: 'Open Dashboard',
-          click: () => {
-            if (mainWindow.isDestroyed()) return;
-            mainWindow.show();
-            mainWindow.webContents.send('navigate', '/');
-          },
-        },
-        {
-          label: 'Open Chat',
-          click: () => {
-            if (mainWindow.isDestroyed()) return;
-            mainWindow.show();
-            mainWindow.webContents.send('navigate', '/chat');
-          },
-        },
-        {
-          label: 'Open Settings',
-          click: () => {
-            if (mainWindow.isDestroyed()) return;
-            mainWindow.show();
-            mainWindow.webContents.send('navigate', '/settings');
-          },
-        },
-      ],
-    },
-    {
-      type: 'separator',
-    },
-    {
-      label: 'Check for Updates...',
-      click: () => {
-        if (mainWindow.isDestroyed()) return;
-        mainWindow.webContents.send('update:check');
-      },
-    },
-    {
-      type: 'separator',
-    },
-    {
-      label: 'Quit ClawX',
+      label: '退出应用',
       click: () => {
         app.quit();
       },
@@ -165,7 +158,7 @@ export function createTray(mainWindow: BrowserWindow): Tray {
  */
 export function updateTrayStatus(status: string): void {
   if (tray) {
-    tray.setToolTip(`ClawX - ${status}`);
+    tray.setToolTip(`${APP_DISPLAY_NAME} - ${status}`);
   }
 }
 

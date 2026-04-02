@@ -1,12 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { applyProxySettings } from '../../main/proxy';
 import { syncLaunchAtStartupSettingFromStore } from '../../main/launch-at-startup';
+
+import { syncWorkspaceRootFromSettings } from '../../services/filesystem';
+
+import { syncProxyConfigToOpenClaw } from '../../utils/openclaw-proxy';
+
 import { getAllSettings, getSetting, resetSettings, setSetting, type AppSettings } from '../../utils/store';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
 
 async function handleProxySettingsChange(ctx: HostApiContext): Promise<void> {
   const settings = await getAllSettings();
+  await syncProxyConfigToOpenClaw(settings, { preserveExistingWhenDisabled: false });
   await applyProxySettings(settings);
   if (ctx.gatewayManager.getStatus().state === 'running') {
     await ctx.gatewayManager.restart();
@@ -46,6 +52,9 @@ export async function handleSettingsRoutes(
       for (const [key, value] of entries) {
         await setSetting(key, value);
       }
+      if (Object.prototype.hasOwnProperty.call(patch, 'workspaceRoots')) {
+        await syncWorkspaceRootFromSettings();
+      }
       if (patchTouchesProxy(patch)) {
         await handleProxySettingsChange(ctx);
       }
@@ -74,6 +83,9 @@ export async function handleSettingsRoutes(
     try {
       const body = await parseJsonBody<{ value: AppSettings[keyof AppSettings] }>(req);
       await setSetting(key, body.value);
+      if (key === 'workspaceRoots') {
+        await syncWorkspaceRootFromSettings();
+      }
       if (
         key === 'proxyEnabled' ||
         key === 'proxyServer' ||
@@ -97,6 +109,7 @@ export async function handleSettingsRoutes(
   if (url.pathname === '/api/settings/reset' && req.method === 'POST') {
     try {
       await resetSettings();
+      await syncWorkspaceRootFromSettings();
       await handleProxySettingsChange(ctx);
       await syncLaunchAtStartupSettingFromStore();
       sendJson(res, 200, { success: true, settings: await getAllSettings() });

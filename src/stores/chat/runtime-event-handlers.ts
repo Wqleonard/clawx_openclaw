@@ -13,6 +13,7 @@ import {
   isToolResultRole,
   makeAttachedFile,
   setErrorRecoveryTimer,
+  toMs,
   upsertToolStatuses,
 } from './helpers';
 import type { AttachedFileMeta, RawMessage } from './types';
@@ -146,7 +147,26 @@ export function handleRuntimeEventState(
               const clearPendingImages = { pendingToolImages: [] as AttachedFileMeta[] };
 
               // Check if message already exists (prevent duplicates)
-              const alreadyExists = s.messages.some(m => m.id === msgId);
+              const alreadyExistsById = s.messages.some(m => m.id === msgId);
+              const lastMsg = s.messages[s.messages.length - 1];
+              const finalText = getMessageText(finalMsg.content).trim();
+              const finalTs = finalMsg.timestamp ? toMs(finalMsg.timestamp) : null;
+              const lastTs = lastMsg?.timestamp ? toMs(lastMsg.timestamp) : null;
+              // Guard against duplicate final replies when history poll already loaded
+              // the final assistant message before the run's "final" event arrives.
+              const alreadyExistsByTail =
+                !toolOnly &&
+                !!hasOutput &&
+                !!lastMsg &&
+                lastMsg.role === 'assistant' &&
+                finalText.length > 0 &&
+                getMessageText(lastMsg.content).trim() === finalText &&
+                (
+                  finalTs == null ||
+                  lastTs == null ||
+                  Math.abs(finalTs - lastTs) <= 15_000
+                );
+              const alreadyExists = alreadyExistsById || alreadyExistsByTail;
               if (alreadyExists) {
                 return toolOnly ? {
                   streamingText: '',

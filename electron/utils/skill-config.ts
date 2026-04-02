@@ -5,13 +5,14 @@
  *
  * All file I/O uses async fs/promises to avoid blocking the main thread.
  */
-import { readFile, writeFile, access, cp, mkdir } from 'fs/promises';
+import { readFile, writeFile, access, cp, mkdir, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { constants } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { getOpenClawDir, getResourcesDir } from './paths';
 import { logger } from './logger';
+import { withConfigLock } from './config-mutex';
 
 const OPENCLAW_CONFIG_PATH = join(homedir(), '.openclaw', 'openclaw.json');
 
@@ -49,10 +50,15 @@ interface PreinstalledLockFile {
 }
 
 interface PreinstalledMarker {
-    source: 'clawx-preinstalled';
+    source: 'storyclaw-preinstalled';
     slug: string;
     version: string;
     installedAt: string;
+}
+
+interface ManagedLocalSkill {
+    slug: string;
+    autoEnable?: boolean;
 }
 
 async function fileExists(p: string): Promise<boolean> {
@@ -87,19 +93,21 @@ async function setSkillsEnabled(skillKeys: string[], enabled: boolean): Promise<
     if (skillKeys.length === 0) {
         return;
     }
-    const config = await readConfig();
-    if (!config.skills) {
-        config.skills = {};
-    }
-    if (!config.skills.entries) {
-        config.skills.entries = {};
-    }
-    for (const skillKey of skillKeys) {
-        const entry = config.skills.entries[skillKey] || {};
-        entry.enabled = enabled;
-        config.skills.entries[skillKey] = entry;
-    }
-    await writeConfig(config);
+    return withConfigLock(async () => {
+        const config = await readConfig();
+        if (!config.skills) {
+            config.skills = {};
+        }
+        if (!config.skills.entries) {
+            config.skills.entries = {};
+        }
+        for (const skillKey of skillKeys) {
+            const entry = config.skills.entries[skillKey] || {};
+            entry.enabled = enabled;
+            config.skills.entries[skillKey] = entry;
+        }
+        await writeConfig(config);
+    });
 }
 
 /**
@@ -118,55 +126,57 @@ export async function updateSkillConfig(
     updates: { apiKey?: string; env?: Record<string, string> }
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const config = await readConfig();
+        return await withConfigLock(async () => {
+            const config = await readConfig();
 
-        // Ensure skills.entries exists
-        if (!config.skills) {
-            config.skills = {};
-        }
-        if (!config.skills.entries) {
-            config.skills.entries = {};
-        }
-
-        // Get or create skill entry
-        const entry = config.skills.entries[skillKey] || {};
-
-        // Update apiKey
-        if (updates.apiKey !== undefined) {
-            const trimmed = updates.apiKey.trim();
-            if (trimmed) {
-                entry.apiKey = trimmed;
-            } else {
-                delete entry.apiKey;
+            // Ensure skills.entries exists
+            if (!config.skills) {
+                config.skills = {};
             }
-        }
+            if (!config.skills.entries) {
+                config.skills.entries = {};
+            }
 
-        // Update env
-        if (updates.env !== undefined) {
-            const newEnv: Record<string, string> = {};
+            // Get or create skill entry
+            const entry = config.skills.entries[skillKey] || {};
 
-            for (const [key, value] of Object.entries(updates.env)) {
-                const trimmedKey = key.trim();
-                if (!trimmedKey) continue;
-
-                const trimmedVal = value.trim();
-                if (trimmedVal) {
-                    newEnv[trimmedKey] = trimmedVal;
+            // Update apiKey
+            if (updates.apiKey !== undefined) {
+                const trimmed = updates.apiKey.trim();
+                if (trimmed) {
+                    entry.apiKey = trimmed;
+                } else {
+                    delete entry.apiKey;
                 }
             }
 
-            if (Object.keys(newEnv).length > 0) {
-                entry.env = newEnv;
-            } else {
-                delete entry.env;
+            // Update env
+            if (updates.env !== undefined) {
+                const newEnv: Record<string, string> = {};
+
+                for (const [key, value] of Object.entries(updates.env)) {
+                    const trimmedKey = key.trim();
+                    if (!trimmedKey) continue;
+
+                    const trimmedVal = value.trim();
+                    if (trimmedVal) {
+                        newEnv[trimmedKey] = trimmedVal;
+                    }
+                }
+
+                if (Object.keys(newEnv).length > 0) {
+                    entry.env = newEnv;
+                } else {
+                    delete entry.env;
+                }
             }
-        }
 
-        // Save entry back
-        config.skills.entries[skillKey] = entry;
+            // Save entry back
+            config.skills.entries[skillKey] = entry;
 
-        await writeConfig(config);
-        return { success: true };
+            await writeConfig(config);
+            return { success: true };
+        });
     } catch (err) {
         console.error('Failed to update skill config:', err);
         return { success: false, error: String(err) };
@@ -182,7 +192,7 @@ export async function getAllSkillConfigs(): Promise<Record<string, SkillEntry>> 
 }
 
 /**
- * Built-in skills bundled with ClawX that should be pre-deployed to
+ * Built-in skills bundled with StoryClaw that should be pre-deployed to
  * ~/.openclaw/skills/ on first launch.  These come from the openclaw package's
  * extensions directory and are available in both dev and packaged builds.
  */
@@ -224,7 +234,9 @@ export async function ensureBuiltinSkillsInstalled(): Promise<void> {
 }
 
 const PREINSTALLED_MANIFEST_NAME = 'preinstalled-manifest.json';
-const PREINSTALLED_MARKER_NAME = '.clawx-preinstalled.json';
+const PREINSTALLED_MARKER_NAME = '.storyclaw-preinstalled.json';
+const LOCAL_SKILLS_MARKER_NAME = '.storyclaw-local-skill.json';
+const MANAGED_LOCAL_SKILLS: ManagedLocalSkill[] = [];
 
 async function readPreinstalledManifest(): Promise<PreinstalledSkillSpec[]> {
     const candidates = [
@@ -306,9 +318,8 @@ async function tryReadMarker(markerPath: string): Promise<PreinstalledMarker | n
  *
  * Policy:
  * - If skill is missing locally, install it.
- * - If local skill exists without our marker, treat as user-managed and never overwrite.
  * - If marker exists with same version, skip.
- * - If marker exists with a different version, skip by default to avoid overwriting edits.
+ * - Otherwise, force overwrite so bundled assets stay in sync with app version.
  */
 export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
     const skills = await readPreinstalledManifest();
@@ -342,24 +353,20 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             || (spec.version || 'unknown').trim()
             || 'unknown';
         const marker = await tryReadMarker(markerPath);
+        const isAlreadyInstalled = existsSync(targetManifest);
 
-        if (existsSync(targetManifest)) {
-            if (!marker) {
-                logger.info(`Skipping user-managed skill: ${spec.slug}`);
-                continue;
-            }
-            if (marker.version === desiredVersion) {
-                continue;
-            }
-            logger.info(`Skipping preinstalled skill update for ${spec.slug} (local marker version=${marker.version}, desired=${desiredVersion})`);
+        if (isAlreadyInstalled && marker?.version === desiredVersion) {
             continue;
         }
 
         try {
+            // Strict mirror: remove existing target directory first so stale files
+            // from previous versions are not retained.
+            await rm(targetDir, { recursive: true, force: true });
             await mkdir(targetDir, { recursive: true });
             await cp(sourceDir, targetDir, { recursive: true, force: true });
             const markerPayload: PreinstalledMarker = {
-                source: 'clawx-preinstalled',
+                source: 'storyclaw-preinstalled',
                 slug: spec.slug,
                 version: desiredVersion,
                 installedAt: new Date().toISOString(),
@@ -368,7 +375,13 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             if (spec.autoEnable) {
                 toEnable.push(spec.slug);
             }
-            logger.info(`Installed preinstalled skill: ${spec.slug} -> ${targetDir}`);
+            if (isAlreadyInstalled) {
+                logger.info(
+                    `Updated preinstalled skill: ${spec.slug} (local marker version=${marker?.version ?? 'none'}, desired=${desiredVersion})`,
+                );
+            } else {
+                logger.info(`Installed preinstalled skill: ${spec.slug} -> ${targetDir}`);
+            }
         } catch (error) {
             logger.warn(`Failed to install preinstalled skill ${spec.slug}:`, error);
         }
@@ -379,6 +392,73 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
             await setSkillsEnabled(toEnable, true);
         } catch (error) {
             logger.warn('Failed to auto-enable preinstalled skills:', error);
+        }
+    }
+}
+
+/**
+ * Ensure app-managed local skills are deployed from resources/custom-skills/<slug>
+ * into ~/.openclaw/skills/<slug> and optionally auto-enabled.
+ */
+export async function ensureManagedLocalSkillsInstalled(): Promise<void> {
+    const sourceRoot = join(getResourcesDir(), 'custom-skills');
+    if (!existsSync(sourceRoot)) {
+        return;
+    }
+
+    const targetRoot = join(homedir(), '.openclaw', 'skills');
+    await mkdir(targetRoot, { recursive: true });
+    const toEnable: string[] = [];
+
+    for (const spec of MANAGED_LOCAL_SKILLS) {
+        const sourceDir = join(sourceRoot, spec.slug);
+        const sourceManifest = join(sourceDir, 'SKILL.md');
+        if (!existsSync(sourceManifest)) {
+            logger.warn(`Managed local skill source missing SKILL.md, skipping: ${sourceDir}`);
+            continue;
+        }
+
+        const targetDir = join(targetRoot, spec.slug);
+        const targetManifest = join(targetDir, 'SKILL.md');
+        const markerPath = join(targetDir, LOCAL_SKILLS_MARKER_NAME);
+        const markerExists = existsSync(markerPath);
+
+        try {
+            if (existsSync(targetManifest) && !markerExists) {
+                // User-managed skill: never overwrite.
+                logger.info(`Skipping user-managed local skill: ${spec.slug}`);
+                if (spec.autoEnable) toEnable.push(spec.slug);
+                continue;
+            }
+
+            if (!existsSync(targetManifest) || markerExists) {
+                await mkdir(targetDir, { recursive: true });
+                await cp(sourceDir, targetDir, { recursive: true, force: true });
+                await writeFile(
+                    markerPath,
+                    `${JSON.stringify({
+                        source: 'storyclaw-local-skill',
+                        slug: spec.slug,
+                        installedAt: new Date().toISOString(),
+                    }, null, 2)}\n`,
+                    'utf-8',
+                );
+                logger.info(`Installed managed local skill: ${spec.slug} -> ${targetDir}`);
+            }
+
+            if (spec.autoEnable) {
+                toEnable.push(spec.slug);
+            }
+        } catch (error) {
+            logger.warn(`Failed to install managed local skill ${spec.slug}:`, error);
+        }
+    }
+
+    if (toEnable.length > 0) {
+        try {
+            await setSkillsEnabled(toEnable, true);
+        } catch (error) {
+            logger.warn('Failed to auto-enable managed local skills:', error);
         }
     }
 }

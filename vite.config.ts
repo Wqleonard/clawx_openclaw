@@ -44,6 +44,19 @@ export default defineConfig({
           },
         },
       },
+      {
+        // Content safety worker (runs in utilityProcess)
+        entry: 'electron/utils/content-safety-worker.ts',
+        vite: {
+          build: {
+            outDir: 'dist-electron/utils',
+            rollupOptions: {
+              // electron is provided by the runtime; opencc-js loaded via require()
+              external: ['electron', 'opencc-js'],
+            },
+          },
+        },
+      },
     ]),
     renderer(),
   ],

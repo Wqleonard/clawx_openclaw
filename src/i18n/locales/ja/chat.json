@@ -1,32 +1,36 @@
 {
     "gatewayNotRunning": "ゲートウェイが停止中",
-    "gatewayRequired": "チャットを使用するには OpenClaw ゲートウェイが実行されている必要があります。自動的に起動するか、設定から起動できます。",
+    "gatewayRequired": "チャットを利用するには OpenClaw ゲートウェイが実行されている必要があります。自動的に起動するか、設定から起動できます。",
     "welcome": {
-        "title": "ClawX チャット",
-        "subtitle": "AI アシスタントの準備ができました。下の入力欄から会話を始めましょう。",
-        "askQuestions": "質問する",
-        "askQuestionsDesc": "あらゆるトピックについて回答を得る",
-        "creativeTasks": "クリエイティブタスク",
-        "creativeTasksDesc": "ライティング、ブレスト、アイデア"
+        "title": "{{appName}} チャット",
+        "subtitle": "お手伝いできることはありますか？",
+        "askQuestions": "タスク対応",
+        "askQuestionsDesc": "タスク指向の依頼に対応します",
+        "creativeTasks": "連続実行",
+        "creativeTasksDesc": "複数ステップの作業を継続して進めます",
+        "brainstorming": "マルチエージェント並列実行"
     },
     "noLogs": "（ログはまだありません）",
     "toolbar": {
         "refresh": "チャットを更新",
         "showThinking": "思考を表示",
         "hideThinking": "思考を非表示",
-        "currentAgent": "現在の会話先: {{agent}}"
+        "currentAgent": "現在の会話相手: {{agent}}"
     },
     "composer": {
         "attachFiles": "ファイルを添付",
         "pickAgent": "Agent を選択",
-        "clearTarget": "対象 Agent をクリア",
+        "clearTarget": "送信先 Agent をクリア",
         "targetChip": "@{{agent}}",
-        "agentPickerTitle": "次のメッセージを別の Agent に直接送信",
+        "agentPickerTitle": "次のメッセージを別の Agent に直接送信します",
         "gatewayDisconnectedPlaceholder": "ゲートウェイ未接続...",
         "send": "送信",
         "stop": "停止",
+        "modelSelectorTitle": "チャットモデルを切り替える",
+        "noAvailableModels": "利用可能なモデルがありません",
+        "localAgentNotice": "Agent はローカルで実行され、内容は AI により生成されます",
         "gatewayConnected": "接続済み",
-        "gatewayStatus": "gateway {{state}} | port: {{port}} {{pid}}",
+        "gatewayStatus": "ゲートウェイ {{state}} | ポート: {{port}} {{pid}}",
         "retryFailedAttachments": "失敗した添付を再試行"
     },
     "historyBuckets": {
@@ -36,5 +40,60 @@
         "withinTwoWeeks": "2週間以内",
         "withinMonth": "1か月以内",
         "older": "1か月より前"
+    },
+    "projectRequired": "プロジェクトが選択されていません。先にプロジェクトを選択してください。",
+    "workspaceRequired": {
+        "title": "先にワークスペースを設定してください",
+        "description": "チャットを始める前に、プロジェクトとコンテキスト管理のためのローカルワークスペースを設定してください。"
+    },
+    "projectScreen": {
+        "tagline": "あなたの物語を世界が待っています",
+        "createNow": "今すぐ作成"
+    },
+    "fileTree": {
+        "title": "ファイル",
+        "noWorkspace": "ワークスペースが選択されていません",
+        "emptyFolder": "フォルダーは空です",
+        "openFolder": "フォルダーを開く",
+        "refresh": "更新",
+        "newFile": "新しいファイル",
+        "newMarkdownFile": "新しい Markdown ファイル",
+        "newFolder": "新しいフォルダー",
+        "rename": "名前を変更",
+        "openInFileManager": "ファイルマネージャーで開く",
+        "moveTo": "移動先...",
+        "delete": "削除",
+        "createNamePrompt": "名前を入力してください",
+        "renamePrompt": "新しい名前を入力してください",
+        "movePrompt": "新しいパスを入力してください（ワークスペース相対可）",
+        "deleteConfirm": "この項目を削除しますか？",
+        "cut": "切り取り",
+        "copy": "コピー",
+        "paste": "貼り付け",
+        "cancel": "キャンセル",
+        "confirm": "確認",
+        "operationFailed": "操作に失敗しました",
+        "targetExists": "対象のパスは既に存在します",
+        "addToContext": "コンテキストに追加",
+        "removeFromContext": "コンテキストから削除",
+        "defaultNewFolderName": "新しいフォルダー",
+        "defaultNewMarkdownFileName": "新しいファイル.md"
+    },
+    "markdownEditor": {
+        "toolbar": {
+            "undo": "元に戻す",
+            "redo": "やり直す",
+            "headingLevel": "見出しレベル",
+            "bold": "太字",
+            "italic": "斜体",
+            "strikethrough": "取り消し線",
+            "inlineCode": "インラインコード",
+            "bulletList": "箇条書き",
+            "orderedList": "番号付きリスト",
+            "blockquote": "引用",
+            "codeBlock": "コードブロック",
+            "switchToSource": "ソースモードに切り替え",
+            "switchToRendered": "プレビューモードに切り替え"
+        }
     }
 }

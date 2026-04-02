@@ -1,7 +1,7 @@
-appId: app.clawx.desktop
-productName: ClawX
-copyright: Copyright © 2026 ClawX
-compression: maximum
+appId: app.storyclaw.desktop
+productName: StoryClaw
+copyright: Copyright © 2026 ${productName}
+compression: normal
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 directories:
@@ -22,6 +22,7 @@ extraResources:
       - "!icons/*.svg"
       - "!bin/**"
       - "!screenshot/**"
+      - "!content-safety/*.txt"
   # OpenClaw package (node_modules copied separately by afterPack hook
   # because electron-builder respects .gitignore which excludes node_modules/)
   - from: build/openclaw/
@@ -51,11 +52,11 @@ npmRebuild: false
 # Fallback: GitHub Releases (backup, used when OSS is unavailable)
 publish:
   - provider: generic
-    url: https://oss.intelli-spectrum.com/latest
+    url: https://story-claw.tos-cn-beijing.volces.com/latest
     useMultipleRangeRequest: false
   - provider: github
     owner: ValueCell-ai
-    repo: ClawX
+    repo: StoryClaw
 
 # macOS Configuration
 mac:
@@ -76,14 +77,15 @@ mac:
         - x64
         - arm64
   darkModeSupport: true
-  hardenedRuntime: true
+  hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: entitlements.mac.plist
   entitlementsInherit: entitlements.mac.plist
-  notarize: true
+  notarize: false
+  strictVerify: false
   extendInfo:
-    NSMicrophoneUsageDescription: ClawX requires microphone access for voice features
-    NSCameraUsageDescription: ClawX requires camera access for video features
+    NSMicrophoneUsageDescription: ${productName} requires microphone access for voice features
+    NSCameraUsageDescription: ${productName} requires camera access for video features
 
 dmg:
   background: resources/dmg-background.png
@@ -103,9 +105,7 @@ dmg:
 
 # Windows Configuration
 win:
-  # Skip update signature verification: we ship via OSS + GitHub without a
-  # code-signing certificate, so verifying would always fail on the updater.
-  verifyUpdateCodeSignature: false
+  verifyUpdateCodeSignature: true
   extraResources:
     - from: resources/bin/win32-${arch}
       to: bin
@@ -124,11 +124,12 @@ nsis:
   warningsAsErrors: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
-  differentialPackage: true
+  differentialPackage: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: ClawX
-  uninstallDisplayName: ClawX
+  runAfterFinish: true
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
   license: LICENSE
   include: scripts/installer.nsh
   installerIcon: resources/icons/icon.ico
@@ -155,17 +156,17 @@ linux:
       arch:
         - x64
   category: Utility
-  maintainer: ClawX Team <public@valuecell.ai>
-  vendor: ClawX
+  maintainer: ${productName} Team <public@valuecell.ai>
+  vendor: ${productName}
   synopsis: AI Assistant powered by OpenClaw
-  description: ClawX is a graphical AI assistant application that integrates with OpenClaw Gateway to provide intelligent automation and assistance across multiple messaging platforms.
+  description: ${productName} is a graphical AI assistant application that integrates with OpenClaw Gateway to provide intelligent automation and assistance across multiple messaging platforms.
   desktop:
     entry:
-      Name: ClawX
+      Name: ${productName}
       Comment: AI Assistant powered by OpenClaw
       Categories: Utility;Network;
       Keywords: ai;assistant;automation;chat;
-      StartupWMClass: clawx
+      StartupWMClass: storyclaw
 
 appImage:
   license: LICENSE

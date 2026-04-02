@@ -1,0 +1,264 @@
+import { useEffect } from 'react';
+import { UpdateSettings } from '@/components/settings/UpdateSettings';
+import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
+// import { Button } from '@/components/ui/button';
+import { useSettingsStore } from '@/stores/settings';
+import { useUpdateStore } from '@/stores/update';
+import { useTranslation } from 'react-i18next';
+import { invokeIpc } from '@/lib/api-client';
+import { hostApiFetch } from '@/lib/host-api';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
+import { cn } from '@/lib/utils';
+import { logClientEvent } from '@/lib/client-log';
+import { Terminal } from 'lucide-react';
+import { href } from 'react-router-dom';
+
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-black/5 dark:border-white/8 bg-black/[0.02] dark:bg-white/[0.03] overflow-hidden">
+      {children}
+    </div>
+  );
+}
+
+function SettingRow({
+  label,
+  desc,
+  control,
+  last = false,
+}: {
+  label: string;
+  desc?: string;
+  control: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-4 px-5 py-4',
+        !last && 'border-b border-black/5 dark:border-white/5'
+      )}
+    >
+      <div className="min-w-0">
+        <p className="text-[14px] font-medium text-foreground">{label}</p>
+        {desc && <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>}
+      </div>
+      <div className="shrink-0">{control}</div>
+    </div>
+  );
+}
+
+export function AboutSection() {
+  const { t } = useTranslation('settings');
+  const {
+    autoCheckUpdate,
+    setAutoCheckUpdate,
+    autoDownloadUpdate,
+    setAutoDownloadUpdate,
+    devModeUnlocked,
+    setDevModeUnlocked,
+  } = useSettingsStore();
+  const initUpdateStore = useUpdateStore((state) => state.init);
+  const currentVersion = useUpdateStore((state) => state.currentVersion);
+  const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
+  const openUrl = (url: string) => invokeIpc('shell:openExternal', url);
+  const displayVersion = currentVersion === '0.0.0' ? '—' : currentVersion;
+
+  const openDevConsole = async () => {
+    try {
+      const result = await hostApiFetch<{
+        success: boolean;
+        url?: string;
+        error?: string;
+      }>('/api/gateway/control-ui');
+      if (result.success && result.url) {
+        window.electron.openExternal(result.url);
+      } else {
+        toast.error(result.error || 'Failed to open debug console');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || 'Failed to open debug console');
+    }
+  };
+
+  useEffect(() => {
+    logClientEvent('info', { source: 'preferences-about', message: 'about-section-mounted' });
+    void initUpdateStore();
+  }, [initUpdateStore]);
+
+  return (
+    <div className="p-8 space-y-6 max-w-2xl mx-auto">
+      {/* App info */}
+      <div>
+        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
+          {t('about.title')}
+        </h2>
+        <SectionCard>
+          <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5">
+            <p className="text-[14px] font-medium text-foreground">{APP_DISPLAY_NAME}</p>
+            <p className="text-[13px] text-muted-foreground">{displayVersion}</p>
+          </div>
+          {/* <div className="flex items-center gap-3 px-5 py-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.electron.openExternal('https://claw-x.com')}
+              className="rounded-xl h-8 px-4 text-[13px] border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              {isZh ? '文档' : 'Docs'}
+            </Button>
+           
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.electron.openExternal('https://github.com/ValueCell-ai/ClawX')}
+              className="rounded-xl h-8 px-4 text-[13px] border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              GitHub
+            </Button>
+          </div> */}
+        </SectionCard>
+      </div>
+
+      {/* Updates */}
+      <div>
+        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
+          {t('updates.title')}
+        </h2>
+        <SectionCard>
+          <div className="px-5 py-4 border-b border-black/5 dark:border-white/5">
+            <UpdateSettings />
+          </div>
+
+          <SettingRow
+            label={t('updates.autoCheck')}
+            desc={t('updates.autoCheckDesc')}
+            control={
+              <Switch
+                checked={autoCheckUpdate}
+                onCheckedChange={(v) => {
+                  logClientEvent('info', {
+                    source: 'preferences-about',
+                    message: 'toggle:auto-check-update',
+                    data: { enabled: v },
+                  });
+                  setAutoCheckUpdate(v);
+                }}
+              />
+            }
+          />
+          <SettingRow
+            label={t('updates.autoDownload')}
+            desc={t('updates.autoDownloadDesc')}
+            control={
+              <Switch
+                checked={autoDownloadUpdate}
+                onCheckedChange={(v) => {
+                  logClientEvent('info', {
+                    source: 'preferences-about',
+                    message: 'toggle:auto-download-update',
+                    data: { enabled: v },
+                  });
+                  setAutoDownloadUpdate(v);
+                  updateSetAutoDownload(v);
+                }}
+              />
+            }
+            last
+          />
+        </SectionCard>
+      </div>
+
+      <div>
+        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
+          {t('compliance.title')}
+        </h2>
+        <SectionCard>
+          {[
+            {
+              label: t('compliance.icpLicense'),
+              value: '浙ICP备17039406号-19',
+              href: 'https://beian.miit.gov.cn/',
+            },
+            // { label: t('compliance.algorithmRegistration'), value: 'XXXXXXXXXXXXXXXXXX' },
+            // { label: t('compliance.llmRegistration'), value: 'XXXXXXXXXXXXXXXXXX' },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5"
+            >
+              <p className="text-[14px] font-medium text-foreground">{item.label}</p>
+              <p
+                className="text-[12px] cursor-pointer font-mono text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => openUrl(item.href)}
+              >
+                {item.value}
+              </p>
+            </div>
+          ))}
+          <div className="px-5 py-3 flex gap-4">
+            <button
+              onClick={() => openUrl('https://www.baowenmao.com/claw-privacy-policy')}
+              className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t('compliance.privacyPolicy')}
+            </button>
+            <button
+              onClick={() => openUrl('https://www.baowenmao.com/claw-user-agreement')}
+              className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t('compliance.termsOfService')}
+            </button>
+          </div>
+        </SectionCard>
+      </div>
+
+      <div>
+        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
+          {t('advanced.devMode')}
+        </h2>
+        <SectionCard>
+          <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-black/5 dark:border-white/5">
+            <p className="text-[14px] font-medium text-foreground">{t('advanced.devMode')}</p>
+            <p className="text-[12px] font-mono text-muted-foreground">
+              <Switch
+                checked={devModeUnlocked}
+                onCheckedChange={(v) => {
+                  logClientEvent('info', {
+                    source: 'preferences-about',
+                    message: 'toggle:developer-mode',
+                    data: { enabled: v },
+                  });
+                  setDevModeUnlocked(v);
+                }}
+              />
+            </p>
+          </div>
+          {devModeUnlocked && (
+            <div className="px-5 py-3">
+              <button
+                onClick={() => void openDevConsole()}
+                className="text-[13px] flex text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Terminal className="size-4 mr-2" />
+                {t('developer.openConsole')}
+              </button>
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      {/* Copyright */}
+      <div className="pt-2 text-center space-y-1">
+        <p className="text-[12px] text-muted-foreground/60">
+          © {new Date().getFullYear()} {APP_DISPLAY_NAME}. All rights reserved.
+        </p>
+        <p className="text-[11px] text-muted-foreground/40">
+          v{displayVersion} · Built with BaowenMao Team
+        </p>
+      </div>
+    </div>
+  );
+}

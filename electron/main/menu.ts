@@ -9,6 +9,7 @@ import { Menu, app, shell, BrowserWindow } from 'electron';
  */
 export function createMenu(): void {
   const isMac = process.platform === 'darwin';
+  const isProductionPackage = app.isPackaged;
   
   const template: Electron.MenuItemConstructorOptions[] = [
     // App menu (macOS only)
@@ -85,10 +86,14 @@ export function createMenu(): void {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
+        ...(!isProductionPackage
+          ? [
+              { role: 'reload' as const },
+              { role: 'forceReload' as const },
+              { role: 'toggleDevTools' as const },
+              { type: 'separator' as const },
+            ]
+          : []),
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },

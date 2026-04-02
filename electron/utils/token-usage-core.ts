@@ -2,6 +2,7 @@ export interface TokenUsageHistoryEntry {
   timestamp: string;
   sessionId: string;
   agentId: string;
+  label?: string;
   model?: string;
   provider?: string;
   content?: string;
@@ -16,7 +17,7 @@ export interface TokenUsageHistoryEntry {
 export function extractSessionIdFromTranscriptFileName(fileName: string): string | undefined {
   if (!fileName.endsWith('.jsonl') && !fileName.includes('.jsonl.reset.')) return undefined;
   return fileName
-    .replace(/\.jsonl\.reset\..+$/, '')
+    .replace(/\.reset\..+$/, '')
     .replace(/\.deleted\.jsonl$/, '')
     .replace(/\.jsonl$/, '');
 }

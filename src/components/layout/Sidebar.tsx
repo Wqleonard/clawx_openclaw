@@ -11,11 +11,10 @@ import {
   Puzzle,
   Clock,
   Settings as SettingsIcon,
+  SlidersHorizontal,
   PanelLeftClose,
   PanelLeft,
   Plus,
-  Terminal,
-  ExternalLink,
   Trash2,
   Cpu,
 } from 'lucide-react';
@@ -27,9 +26,13 @@ import { useAgentsStore } from '@/stores/agents';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { hostApiFetch } from '@/lib/host-api';
+import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from '@/components/ui/dialog';
+// import { hostApiFetch } from '@/lib/host-api';
 import { useTranslation } from 'react-i18next';
 import logoSvg from '@/assets/logo.svg';
+import { Preferences } from '@/pages/Preferences';
+import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
+
 
 type SessionBucketKey =
   | 'today'
@@ -113,6 +116,7 @@ function getAgentIdFromSessionKey(sessionKey: string): string {
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed);
   const setSidebarCollapsed = useSettingsStore((state) => state.setSidebarCollapsed);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const sessions = useChatStore((s) => s.sessions);
   const currentSessionKey = useChatStore((s) => s.currentSessionKey);
@@ -149,22 +153,22 @@ export function Sidebar() {
   const getSessionLabel = (key: string, displayName?: string, label?: string) =>
     sessionLabels[key] ?? label ?? displayName ?? key;
 
-  const openDevConsole = async () => {
-    try {
-      const result = await hostApiFetch<{
-        success: boolean;
-        url?: string;
-        error?: string;
-      }>('/api/gateway/control-ui');
-      if (result.success && result.url) {
-        window.electron.openExternal(result.url);
-      } else {
-        console.error('Failed to get Dev Console URL:', result.error);
-      }
-    } catch (err) {
-      console.error('Error opening Dev Console:', err);
-    }
-  };
+  // const openDevConsole = async () => {
+  //   try {
+  //     const result = await hostApiFetch<{
+  //       success: boolean;
+  //       url?: string;
+  //       error?: string;
+  //     }>('/api/gateway/control-ui');
+  //     if (result.success && result.url) {
+  //       window.electron.openExternal(result.url);
+  //     } else {
+  //       console.error('Failed to get Dev Console URL:', result.error);
+  //     }
+  //   } catch (err) {
+  //     console.error('Error opening Dev Console:', err);
+  //   }
+  // };
 
   const { t } = useTranslation(['common', 'chat']);
   const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(null);
@@ -182,7 +186,7 @@ export function Sidebar() {
   }, [fetchAgents]);
 
   const agentNameById = useMemo(
-    () => Object.fromEntries(agents.map((agent) => [agent.id, agent.name])),
+    () => Object.fromEntries((agents ?? []).map((agent) => [agent.id, agent.name])),
     [agents],
   );
   const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [
@@ -224,9 +228,9 @@ export function Sidebar() {
       <div className={cn("flex items-center p-2 h-12", sidebarCollapsed ? "justify-center" : "justify-between")}>
         {!sidebarCollapsed && (
           <div className="flex items-center gap-2 px-2 overflow-hidden">
-            <img src={logoSvg} alt="ClawX" className="h-5 w-auto shrink-0" />
+            <img src={logoSvg} alt={APP_DISPLAY_NAME} className="h-5 w-auto shrink-0" />
             <span className="text-sm font-semibold truncate whitespace-nowrap text-foreground/90">
-              ClawX
+              {APP_DISPLAY_NAME}
             </span>
           </div>
         )}
@@ -331,7 +335,23 @@ export function Sidebar() {
       )}
 
       {/* Footer */}
+
       <div className="p-2 mt-auto">
+        <button
+          onClick={() => setPreferencesOpen(true)}
+          className={cn(
+            'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors w-full',
+            'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80',
+            sidebarCollapsed ? 'justify-center px-0' : ''
+          )}
+        >
+          <div className="flex shrink-0 items-center justify-center text-muted-foreground">
+            <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={2} />
+          </div>
+          {!sidebarCollapsed && <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{t('sidebar.preferences')}</span>}
+        </button>
+        </div>
+
         <NavLink
             to="/settings"
             className={({ isActive }) =>
@@ -353,6 +373,8 @@ export function Sidebar() {
           )}
         </NavLink>
 
+
+      {/* <div className="p-2 mt-auto">
         <Button
           variant="ghost"
           className={cn(
@@ -372,7 +394,7 @@ export function Sidebar() {
             </>
           )}
         </Button>
-      </div>
+      </div> */}
 
       <ConfirmDialog
         open={!!sessionToDelete}
@@ -389,6 +411,19 @@ export function Sidebar() {
         }}
         onCancel={() => setSessionToDelete(null)}
       />
+
+      <Dialog open={preferencesOpen} onOpenChange={setPreferencesOpen}>
+        <DialogContent
+          className="max-w-[900px] w-[90vw] h-[80vh] p-0 gap-0 overflow-hidden rounded-2xl bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <VisuallyHidden>
+            <DialogTitle>{t('common:sidebar.settings')}</DialogTitle>
+          </VisuallyHidden>
+          <Preferences />
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }

@@ -19,6 +19,7 @@ type StartupHooks = {
   connect: (port: number, externalToken?: string) => Promise<void>;
   onConnectedToExistingGateway: () => void;
   waitForPortFree: (port: number) => Promise<void>;
+  clearStaleLockFiles: () => Promise<void>;
   startProcess: () => Promise<void>;
   waitForReady: (port: number) => Promise<void>;
   onConnectedToManagedGateway: () => void;
@@ -55,6 +56,9 @@ export async function runGatewayStartupSequence(hooks: StartupHooks): Promise<vo
         await hooks.waitForPortFree(hooks.port);
         hooks.assertLifecycle('start/wait-port');
       }
+
+      await hooks.clearStaleLockFiles();
+      hooks.assertLifecycle('start/clear-locks');
 
       await hooks.startProcess();
       hooks.assertLifecycle('start/start-process');

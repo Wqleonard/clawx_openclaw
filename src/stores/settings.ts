@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import i18n from '@/i18n';
 import { hostApiFetch } from '@/lib/host-api';
+import { resolveSupportedLanguage } from '../../shared/language';
 
 type Theme = 'light' | 'dark' | 'system';
 type UpdateChannel = 'stable' | 'beta' | 'dev';
@@ -36,6 +37,8 @@ interface SettingsState {
   // UI State
   sidebarCollapsed: boolean;
   devModeUnlocked: boolean;
+  showToolCalls: boolean;
+  workspaceRoots: string;
 
   // Setup
   setupComplete: boolean;
@@ -60,18 +63,18 @@ interface SettingsState {
   setAutoDownloadUpdate: (value: boolean) => void;
   setSidebarCollapsed: (value: boolean) => void;
   setDevModeUnlocked: (value: boolean) => void;
+  setShowToolCalls: (value: boolean) => void;
+  setSetupComplete: (value: boolean) => void;
+  setWorkspaceRoots: (value: string) => void;
   markSetupComplete: () => void;
   resetSettings: () => void;
 }
 
 const defaultSettings = {
-  theme: 'system' as Theme,
-  language: (() => {
-    const lang = navigator.language.toLowerCase();
-    if (lang.startsWith('zh')) return 'zh';
-    if (lang.startsWith('ja')) return 'ja';
-    return 'en';
-  })(),
+  theme: 'light' as Theme,
+  language: 'zh',
+  // theme: 'system' as Theme,
+  // language: resolveSupportedLanguage(typeof navigator !== 'undefined' ? navigator.language : undefined),
   startMinimized: false,
   launchAtStartup: false,
   telemetryEnabled: true,
@@ -88,8 +91,14 @@ const defaultSettings = {
   autoDownloadUpdate: false,
   sidebarCollapsed: false,
   devModeUnlocked: false,
+  showToolCalls: false,
+  workspaceRoots: '',
   setupComplete: false,
 };
+
+function ensureWorkspaceRoot(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -99,7 +108,12 @@ export const useSettingsStore = create<SettingsState>()(
       init: async () => {
         try {
           const settings = await hostApiFetch<Partial<typeof defaultSettings>>('/api/settings');
-          set((state) => ({ ...state, ...settings }));
+          const { theme: _theme, ...settingsWithoutTheme } = settings;
+          set((state) => ({
+            ...state,
+            ...settingsWithoutTheme,
+            workspaceRoots: ensureWorkspaceRoot((settingsWithoutTheme as { workspaceRoots?: unknown }).workspaceRoots),
+          }));
           if (settings.language) {
             i18n.changeLanguage(settings.language);
           }
@@ -109,13 +123,20 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => {
+        set({ theme });
+        void hostApiFetch('/api/settings/theme', {
+          method: 'PUT',
+          body: JSON.stringify({ value: theme }),
+        }).catch(() => { });
+      },
       setLanguage: (language) => {
-        i18n.changeLanguage(language);
-        set({ language });
+        const resolvedLanguage = resolveSupportedLanguage(language);
+        i18n.changeLanguage(resolvedLanguage);
+        set({ language: resolvedLanguage });
         void hostApiFetch('/api/settings/language', {
           method: 'PUT',
-          body: JSON.stringify({ value: language }),
+          body: JSON.stringify({ value: resolvedLanguage }),
         }).catch(() => { });
       },
       setStartMinimized: (startMinimized) => set({ startMinimized }),
@@ -158,11 +179,53 @@ export const useSettingsStore = create<SettingsState>()(
       setAutoDownloadUpdate: (autoDownloadUpdate) => set({ autoDownloadUpdate }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       setDevModeUnlocked: (devModeUnlocked) => set({ devModeUnlocked }),
+      setShowToolCalls: (showToolCalls) => set({ showToolCalls }),
+      setSetupComplete: (setupComplete) => set({ setupComplete }),
+      setWorkspaceRoots: (workspaceRoots) => {
+        set({ workspaceRoots });
+        void hostApiFetch('/api/settings/workspaceRoots', {
+          method: 'PUT',
+          body: JSON.stringify({ value: workspaceRoots }),
+        }).catch(() => { });
+      },
       markSetupComplete: () => set({ setupComplete: true }),
       resetSettings: () => set(defaultSettings),
     }),
     {
       name: 'clawx-settings',
+      version: 2,
+      migrate: (persistedState, fromVersion) => {
+        const state = persistedState as Partial<typeof defaultSettings>;
+        // v1: force light theme as new default (only when migrating from old version)
+        if (fromVersion < 1 && (!state.theme || state.theme === 'dark' || state.theme === 'system')) {
+          state.theme = 'light';
+        }
+        state.workspaceRoots = ensureWorkspaceRoot(state.workspaceRoots);
+        return state;
+      },
+      partialize: (state) => ({
+        theme: state.theme,
+        language: state.language,
+        startMinimized: state.startMinimized,
+        launchAtStartup: state.launchAtStartup,
+        telemetryEnabled: state.telemetryEnabled,
+        gatewayAutoStart: state.gatewayAutoStart,
+        gatewayPort: state.gatewayPort,
+        proxyEnabled: state.proxyEnabled,
+        proxyServer: state.proxyServer,
+        proxyHttpServer: state.proxyHttpServer,
+        proxyHttpsServer: state.proxyHttpsServer,
+        proxyAllServer: state.proxyAllServer,
+        proxyBypassRules: state.proxyBypassRules,
+        updateChannel: state.updateChannel,
+        autoCheckUpdate: state.autoCheckUpdate,
+        autoDownloadUpdate: state.autoDownloadUpdate,
+        sidebarCollapsed: state.sidebarCollapsed,
+        devModeUnlocked: state.devModeUnlocked,
+        showToolCalls: state.showToolCalls,
+        workspaceRoots: state.workspaceRoots,
+        setupComplete: state.setupComplete,
+      }),
     }
   )
 );

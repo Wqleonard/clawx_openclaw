@@ -51,7 +51,10 @@ coverage/
 *.deb
 *.rpm
 
-resources/bin
+resources/bin/**
+!resources/bin/
+!resources/bin/win32-x64/
+!resources/bin/win32-x64/boom-executor.exe
 
 # Secrets
 *.p12
@@ -59,6 +62,8 @@ resources/bin
 *.key
 
 build/
+artifacts/
+docs/pr-session-notes-*.md
 
 .cursor/
 .pnpm-store/

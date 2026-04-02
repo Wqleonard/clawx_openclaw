@@ -1,0 +1,12 @@
+{
+  "name": "boom-executor-guard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BoomClaw built-in executor guard plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}
