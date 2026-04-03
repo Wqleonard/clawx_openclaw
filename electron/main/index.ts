@@ -39,7 +39,11 @@ import { acquireProcessInstanceFileLock } from './process-instance-lock';
 import { getSetting } from '../utils/store';
 
 
-import { ensureBuiltinSkillsInstalled, ensurePreinstalledSkillsInstalled } from '../utils/skill-config';
+import {
+  ensureBuiltinSkillsInstalled,
+  ensureDefaultDisabledSkillsApplied,
+  ensurePreinstalledSkillsInstalled,
+} from '../utils/skill-config';
 import { ensureAllBundledPluginsInstalled } from '../utils/plugin-install';
 
 import { startHostApiServer } from '../api/server';
@@ -401,6 +405,12 @@ async function initialize(): Promise<void> {
   // non-destructive way and never blocks startup.
   void ensurePreinstalledSkillsInstalled().catch((error) => {
     logger.warn('Failed to install preinstalled skills:', error);
+  });
+
+  // Apply default-disabled skill policy from resources/skills/default-disabled-skills.jsonl.
+  // This only sets enabled=false for listed skills that have no explicit user choice.
+  void ensureDefaultDisabledSkillsApplied().catch((error) => {
+    logger.warn('Failed to apply default-disabled skills policy:', error);
   });
 
 

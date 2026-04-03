@@ -63,22 +63,26 @@
     {
       "slug": "minimax-pdf",
       "version": "0.3.6",
-      "autoEnable": true
+      "autoEnable": true,
+      "injectToWorkspace": true
     },
     {
       "slug": "minimax-docx",
       "version": "0.3.6",
-      "autoEnable": true
+      "autoEnable": true,
+      "injectToWorkspace": true
     },
     {
       "slug": "minimax-xlsx",
       "version": "0.3.6",
-      "autoEnable": true
+      "autoEnable": true,
+      "injectToWorkspace": true
     },
     {
       "slug": "pptx-generator",
       "version": "0.3.6",
-      "autoEnable": true
+      "autoEnable": true,
+      "injectToWorkspace": true
     },
     {
       "slug": "clawhub",

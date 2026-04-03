@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readdir, readFile, rm } from 'fs/promises';
+import { access, copyFile, cp, mkdir, readdir, readFile, rm } from 'fs/promises';
 import { constants, existsSync } from 'fs';
 import { join, normalize } from 'path';
 import { spawn } from 'child_process';
@@ -83,6 +83,8 @@ const AGENT_BOOTSTRAP_FILES = [
   'BOOT.md',
 ];
 const AGENT_RUNTIME_FILES = ['auth-profiles.json', 'models.json'];
+const PREINSTALLED_MANIFEST_NAME = 'preinstalled-manifest.json';
+const WORKSPACE_SKILLS_DIR_NAME = 'skills';
 const WORKSPACE_UV_VENV_DIR_NAME = '.venv';
 const WORKSPACE_UV_PYTHON_VERSION = '3.12';
 const WORKSPACE_UV_PACKAGES = [
@@ -143,6 +145,15 @@ interface AgentConfigDocument extends Record<string, unknown> {
     mainKey?: string;
     [key: string]: unknown;
   };
+}
+
+interface WorkspaceInjectedSkillSpec {
+  slug: string;
+  injectToWorkspace?: boolean;
+}
+
+interface WorkspaceInjectedSkillManifest {
+  skills?: WorkspaceInjectedSkillSpec[];
 }
 
 export interface AgentSummary {
@@ -213,6 +224,88 @@ async function fileExists(path: string): Promise<boolean> {
 async function ensureDir(path: string): Promise<void> {
   if (!(await fileExists(path))) {
     await mkdir(path, { recursive: true });
+  }
+}
+
+async function readWorkspaceInjectedSkillsFromManifest(): Promise<string[]> {
+  const candidates = [
+    join(getResourcesDir(), 'skills', PREINSTALLED_MANIFEST_NAME),
+    join(process.cwd(), 'resources', 'skills', PREINSTALLED_MANIFEST_NAME),
+  ];
+  const manifestPath = candidates.find((p) => existsSync(p));
+  if (!manifestPath) {
+    return [];
+  }
+
+  try {
+    const raw = await readFile(manifestPath, 'utf-8');
+    const parsed = JSON.parse(raw) as WorkspaceInjectedSkillManifest;
+    if (!Array.isArray(parsed.skills)) {
+      return [];
+    }
+    return parsed.skills
+      .filter((spec) => Boolean(spec?.slug) && spec.injectToWorkspace === true)
+      .map((spec) => spec.slug.trim())
+      .filter(Boolean);
+  } catch (error) {
+    logger.warn('Failed to read workspace-injected skills from manifest', {
+      manifestPath,
+      error: String(error),
+    });
+    return [];
+  }
+}
+
+function resolvePreinstalledSkillsSourceRoot(): string | null {
+  const candidates = [
+    join(getResourcesDir(), 'preinstalled-skills'),
+    join(process.cwd(), 'build', 'preinstalled-skills'),
+    join(__dirname, '../../build/preinstalled-skills'),
+  ];
+  const root = candidates.find((dir) => existsSync(dir));
+  return root || null;
+}
+
+async function ensureWorkspaceInjectedSkills(targetWorkspace: string): Promise<void> {
+  const injectedSlugs = await readWorkspaceInjectedSkillsFromManifest();
+  if (injectedSlugs.length === 0) {
+    return;
+  }
+
+  const sourceRoot = resolvePreinstalledSkillsSourceRoot();
+  if (!sourceRoot) {
+    logger.warn('Workspace skill injection skipped: preinstalled skills source not found');
+    return;
+  }
+
+  const workspaceSkillsDir = join(targetWorkspace, WORKSPACE_SKILLS_DIR_NAME);
+  await ensureDir(workspaceSkillsDir);
+
+  for (const slug of injectedSlugs) {
+    const sourceDir = join(sourceRoot, slug);
+    const sourceManifest = join(sourceDir, 'SKILL.md');
+    if (!existsSync(sourceManifest)) {
+      logger.warn('Workspace skill injection skipped: source skill missing SKILL.md', {
+        slug,
+        sourceDir,
+      });
+      continue;
+    }
+
+    const targetDir = join(workspaceSkillsDir, slug);
+    try {
+      await rm(targetDir, { recursive: true, force: true });
+      await ensureDir(targetDir);
+      await cp(sourceDir, targetDir, { recursive: true, force: true });
+      logger.info('Injected skill into agent workspace', { slug, targetDir });
+    } catch (error) {
+      logger.warn('Failed to inject skill into agent workspace', {
+        slug,
+        sourceDir,
+        targetDir,
+        error: String(error),
+      });
+    }
   }
 }
 
@@ -649,6 +742,8 @@ async function provisionAgentFilesystem(
   if (targetAgentDir !== sourceAgentDir) {
     await copyRuntimeFiles(sourceAgentDir, targetAgentDir);
   }
+
+  await ensureWorkspaceInjectedSkills(targetWorkspace);
 }
 
 export function resolveAccountIdForAgent(agentId: string): string {
