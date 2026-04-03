@@ -18,6 +18,18 @@ Before read/edit/create operations, always verify environment first. Do not proc
 
 **Windows rule:** when running on Windows, output PowerShell-compatible commands only. Do not output `bash ...` commands.
 
+**Python runtime rule (mandatory):** whenever Python is used (markitdown or helper scripts), use the current workspace uv virtual environment first.
+
+```powershell
+$VenvPy = Join-Path (Get-Location) ".venv\Scripts\python.exe"
+if (-not (Test-Path $VenvPy)) {
+  uv venv .venv --python 3.12
+}
+& $VenvPy --version
+# Example:
+# & $VenvPy -m markitdown .\presentation.pptx
+```
+
 ```powershell
 # Required runtime
 node --version
