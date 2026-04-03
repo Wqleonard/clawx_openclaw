@@ -20,6 +20,18 @@ Before READ / CREATE / EDIT / FIX / VALIDATE, always check runtime dependencies 
 
 **Windows rule:** when running on Windows, output PowerShell-compatible commands only. Do not output `bash ...` commands.
 
+**Python runtime rule (mandatory):** always run Python commands with the current workspace uv virtual environment (`.venv`) first.
+
+```powershell
+$VenvPy = Join-Path (Get-Location) ".venv\Scripts\python.exe"
+if (-not (Test-Path $VenvPy)) {
+  uv venv .venv --python 3.12
+}
+& $VenvPy --version
+# Example:
+# & $VenvPy .\scripts\xlsx_reader.py .\input.xlsx
+```
+
 ```powershell
 # Required runtime
 python --version

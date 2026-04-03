@@ -28,6 +28,18 @@ Before CREATE / FILL / REFORMAT, always verify runtime dependencies first. Do no
 
 **Windows rule:** when running on Windows, output PowerShell-compatible commands only. Do not output `bash ...` commands.
 
+**Python runtime rule (mandatory):** when running any Python command, use the current workspace uv virtual environment first, not system Python.
+
+```powershell
+$VenvPy = Join-Path (Get-Location) ".venv\Scripts\python.exe"
+if (-not (Test-Path $VenvPy)) {
+  uv venv .venv --python 3.12
+}
+& $VenvPy --version
+# Example:
+# & $VenvPy .\scripts\fill_inspect.py --input .\form.pdf
+```
+
 ```powershell
 # 1) Verify runtime commands
 python --version
