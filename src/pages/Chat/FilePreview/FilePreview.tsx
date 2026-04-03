@@ -48,7 +48,7 @@ export function FilePreview(props: FilePreviewProps) {
   }
 
   if (previewKind === 'document' && activeFile) {
-    return <DocPreview activeFile={activeFile} />;
+    return <DocPreview key={activeFile} activeFile={activeFile} />;
   }
 
   if (previewKind === 'presentation' && activeFile) {
