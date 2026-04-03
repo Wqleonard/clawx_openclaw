@@ -40,6 +40,10 @@ interface PreinstalledManifest {
     skills?: PreinstalledSkillSpec[];
 }
 
+interface DefaultDisabledSkillSpec {
+    slug: string;
+}
+
 interface PreinstalledLockEntry {
     slug: string;
     version?: string;
@@ -236,7 +240,55 @@ export async function ensureBuiltinSkillsInstalled(): Promise<void> {
 const PREINSTALLED_MANIFEST_NAME = 'preinstalled-manifest.json';
 const PREINSTALLED_MARKER_NAME = '.storyclaw-preinstalled.json';
 const LOCAL_SKILLS_MARKER_NAME = '.storyclaw-local-skill.json';
+const DEFAULT_DISABLED_SKILLS_LIST_NAME = 'default-disabled-skills.jsonl';
 const MANAGED_LOCAL_SKILLS: ManagedLocalSkill[] = [];
+
+async function readDefaultDisabledSkillSlugs(): Promise<string[]> {
+    const candidates = [
+        join(getResourcesDir(), 'skills', DEFAULT_DISABLED_SKILLS_LIST_NAME),
+        join(process.cwd(), 'resources', 'skills', DEFAULT_DISABLED_SKILLS_LIST_NAME),
+    ];
+    const configPath = candidates.find((p) => existsSync(p));
+    if (!configPath) {
+        return [];
+    }
+
+    try {
+        const raw = await readFile(configPath, 'utf-8');
+        const lines = raw
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+        const slugs = new Set<string>();
+        for (const line of lines) {
+            let parsed: unknown;
+            try {
+                parsed = JSON.parse(line) as unknown;
+            } catch (error) {
+                logger.warn(`Invalid JSONL line in ${DEFAULT_DISABLED_SKILLS_LIST_NAME}: ${line}`, error);
+                continue;
+            }
+
+            if (typeof parsed === 'string') {
+                const slug = parsed.trim();
+                if (slug) slugs.add(slug);
+                continue;
+            }
+
+            if (parsed && typeof parsed === 'object') {
+                const candidate = parsed as Partial<DefaultDisabledSkillSpec> & { name?: string; skill?: string };
+                const slug = String(candidate.slug || candidate.name || candidate.skill || '').trim();
+                if (slug) slugs.add(slug);
+            }
+        }
+
+        return [...slugs];
+    } catch (error) {
+        logger.warn(`Failed to read ${DEFAULT_DISABLED_SKILLS_LIST_NAME}:`, error);
+        return [];
+    }
+}
 
 async function readPreinstalledManifest(): Promise<PreinstalledSkillSpec[]> {
     const candidates = [
@@ -461,4 +513,45 @@ export async function ensureManagedLocalSkillsInstalled(): Promise<void> {
             logger.warn('Failed to auto-enable managed local skills:', error);
         }
     }
+}
+
+/**
+ * Apply default-disabled skill policy from resources/skills/default-disabled-skills.jsonl.
+ *
+ * Policy:
+ * - For listed slugs, set enabled=false only when user has not made an explicit choice.
+ * - If a skill already has enabled=true/false in config, keep user preference.
+ */
+export async function ensureDefaultDisabledSkillsApplied(): Promise<void> {
+    const slugs = await readDefaultDisabledSkillSlugs();
+    if (slugs.length === 0) {
+        return;
+    }
+
+    await withConfigLock(async () => {
+        const config = await readConfig();
+        if (!config.skills) {
+            config.skills = {};
+        }
+        if (!config.skills.entries) {
+            config.skills.entries = {};
+        }
+
+        let changed = false;
+        for (const slug of slugs) {
+            const entry = config.skills.entries[slug] || {};
+            if (typeof entry.enabled === 'boolean') {
+                // Respect user preference once explicitly set.
+                continue;
+            }
+            entry.enabled = false;
+            config.skills.entries[slug] = entry;
+            changed = true;
+        }
+
+        if (changed) {
+            await writeConfig(config);
+            logger.info(`Applied default-disabled policy for ${slugs.length} skills.`);
+        }
+    });
 }
