@@ -19,7 +19,7 @@ import { useProviderStore } from './stores/providers';
 import { useAgentsStore } from './stores/agents';
 import { useFileSystemStore } from './stores/filesystem';
 import { useChatStore } from './stores/chat';
-import { visitorPost } from './api/users';
+import { getModels, visitorPost } from './api/users';
 import { applyGatewayTransportPreference } from './lib/api-client';
 import { invokeIpc } from '@/lib/api-client';
 import { hostApiFetch } from '@/lib/host-api';
@@ -203,7 +203,7 @@ function ProjectCreateDialogHost() {
     const currentPath = window.location.pathname;
     const isOnChatRoute = currentPath === '/' || currentPath === '/chat';
     if (!isOnChatRoute) {
-      navigate('/chat');
+      navigate('/');
     }
     setPendingOpenProjectPath(null);
     setShowAddProjectDialog(true);
@@ -222,7 +222,7 @@ function ProjectCreateDialogHost() {
       const currentPath = window.location.pathname;
       const isOnChatRoute = currentPath === '/' || currentPath === '/chat';
       if (!isOnChatRoute) {
-        navigate('/chat');
+        navigate('/');
       }
       setPendingProjectBaseName('');
       setPendingOpenProjectPath(selected);
@@ -316,7 +316,7 @@ function ProjectCreateDialogHost() {
         setPendingOpenProjectPath(null);
         setPendingProjectBaseName('');
         setNewProjectName('');
-        navigate('/chat');
+        navigate('/');
         toast.success(t('common:status.agentCreated'));
       } catch (error) {
         console.error(error);
@@ -414,7 +414,7 @@ function ProjectCreateDialogHost() {
       setPendingOpenProjectPath(null);
       setPendingProjectBaseName('');
       setNewProjectName('');
-      navigate('/chat');
+      navigate('/');
       toast.success(t('common:status.agentCreated'));
     } catch (error) {
       console.error(error);
@@ -569,8 +569,7 @@ function App() {
   // Routing guard: Login → Setup → Main
   useEffect(() => {
     const path = location.pathname;
-
-    // 1. 未登录 → 强制登录页（/login 和 /setup 除外，setup 不应在未登录时访问，但不强制跳走避免死循环）
+    // 1. 未登录 → 强制登录页
     if (!isLoggedIn && !path.startsWith('/login')) {
       logClientEvent('info', {
         source: 'app.route-guard',
@@ -579,25 +578,7 @@ function App() {
       });
       navigate('/login');
       return;
-    }
-
-    // Setup flow is currently disabled:
-    // - OpenClaw preset/provider setup is performed automatically after login.
-    // - Keep this block commented for potential future re-enable.
-    //
-    // // 2. 已登录但 setup 未完成 → 强制 setup
-    // if (isLoggedIn && !setupComplete && !path.startsWith('/setup')) {
-    //   logClientEvent('info', {
-    //     source: 'app.route-guard',
-    //     message: 'Redirect authenticated user to /setup',
-    //     data: { path, isLoggedIn, setupComplete },
-    //   });
-    //   navigate('/setup');
-    //   return;
-    // }
-
-    // 2. 已登录后，不再展示 setup。访问 /login 或 /setup 统一回到主界面
-    if (isLoggedIn && (path.startsWith('/login') || path.startsWith('/setup'))) {
+    } else {
       logClientEvent('info', {
         source: 'app.route-guard',
         message: 'Redirect authenticated user to /',
@@ -666,20 +647,21 @@ function App() {
           {/* Main application routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Chat />} />
+            {/*
             <Route path="/chat" element={<Chat />} />
-
-            {/* <Route path="/models" element={<Models />} />
+            <Route path="/models" element={<Models />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/channels" element={<Channels />} />
             <Route path="/skills" element={<Skills />} />
             <Route path="/cron" element={<Cron />} />
             <Route path="/settings/*" element={<Settings />} />
-            <Route path="/preferences" element={<Preferences />} /> */}
+            <Route path="/preferences" element={<Preferences />} />
+            */}
           </Route>
         </Routes>
 
         {/* Global toast notifications */}
-        <Toaster position="bottom-right" richColors closeButton style={{ zIndex: 99999 }} />
+        <Toaster position="bottom-right" richColors style={{ zIndex: 99999 }} />
         <ProjectCreateDialogHost />
       </TooltipProvider>
     </ErrorBoundary>

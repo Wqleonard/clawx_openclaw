@@ -1275,7 +1275,7 @@ export function Chat() {
             !projectPath && 'pointer-events-none opacity-70'
           )}
         >
-          <div className="w-full px-4 min-w-0 overflow-x-auto">
+          <div className="w-full px-4 min-w-0 overflow-x-hidden">
             <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-4xl space-y-4">
               {isEmpty ? (
                 <WelcomeScreen />
