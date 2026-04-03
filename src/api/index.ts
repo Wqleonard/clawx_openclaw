@@ -3,7 +3,6 @@ import axios from "axios";
 import type { AxiosInstance, AxiosRequestConfig } from "axios";
 import { toast } from "sonner";
 import { getOrCreateVisitorId } from "@/utils/visitorId";
-import { getBusinessAuthToken } from '@/lib/business-auth-token';
 
 export const STREAM_CHAT_URL = "/api/works/chat";
 
@@ -50,8 +49,11 @@ function defaultBaseURL() {
 }
 
 export function defaultGetToken() {
-  const token = getBusinessAuthToken();
-  return token || null;
+  try {
+    return localStorage.getItem("token") || '';
+  } catch {
+    return null;
+  }
 }
 
 function genStreamId() {
