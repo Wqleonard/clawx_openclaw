@@ -5,7 +5,7 @@
 
 type ChatRecordType = 'official_api' | 'custom';
 type ChatRecordSource = 'platform' | 'wechat' | 'qq' | 'feishu' | 'wecom';
-
+import { invokeIpc } from '@/lib/api-client';
 export interface ChatRecordLogEntry {
   timestamp: string;
   type: ChatRecordType;
@@ -27,17 +27,16 @@ export interface ChatRecordLogEntry {
 export function logPostChatRecord(entry: ChatRecordLogEntry): void {
   // 通过 IPC 写入主进程 chat-record.log；
   // 主进程会在落盘后统一执行 /chat-records 上报。
-  window.electron?.ipcRenderer
-    .invoke('log:chatRecord', {
-      timestamp: entry.timestamp,
-      type: entry.type,
-      source: entry.source,
-      sessionKey: entry.sessionKey,
-      agentId: entry.agentId,
-      messageText: entry.messageText,
-      attachmentCount: entry.attachmentCount,
-      provider: entry.provider,
-    })
+  void invokeIpc('log:chatRecord', {
+    timestamp: entry.timestamp,
+    type: entry.type,
+    source: entry.source,
+    sessionKey: entry.sessionKey,
+    agentId: entry.agentId,
+    messageText: entry.messageText,
+    attachmentCount: entry.attachmentCount,
+    provider: entry.provider,
+  })
     .catch(() => {
       if (import.meta.env.DEV) {
         // IPC 失败时仅在开发环境打印，避免生产环境噪声
