@@ -23,6 +23,7 @@ import {
   installUv,
   setupManagedPython,
 } from './uv-setup';
+import { getUvMirrorEnv } from './uv-env';
 
 const AGENT_TEMPLATES_DIR = 'agent-templates';
 const DEFAULT_TEMPLATE_ID = 'default';
@@ -378,12 +379,16 @@ async function ensureWorkspaceUvEnvironment(workspacePath: string, agentId: stri
   const { bin: uvBin, source } = getResolvedUvBin();
   const venvDir = join(expandedWorkspace, WORKSPACE_UV_VENV_DIR_NAME);
   const venvPython = getVenvPythonPath(venvDir);
+  const uvEnv = await getUvMirrorEnv();
+  const hasMirror = Object.keys(uvEnv).length > 0;
+  const baseEnv: Record<string, string | undefined> = { ...process.env };
 
   logger.info('Preparing agent workspace uv environment', {
     agentId,
     workspace: expandedWorkspace,
     uv: uvBin,
     source,
+    mirror: hasMirror,
     venvDir,
   });
 
@@ -395,14 +400,36 @@ async function ensureWorkspaceUvEnvironment(workspacePath: string, agentId: stri
       logPrefix: `uv:venv:${agentId}`,
     },
   );
-  await runCommand(
-    uvBin,
-    ['pip', 'install', '--python', venvPython, ...WORKSPACE_UV_PACKAGES],
-    {
-      cwd: expandedWorkspace,
-      logPrefix: `uv:pip:${agentId}`,
-    },
-  );
+
+  try {
+    await runCommand(
+      uvBin,
+      ['pip', 'install', '--python', venvPython, ...WORKSPACE_UV_PACKAGES],
+      {
+        cwd: expandedWorkspace,
+        env: { ...baseEnv, ...uvEnv },
+        logPrefix: hasMirror ? `uv:pip:${agentId}:mirror` : `uv:pip:${agentId}:default`,
+      },
+    );
+  } catch (error) {
+    if (!hasMirror) {
+      throw error;
+    }
+    logger.warn('uv pip install with mirror failed, retrying without mirror', {
+      agentId,
+      workspace: expandedWorkspace,
+      error: String(error),
+    });
+    await runCommand(
+      uvBin,
+      ['pip', 'install', '--python', venvPython, ...WORKSPACE_UV_PACKAGES],
+      {
+        cwd: expandedWorkspace,
+        env: baseEnv,
+        logPrefix: `uv:pip:${agentId}:no-mirror`,
+      },
+    );
+  }
 }
 
 function getDefaultWorkspacePath(config: AgentConfigDocument): string {
