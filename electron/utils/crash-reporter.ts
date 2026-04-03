@@ -157,10 +157,13 @@ function buildCrashPayload(input: {
     : sanitizeText(input.error);
   const stack = input.error instanceof Error ? input.error.stack : undefined;
   const appSlug = sanitizeText(app.getName() || 'storyclaw') || 'storyclaw';
+  const crashId = crypto.randomUUID();
 
   return {
     event: 'app_crash',
-    crashId: crypto.randomUUID(),
+    // Keep the same identifier shape as install reporters.
+    installId: crashId,
+    crashId,
     anonymousDeviceId: getOrCreateAnonymousDeviceId(),
     app: {
       id: 'app.storyclaw.desktop',
@@ -168,9 +171,10 @@ function buildCrashPayload(input: {
       productName: sanitizeText(app.getName() || 'StoryClaw') || 'StoryClaw',
       version: app.getVersion(),
       channel: app.isPackaged ? 'stable' : 'dev',
-      source: 'desktop_main_process',
+      source: 'desktop_crash',
     },
-    crash: {
+    // Keep payload layout aligned with install reporters: app + installation + system.
+    installation: {
       reason: sanitizeText(input.reason) || 'unknown',
       error: errorMessage,
       stack: stack ? sanitizeText(stack).slice(0, 4000) : undefined,
@@ -199,8 +203,9 @@ function buildCrashEnvelope(input: {
   logFilePath: string | null;
 }): CrashReportEnvelope {
   const payload = buildCrashPayload(input);
+  const payloadRecord = payload as { installId?: string; crashId?: string };
   return {
-    crashId: String(payload.crashId || crypto.randomUUID()),
+    crashId: String(payloadRecord.installId || payloadRecord.crashId || crypto.randomUUID()),
     event_id: generateEventId(),
     event_name: 'app_crash',
     event_time: new Date().toISOString(),

@@ -2,6 +2,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
 const crypto = require('node:crypto')
+const { execFileSync } = require('node:child_process')
 
 const BAKED_BASE_URL = '__INSTALL_REPORT_BASE_URL__'
 const BAKED_REPORT_PATH = '__INSTALL_REPORT_PATH__'
@@ -41,6 +42,58 @@ function sanitizeText(input) {
     .trim()
 }
 
+function readRegistryValue(key, valueName) {
+  try {
+    const output = execFileSync(
+      'reg.exe',
+      ['QUERY', key, '/v', valueName],
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 1500,
+        windowsHide: true,
+      },
+    )
+
+    const lines = output
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+
+    for (const line of lines) {
+      if (!line.toLowerCase().startsWith(valueName.toLowerCase())) continue
+      const parts = line.split(/\s{2,}/).filter(Boolean)
+      if (parts.length >= 3) {
+        return sanitizeText(parts.slice(2).join(' '))
+      }
+    }
+  } catch {
+    // Best-effort only.
+  }
+
+  return ''
+}
+
+function resolveMachineInfo() {
+  const manufacturer = readRegistryValue(
+    'HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS',
+    'SystemManufacturer',
+  )
+  const model = readRegistryValue(
+    'HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS',
+    'SystemProductName',
+  )
+  const cpuModel = sanitizeText(os.cpus()?.[0]?.model || '')
+
+  return {
+    manufacturer: manufacturer || undefined,
+    model: model || undefined,
+    cpuModel: cpuModel || undefined,
+    cpuCount: Array.isArray(os.cpus()) ? os.cpus().length : undefined,
+    totalMemoryMb: Math.round(os.totalmem() / 1024 / 1024),
+  }
+}
+
 function getTelemetryDir(appSlug) {
   const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
   return path.join(localAppData, appSlug, 'telemetry')
@@ -62,6 +115,21 @@ async function ensureDir(targetDir) {
   await fs.mkdir(targetDir, { recursive: true })
 }
 
+async function getOrCreateAnonymousDeviceId(telemetryDir) {
+  const deviceIdPath = path.join(telemetryDir, 'anonymous-device-id.txt')
+  try {
+    const existing = (await fs.readFile(deviceIdPath, 'utf8')).trim()
+    if (existing) return existing
+  } catch {
+    // Ignore missing file and create a new one below.
+  }
+
+  const created = crypto.randomUUID()
+  await ensureDir(telemetryDir)
+  await fs.writeFile(deviceIdPath, `${created}\n`, 'utf8')
+  return created
+}
+
 async function appendDebugLog(debugLogPath, message) {
   if (!debugLogPath) return
   try {
@@ -79,7 +147,7 @@ function buildReportUrl(baseUrl, reportPath) {
 
 function buildRequestBody(payload) {
   return {
-    event_id: `evt_open_${crypto.randomBytes(5).toString('hex')}`,
+    event_id: `evt_${crypto.randomBytes(5).toString('hex')}`,
     event_name: 'install_open',
     event_time: new Date().toISOString(),
     payload,
@@ -118,6 +186,7 @@ async function main() {
   const appId = sanitizeText(args['app-id'] || 'app.storyclaw.desktop')
   const productName = sanitizeText(args['product-name'] || 'StoryClaw')
   const version = sanitizeText(args.version)
+  const channel = sanitizeText(args.channel || 'stable') || 'stable'
   const source = sanitizeText(args.source || 'nsis_init') || 'nsis_init'
   const telemetryDir = resolveTelemetryDir(args, appSlug)
   const debugLogPath = resolveDebugLogPath(args, appSlug, telemetryDir)
@@ -133,13 +202,28 @@ async function main() {
   )
   const reportPath = normalizeReportPath(args['report-path'] || bakedReportPath)
   const reportUrl = buildReportUrl(baseUrl, reportPath)
+  const anonymousDeviceId = await getOrCreateAnonymousDeviceId(telemetryDir)
   const payload = {
-    source,
+    event: 'install_open',
+    installId: crypto.randomUUID(),
+    anonymousDeviceId,
     app: {
       id: appId,
       slug: appSlug,
       productName,
       version: version || undefined,
+      channel,
+      source,
+    },
+    installation: {
+      openedAt: new Date().toISOString(),
+    },
+    system: {
+      platform: 'win32',
+      arch: os.arch(),
+      release: os.release(),
+      version: typeof os.version === 'function' ? sanitizeText(os.version()) : undefined,
+      ...resolveMachineInfo(),
     },
   }
 
