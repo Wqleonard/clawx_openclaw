@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, FileText } from 'lucide-react';
 import 'chart.js/auto';
+import { debounce } from 'lodash';
 import { invokeIpc } from '@/lib/api-client';
 import { hostApiFetch } from '@/lib/host-api';
 import { getFileName } from './utils';
@@ -31,6 +32,7 @@ export function PptPreview({ activeFile }: PptPreviewProps) {
   const lowerFileName = fileName.toLowerCase();
   const isPptxFile = lowerFileName.endsWith('.pptx');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<PPTXViewer | null>(null);
   const requestPath = useMemo(
     () => `/api/files/content?filePath=${encodeURIComponent(activeFile)}`,
@@ -40,6 +42,34 @@ export function PptPreview({ activeFile }: PptPreviewProps) {
   const [currentSlide, setCurrentSlide] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const resizeCanvasToWrapper = useCallback(() => {
+    const wrapper = canvasWrapperRef.current;
+    const canvas = canvasRef.current;
+    if (!wrapper || !canvas) return;
+
+    const width = Math.max(1, wrapper.clientWidth-32);
+    const targetHeight = Math.max(1, Math.round((width * 3) / 4));
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${targetHeight}px`;
+    canvas.width = Math.max(1, Math.floor(width * dpr));
+    canvas.height = Math.max(1, Math.floor(targetHeight * dpr));
+  }, []);
+
+  const renderPptSlide = useCallback(async () => {
+    const viewer = viewerRef.current;
+    const canvas = canvasRef.current;
+    if (!viewer || !canvas) return;
+    resizeCanvasToWrapper();
+    await viewer.render(canvas);
+    setCurrentSlide(viewer.getCurrentSlideIndex() + 1);
+  }, [resizeCanvasToWrapper]);
+
+  const handleResizeRerender = useCallback(() => {
+    void renderPptSlide();
+  }, [renderPptSlide]);
 
   useEffect(() => {
     let disposed = false;
@@ -63,12 +93,10 @@ export function PptPreview({ activeFile }: PptPreviewProps) {
         const viewer = new PPTXViewer({ canvas });
         viewerRef.current = viewer;
         await viewer.loadFile(base64ToUint8Array(result.base64));
-        await viewer.render(canvas);
+        await renderPptSlide();
         if (disposed) return;
         const total = viewer.getSlideCount();
-        const current = viewer.getCurrentSlideIndex() + 1;
         setSlideCount(total);
-        setCurrentSlide(current);
         setLoading(false);
       })
       .catch((error) => {
@@ -82,14 +110,32 @@ export function PptPreview({ activeFile }: PptPreviewProps) {
       viewerRef.current?.destroy();
       viewerRef.current = null;
     };
-  }, [isPptxFile, requestPath]);
+  }, [isPptxFile, requestPath, renderPptSlide]);
+
+  useEffect(() => {
+    if (!isPptxFile) return;
+    const wrapper = canvasWrapperRef.current;
+    if (!wrapper) return;
+    if (typeof ResizeObserver === 'undefined') return;
+    const scheduleRerenderDebounced = debounce(handleResizeRerender, 120);
+
+    const observer = new ResizeObserver(() => {
+      scheduleRerenderDebounced();
+    });
+    observer.observe(wrapper);
+
+    return () => {
+      observer.disconnect();
+      scheduleRerenderDebounced.cancel();
+    };
+  }, [isPptxFile, handleResizeRerender]);
 
   const goPrevSlide = async () => {
     const viewer = viewerRef.current;
     const canvas = canvasRef.current;
     if (!viewer || !canvas) return;
     await viewer.previousSlide(canvas);
-    setCurrentSlide(viewer.getCurrentSlideIndex() + 1);
+    await renderPptSlide();
   };
 
   const goNextSlide = async () => {
@@ -97,11 +143,11 @@ export function PptPreview({ activeFile }: PptPreviewProps) {
     const canvas = canvasRef.current;
     if (!viewer || !canvas) return;
     await viewer.nextSlide(canvas);
-    setCurrentSlide(viewer.getCurrentSlideIndex() + 1);
+    await renderPptSlide();
   };
 
   return (
-    <div className="flex h-full min-w-0 flex-col">
+    <div className="flex h-full min-w-0 flex-col" ref={canvasWrapperRef}>
       <div className="h-11 shrink-0 border-b px-3 py-2 text-xs text-muted-foreground">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex items-center gap-2">
