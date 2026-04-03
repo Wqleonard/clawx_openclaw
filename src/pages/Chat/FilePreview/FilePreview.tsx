@@ -5,6 +5,7 @@ import { ImagePreview } from './ImagePreview';
 import { MarkdownPreview } from './MarkdownPreview';
 import { PdfPreview } from './PdfPreview';
 import { PptPreview } from './PptPreview';
+import { SpreadsheetPreview } from './SpreadsheetPreview';
 import { TextPreview } from './TextPreview';
 import type { FilePreviewProps } from './types';
 import { UnsupportedPreview } from './UnsupportedPreview';
@@ -53,6 +54,10 @@ export function FilePreview(props: FilePreviewProps) {
 
   if (previewKind === 'presentation' && activeFile) {
     return <PptPreview key={activeFile} activeFile={activeFile} />;
+  }
+
+  if (previewKind === 'spreadsheet' && activeFile) {
+    return <SpreadsheetPreview key={activeFile} activeFile={activeFile} />;
   }
 
   return <UnsupportedPreview activeFile={activeFile} />;

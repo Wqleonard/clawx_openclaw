@@ -24,6 +24,7 @@ export const IMAGE_EXTENSIONS = [
 export const PDF_EXTENSIONS = ['.pdf'] as const;
 export const DOCUMENT_EXTENSIONS = ['.doc', '.docx'] as const;
 export const PRESENTATION_EXTENSIONS = ['.ppt', '.pptx'] as const;
+export const SPREADSHEET_EXTENSIONS = ['.xls', '.xlsx'] as const;
 
 function hasAnyExtension(filePath: string, extensions: readonly string[]): boolean {
   const lower = filePath.toLowerCase();
@@ -38,6 +39,7 @@ export function getPreviewKind(filePath: string | null): FilePreviewKind {
   if (hasAnyExtension(filePath, PDF_EXTENSIONS)) return 'pdf';
   if (hasAnyExtension(filePath, DOCUMENT_EXTENSIONS)) return 'document';
   if (hasAnyExtension(filePath, PRESENTATION_EXTENSIONS)) return 'presentation';
+  if (hasAnyExtension(filePath, SPREADSHEET_EXTENSIONS)) return 'spreadsheet';
   return 'unsupported';
 }
 
@@ -57,6 +59,10 @@ export function getMimeTypeByPath(filePath: string): string {
   if (lower.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
   if (lower.endsWith('.pptx')) {
     return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  }
+  if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
+  if (lower.endsWith('.xlsx')) {
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   }
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.jfif')) {

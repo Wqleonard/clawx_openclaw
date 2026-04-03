@@ -112,15 +112,15 @@ export function DocPreview({ activeFile }: DocPreviewProps) {
           className={isLoading || loadError ? 'pointer-events-none invisible p-4' : ''}
         />
         {loadError ? (
-          <div className="absolute inset-0 flex h-full items-center justify-center px-4">
-            <div className="rounded-2xl border border-dashed border-black/10 bg-black/[0.02] px-8 py-7 text-center dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="absolute top-20 inset-0 grid place-items-center">
+            <div className="mx-4 rounded-2xl border border-dashed border-black/10 bg-black/[0.02] px-8 py-7 text-center dark:border-white/10 dark:bg-white/[0.03]">
               <p className="text-sm text-muted-foreground">
                 文档预览加载失败：{loadError}
               </p>
             </div>
           </div>
         ) : isLoading ? (
-          <div className="absolute inset-0 flex h-full items-center justify-center text-sm text-muted-foreground">
+          <div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">
             正在加载文档预览...
           </div>
         ) : null}

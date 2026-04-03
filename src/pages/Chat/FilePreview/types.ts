@@ -7,6 +7,7 @@ export type FilePreviewKind =
   | 'pdf'
   | 'document'
   | 'presentation'
+  | 'spreadsheet'
   | 'unsupported'
   | 'none';
 
