@@ -141,6 +141,19 @@ export interface GetNewbieMissionData {
   tasks: GuideTask[];
 }
 
+export interface BusinessModel {
+  id: string;
+  object: 'model';
+  created: number;
+  owned_by: string;
+  model_id: string;
+}
+
+export interface GetModelsResponse {
+  object: 'list';
+  data: BusinessModel[];
+}
+
 const getNewbieMission = () => {
   return apiClient.get<GetNewbieMissionData>('/api/users/guide/tasks');
 };
@@ -166,6 +179,10 @@ const visitorPost = () => {
   });
 };
 
+const getModels = () => {
+  return apiClient.get<GetModelsResponse>('/models');
+};
+
 export {
   getUserBalanceReq,
   createNewUserReq,
@@ -185,4 +202,5 @@ export {
   visitorPost,
   loginWithTestReq,
   postRedeemPointsReq,
+  getModels
 };
