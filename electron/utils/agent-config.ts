@@ -1,6 +1,7 @@
 import { access, copyFile, mkdir, readdir, readFile, rm } from 'fs/promises';
 import { constants, existsSync } from 'fs';
 import { join, normalize } from 'path';
+import { spawn } from 'child_process';
 import {
   deleteAgentChannelAccounts,
   listConfiguredChannels,
@@ -8,9 +9,20 @@ import {
   writeOpenClawConfig,
 } from './channel-config';
 import { withConfigLock } from './config-mutex';
-import { expandPath, getOpenClawConfigDir, getResourcesDir } from './paths';
+import {
+  expandPath,
+  getOpenClawConfigDir,
+  getResourcesDir,
+  prepareWinSpawn,
+} from './paths';
 import * as logger from './logger';
 import { toUiChannelType } from './channel-alias';
+import {
+  checkUvInstalled,
+  getResolvedUvBin,
+  installUv,
+  setupManagedPython,
+} from './uv-setup';
 
 const AGENT_TEMPLATES_DIR = 'agent-templates';
 const DEFAULT_TEMPLATE_ID = 'default';
@@ -71,6 +83,16 @@ const AGENT_BOOTSTRAP_FILES = [
   'BOOT.md',
 ];
 const AGENT_RUNTIME_FILES = ['auth-profiles.json', 'models.json'];
+const WORKSPACE_UV_VENV_DIR_NAME = '.venv';
+const WORKSPACE_UV_PYTHON_VERSION = '3.12';
+const WORKSPACE_UV_PACKAGES = [
+  'reportlab',
+  'pypdf',
+  'matplotlib',
+  'pandas',
+  'openpyxl',
+  'markitdown[pptx]',
+] as const;
 
 interface AgentModelConfig {
   primary?: string;
@@ -192,6 +214,102 @@ async function ensureDir(path: string): Promise<void> {
   if (!(await fileExists(path))) {
     await mkdir(path, { recursive: true });
   }
+}
+
+async function runCommand(
+  command: string,
+  args: string[],
+  options?: { cwd?: string; env?: Record<string, string | undefined>; logPrefix?: string },
+): Promise<void> {
+  const spawnSpec = prepareWinSpawn(command, args);
+  const logPrefix = options?.logPrefix ?? 'cmd';
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(spawnSpec.command, spawnSpec.args, {
+      shell: spawnSpec.shell,
+      cwd: options?.cwd,
+      env: options?.env ?? process.env,
+      windowsHide: true,
+    });
+
+    const stderrChunks: string[] = [];
+    const stdoutChunks: string[] = [];
+    child.stdout?.on('data', (data) => {
+      const line = data.toString().trim();
+      if (line) {
+        stdoutChunks.push(line);
+        logger.info(`[${logPrefix}] ${line}`);
+      }
+    });
+    child.stderr?.on('data', (data) => {
+      const line = data.toString().trim();
+      if (line) {
+        stderrChunks.push(line);
+        logger.warn(`[${logPrefix}] ${line}`);
+      }
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error(
+          `${logPrefix} failed with code ${code}\n` +
+            `command: ${command} ${args.join(' ')}\n` +
+            `stdout: ${stdoutChunks.join('\n') || '(empty)'}\n` +
+            `stderr: ${stderrChunks.join('\n') || '(empty)'}`,
+        ),
+      );
+    });
+    child.on('error', (error) => reject(error));
+  });
+}
+
+function getVenvPythonPath(venvDir: string): string {
+  return process.platform === 'win32'
+    ? join(venvDir, 'Scripts', 'python.exe')
+    : join(venvDir, 'bin', 'python');
+}
+
+async function ensureWorkspaceUvEnvironment(workspacePath: string, agentId: string): Promise<void> {
+  const expandedWorkspace = expandPath(workspacePath);
+  await ensureDir(expandedWorkspace);
+
+  const uvReady = await checkUvInstalled();
+  if (!uvReady) {
+    await installUv();
+  }
+  await setupManagedPython();
+
+  const { bin: uvBin, source } = getResolvedUvBin();
+  const venvDir = join(expandedWorkspace, WORKSPACE_UV_VENV_DIR_NAME);
+  const venvPython = getVenvPythonPath(venvDir);
+
+  logger.info('Preparing agent workspace uv environment', {
+    agentId,
+    workspace: expandedWorkspace,
+    uv: uvBin,
+    source,
+    venvDir,
+  });
+
+  await runCommand(
+    uvBin,
+    ['venv', venvDir, '--python', WORKSPACE_UV_PYTHON_VERSION],
+    {
+      cwd: expandedWorkspace,
+      logPrefix: `uv:venv:${agentId}`,
+    },
+  );
+  await runCommand(
+    uvBin,
+    ['pip', 'install', '--python', venvPython, ...WORKSPACE_UV_PACKAGES],
+    {
+      cwd: expandedWorkspace,
+      logPrefix: `uv:pip:${agentId}`,
+    },
+  );
 }
 
 function getDefaultWorkspacePath(config: AgentConfigDocument): string {
@@ -696,6 +814,7 @@ export async function createAgent(
       list: nextEntries,
     };
     await provisionAgentFilesystem(config, newAgent, options);
+    await ensureWorkspaceUvEnvironment(resolvedWorkspace, nextId);
     await writeOpenClawConfig(config);
     logger.info('Created agent config entry', { agentId: nextId, ...options });
     return buildSnapshotFromConfig(config);
@@ -745,6 +864,11 @@ export async function updateAgentWorkspace(
     const prevWorkspace =
       typeof entries[index].workspace === 'string' ? entries[index].workspace.trim() : '';
     const changed = prevWorkspace !== nextWorkspace;
+
+    // Always ensure workspace runtime, even when the workspace value is unchanged.
+    // This covers "select existing agent" flows where frontend re-applies the same
+    // workspace path and still expects uv + dependencies to be present.
+    await ensureWorkspaceUvEnvironment(nextWorkspace, agentId);
 
     if (changed) {
       entries[index] = {

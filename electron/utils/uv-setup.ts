@@ -50,6 +50,17 @@ function resolveUvBin(): { bin: string; source: 'bundled' | 'path' | 'bundled-fa
   return { bin: 'uv', source: 'path' };
 }
 
+/**
+ * Expose the resolved uv executable so other modules can run uv commands
+ * with the same bundled-vs-path policy.
+ */
+export function getResolvedUvBin(): {
+  bin: string;
+  source: 'bundled' | 'path' | 'bundled-fallback';
+} {
+  return resolveUvBin();
+}
+
 function findUvInPathSync(): boolean {
   try {
     const cmd = process.platform === 'win32' ? 'where.exe uv' : 'which uv';
