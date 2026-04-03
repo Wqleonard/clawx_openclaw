@@ -80,6 +80,11 @@ function isMarkdownFile(filePath: string): boolean {
   return lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdx');
 }
 
+function isEditableTextFile(filePath: string): boolean {
+  const lower = filePath.toLowerCase();
+  return isMarkdownFile(filePath) || lower.endsWith('.txt');
+}
+
 function normalizeWorkspacePath(value: string): string {
   return value
     .replace(/[\\/]+/g, '/')
@@ -751,20 +756,20 @@ export function Chat() {
   }, [clampPanelsForViewport]);
 
   const isEmpty = messages.length === 0 && !sending;
-  const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
-  const activeMarkdownContent = activeMarkdownFile ? (fileContents[activeMarkdownFile] ?? '') : '';
-  const handleMarkdownChange = useCallback(
-    (nextMarkdown: string) => {
-      if (!activeMarkdownFile) return;
-      updateFileContent(activeMarkdownFile, nextMarkdown);
+  const activeEditableFile = activeFile && isEditableTextFile(activeFile) ? activeFile : null;
+  const activeEditableContent = activeEditableFile ? (fileContents[activeEditableFile] ?? '') : '';
+  const handleEditableFileChange = useCallback(
+    (nextContent: string) => {
+      if (!activeEditableFile) return;
+      updateFileContent(activeEditableFile, nextContent);
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
       autoSaveTimerRef.current = setTimeout(() => {
-        void saveFile(activeMarkdownFile);
+        void saveFile(activeEditableFile);
       }, 200);
     },
-    [activeMarkdownFile, saveFile, updateFileContent]
+    [activeEditableFile, saveFile, updateFileContent]
   );
 
   useEffect(() => {
@@ -1410,10 +1415,10 @@ export function Chat() {
           <div className="min-h-0 flex-1 overflow-hidden">
             <FilePreview
               activeFile={activeFile}
-              fileContent={activeMarkdownContent}
+              fileContent={activeEditableContent}
               mdViewMode={mdViewMode}
               onMdViewModeChange={setMdViewMode}
-              onMarkdownChange={handleMarkdownChange}
+              onMarkdownChange={handleEditableFileChange}
             />
           </div>
         </div>

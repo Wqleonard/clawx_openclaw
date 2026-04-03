@@ -42,8 +42,8 @@ export function ImagePreview({ activeFile }: ImagePreviewProps) {
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="h-11 flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
-        <FileImage className="h-4 w-4" />
-        <span className="truncate" title={activeFile}>
+        <FileImage className="h-4 w-4 shrink-0" />
+        <span className="truncate flex-1" title={activeFile}>
           {getFileName(activeFile)}
         </span>
       </div>

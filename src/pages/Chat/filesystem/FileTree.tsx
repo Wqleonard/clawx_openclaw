@@ -12,6 +12,7 @@ import {
   ChevronRight,
   FileImage,
   FilePlus,
+  FileTypeCorner,
   FileText,
   Folder,
   FolderOpen,
@@ -59,6 +60,7 @@ const FILE_ICON_BY_EXTENSION = {
   '.tif': FileImage,
   '.tiff': FileImage,
   '.webp': FileImage,
+  '.txt': FileTypeCorner,
 } as const;
 
 type MenuAction =
@@ -134,6 +136,11 @@ function getFileIconByName(fileName: string) {
   return FILE_ICON_BY_EXTENSION[extension as keyof typeof FILE_ICON_BY_EXTENSION] ?? FileText;
 }
 
+function renderFileIcon(fileName: string) {
+  const IconComponent = getFileIconByName(fileName);
+  return <IconComponent className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
+}
+
 function resolveUniqueName(
   targetDir: string,
   rawName: string,
@@ -192,7 +199,6 @@ function FileTreeNode({
   const hasChildren = !!node.children?.length;
   const isInContext = !isFolder && contextPathSet.has(node.path);
   const isActiveFile = !isFolder && !!activeFilePath && node.path === activeFilePath;
-  const FileNodeIcon = getFileIconByName(node.name);
 
   return (
     <div title={node.path}>
@@ -236,7 +242,7 @@ function FileTreeNode({
             <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )
         ) : (
-          <FileNodeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          renderFileIcon(node.name)
         )}
 
         <span 

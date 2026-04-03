@@ -1,0 +1,18 @@
+.com-doc-preivew {
+  overflow-x: auto;
+  overflow-y: auto;
+
+  .docx-wrapper-layout {
+    display: flex;
+    justify-content: center;
+    min-width: fit-content;
+    > div {
+      width: fit-content;
+      height: fit-content;
+    }
+  }
+  .docx-wrapper {
+    width: fit-content;
+    padding: 16px;
+  }
+}

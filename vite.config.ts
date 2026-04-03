@@ -66,6 +66,9 @@ export default defineConfig({
       '@electron': resolve(__dirname, 'electron'),
     },
   },
+  optimizeDeps: {
+    include: ['chart.js/auto', 'pptxviewjs'],
+  },
   server: {
     port: 5173,
   },
