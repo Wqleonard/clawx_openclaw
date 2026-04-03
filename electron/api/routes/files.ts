@@ -158,6 +158,29 @@ export async function handleFileRoutes(
     return true;
   }
 
+  if (url.pathname === '/api/files/content' && req.method === 'GET') {
+    try {
+      const filePath = String(url.searchParams.get('filePath') ?? '').trim();
+      if (!filePath) {
+        sendJson(res, 400, { success: false, error: 'filePath is required' });
+        return true;
+      }
+      const fsP = await import('node:fs/promises');
+      const ext = extname(filePath);
+      const mimeType = getMimeType(ext);
+      const buffer = await fsP.readFile(filePath);
+      sendJson(res, 200, {
+        filePath,
+        mimeType,
+        fileSize: buffer.length,
+        base64: buffer.toString('base64'),
+      });
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
+  }
+
   if (url.pathname === '/api/files/save-image' && req.method === 'POST') {
     try {
       const body = await parseJsonBody<{
