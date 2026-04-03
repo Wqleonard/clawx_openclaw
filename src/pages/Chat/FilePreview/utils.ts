@@ -22,6 +22,8 @@ export const IMAGE_EXTENSIONS = [
 ] as const;
 
 export const PDF_EXTENSIONS = ['.pdf'] as const;
+export const DOCUMENT_EXTENSIONS = ['.doc', '.docx'] as const;
+export const PRESENTATION_EXTENSIONS = ['.ppt', '.pptx'] as const;
 
 function hasAnyExtension(filePath: string, extensions: readonly string[]): boolean {
   const lower = filePath.toLowerCase();
@@ -34,6 +36,8 @@ export function getPreviewKind(filePath: string | null): FilePreviewKind {
   if (hasAnyExtension(filePath, TEXT_EXTENSIONS)) return 'text';
   if (hasAnyExtension(filePath, IMAGE_EXTENSIONS)) return 'image';
   if (hasAnyExtension(filePath, PDF_EXTENSIONS)) return 'pdf';
+  if (hasAnyExtension(filePath, DOCUMENT_EXTENSIONS)) return 'document';
+  if (hasAnyExtension(filePath, PRESENTATION_EXTENSIONS)) return 'presentation';
   return 'unsupported';
 }
 
@@ -46,6 +50,14 @@ export function getFileName(filePath: string): string {
 export function getMimeTypeByPath(filePath: string): string {
   const lower = filePath.toLowerCase();
   if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.doc')) return 'application/msword';
+  if (lower.endsWith('.docx')) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
+  if (lower.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
+  if (lower.endsWith('.pptx')) {
+    return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  }
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.jfif')) {
     return 'image/jpeg';

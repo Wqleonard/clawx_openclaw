@@ -1,6 +1,14 @@
 export type MdViewMode = 'source' | 'rendered';
 
-export type FilePreviewKind = 'markdown' | 'text' | 'image' | 'pdf' | 'unsupported' | 'none';
+export type FilePreviewKind =
+  | 'markdown'
+  | 'text'
+  | 'image'
+  | 'pdf'
+  | 'document'
+  | 'presentation'
+  | 'unsupported'
+  | 'none';
 
 export type FilePreviewProps = {
   activeFile: string | null;

@@ -11,8 +11,8 @@ export function TextPreview({ activeFile, fileContent, onTextChange }: TextPrevi
   return (
     <div className="w-full h-full flex flex-col">
       <div className="h-11 flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
-        <FileTypeCorner className="h-4 w-4" />
-        <span className="truncate" title={activeFile}>
+        <FileTypeCorner className="h-4 w-4 shirnk-0" />
+        <span className="truncate flex-1" title={activeFile}>
           {getFileName(activeFile)}
         </span>
       </div>

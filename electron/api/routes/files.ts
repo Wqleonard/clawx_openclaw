@@ -40,6 +40,10 @@ const EXT_MIME_MAP: Record<string, string> = {
   '.js': 'text/javascript',
   '.ts': 'text/typescript',
   '.py': 'text/x-python',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
 
 function getMimeType(ext: string): string {

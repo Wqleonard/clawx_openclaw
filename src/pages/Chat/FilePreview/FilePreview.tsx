@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
+import { DocPreview } from './DocPreview';
 import { EmptyPreview } from './EmptyPreview';
 import { ImagePreview } from './ImagePreview';
 import { MarkdownPreview } from './MarkdownPreview';
 import { PdfPreview } from './PdfPreview';
+import { PptPreview } from './PptPreview';
 import { TextPreview } from './TextPreview';
 import type { FilePreviewProps } from './types';
 import { UnsupportedPreview } from './UnsupportedPreview';
@@ -43,6 +45,14 @@ export function FilePreview(props: FilePreviewProps) {
 
   if (previewKind === 'pdf' && activeFile) {
     return <PdfPreview activeFile={activeFile} />;
+  }
+
+  if (previewKind === 'document' && activeFile) {
+    return <DocPreview activeFile={activeFile} />;
+  }
+
+  if (previewKind === 'presentation' && activeFile) {
+    return <PptPreview key={activeFile} activeFile={activeFile} />;
   }
 
   return <UnsupportedPreview activeFile={activeFile} />;
