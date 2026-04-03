@@ -61,6 +61,26 @@
       "autoEnable": true
     },
     {
+      "slug": "minimax-pdf",
+      "version": "0.3.6",
+      "autoEnable": true
+    },
+    {
+      "slug": "minimax-docx",
+      "version": "0.3.6",
+      "autoEnable": true
+    },
+    {
+      "slug": "minimax-xlsx",
+      "version": "0.3.6",
+      "autoEnable": true
+    },
+    {
+      "slug": "pptx-generator",
+      "version": "0.3.6",
+      "autoEnable": true
+    },
+    {
       "slug": "clawhub",
       "version": "1.0.0",
       "autoEnable": true
