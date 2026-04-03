@@ -157,43 +157,49 @@ export function SpreadsheetPreview({ activeFile }: SpreadsheetPreviewProps) {
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
-              <table className="min-w-full border-collapse text-xs">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="sticky top-0 left-0 z-20 w-12 border-r px-2 py-1.5 text-right font-medium text-muted-foreground bg-[#f0f0f0] dark:bg-[#333333]">
-                      #
-                    </th>
-                    {Array.from({ length: colCount }).map((_, colIndex) => (
-                      <th
-                        key={`col-${colIndex}`}
-                        className="sticky top-0 z-10 border-r px-2 py-1.5 text-left font-medium text-muted-foreground bg-[#f0f0f0] dark:bg-[#333333]"
-                      >
-                        {getColumnLabel(colIndex)}
+              {rowCount === 0 || colCount === 0 ? (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  当前工作表暂无内容
+                </div>
+              ) : (
+                <table className="min-w-full border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="sticky top-0 left-0 z-20 w-12 border-r px-2 py-1.5 text-right font-medium text-muted-foreground bg-[#f0f0f0] dark:bg-[#333333]">
+                        
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: rowCount }).map((_, rowIndex) => {
-                    const row = activeSheet?.rows[rowIndex] ?? [];
-                    return (
-                      <tr key={`${activeSheet?.name ?? 'sheet'}-${rowIndex}`} className="border-b">
-                        <td className="sticky left-0 z-10 w-12 border-r px-2 py-1.5 text-right text-muted-foreground bg-[#f0f0f0] dark:bg-[#333333]">
-                          {rowIndex + 1}
-                        </td>
-                        {Array.from({ length: colCount }).map((__, colIndex) => (
-                          <td
-                            key={`${rowIndex}-${colIndex}`}
-                            className="max-w-[360px] border-r px-2 py-1.5 align-top break-words text-foreground/90"
-                          >
-                            {row[colIndex] ?? ''}
+                      {Array.from({ length: colCount }).map((_, colIndex) => (
+                        <th
+                          key={`col-${colIndex}`}
+                          className="sticky top-0 z-10 border-r px-2 py-1.5 text-left font-medium text-muted-foreground bg-[#f0f0f0] dark:bg-[#333333]"
+                        >
+                          {getColumnLabel(colIndex)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: rowCount }).map((_, rowIndex) => {
+                      const row = activeSheet?.rows[rowIndex] ?? [];
+                      return (
+                        <tr key={`${activeSheet?.name ?? 'sheet'}-${rowIndex}`} className="border-b">
+                          <td className="sticky left-0 z-10 w-12 border-r px-2 py-1.5 text-right text-muted-foreground bg-[#f0f0f0] dark:bg-[#333333]">
+                            {rowIndex + 1}
                           </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          {Array.from({ length: colCount }).map((__, colIndex) => (
+                            <td
+                              key={`${rowIndex}-${colIndex}`}
+                              className="max-w-[360px] border-r px-2 py-1.5 align-top break-words text-foreground/90"
+                            >
+                              {row[colIndex] ?? ''}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}
