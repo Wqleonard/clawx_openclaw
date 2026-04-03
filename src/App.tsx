@@ -10,7 +10,6 @@ import i18n from './i18n';
 import { MainLayout } from './components/layout/MainLayout';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Chat } from './pages/Chat';
-import { Setup } from './pages/Setup';
 import { Login } from './pages/Login';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
@@ -19,7 +18,7 @@ import { useProviderStore } from './stores/providers';
 import { useAgentsStore } from './stores/agents';
 import { useFileSystemStore } from './stores/filesystem';
 import { useChatStore } from './stores/chat';
-import { getModels, visitorPost } from './api/users';
+import { visitorPost } from './api/users';
 import { applyGatewayTransportPreference } from './lib/api-client';
 import { invokeIpc } from '@/lib/api-client';
 import { hostApiFetch } from '@/lib/host-api';
@@ -496,7 +495,6 @@ function App() {
 
   const isLoggedIn = useLoginStore((state) => state.isLoggedIn);
   const ensureBaowenmaoPresetAccounts = useProviderStore((state) => state.ensureBaowenmaoPresetAccounts);
-  const ensureManagedGoogleProxyAccount = useProviderStore((state) => state.ensureManagedGoogleProxyAccount);
 
   const initProviders = useProviderStore((state) => state.init);
 
@@ -558,17 +556,15 @@ function App() {
     if (!isLoggedIn) return;
     const token = localStorage.getItem('token');
     if (!token) return;
-    void ensureManagedGoogleProxyAccount(token).catch((err) => {
-      console.error('Failed to sync managed Google proxy account on startup:', err);
-    });
     void ensureBaowenmaoPresetAccounts(token).catch((err) => {
       console.error('Failed to sync Baowenmao preset accounts on startup:', err);
     });
-  }, [isLoggedIn, ensureBaowenmaoPresetAccounts, ensureManagedGoogleProxyAccount]);
+  }, [isLoggedIn, ensureBaowenmaoPresetAccounts]);
 
   // Routing guard: Login → Setup → Main
   useEffect(() => {
     const path = location.pathname;
+
     // 1. 未登录 → 强制登录页
     if (!isLoggedIn && !path.startsWith('/login')) {
       logClientEvent('info', {
@@ -576,15 +572,18 @@ function App() {
         message: 'Redirect unauthenticated user to /login',
         data: { path, isLoggedIn, setupComplete },
       });
-      navigate('/login');
+      navigate('/login', { replace: true });
       return;
-    } else {
+    }
+
+    // 2. 已登录访问 /login 时回到主界面
+    if (isLoggedIn && path.startsWith('/login')) {
       logClientEvent('info', {
         source: 'app.route-guard',
         message: 'Redirect authenticated user to /',
         data: { path, isLoggedIn, setupComplete },
       });
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [isLoggedIn, setupComplete, location.pathname, navigate]);
 
@@ -638,9 +637,6 @@ function App() {
     <ErrorBoundary>
       <TooltipProvider delayDuration={300}>
         <Routes>
-          {/* Setup wizard (shown on first launch) */}
-          <Route path="/setup/*" element={<Setup />} />
-
           {/* Login page */}
           <Route path="/login" element={<Login />} />
 

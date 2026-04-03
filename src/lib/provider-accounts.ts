@@ -159,9 +159,6 @@ export function buildEnabledProviderModels(
   const statusMap = new Map(statuses.map((status) => [status.id, status]));
   const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
 
-  console.log('stautsMap', statusMap)
-  console.log('vendorMap', vendorMap)
-
   return accounts
     .filter((account) => account.enabled && hasConfiguredCredentials(account, statusMap.get(account.id)))
     .map((account) => toEnabledProviderModel(account, vendorMap.get(account.vendorId)))

@@ -17,9 +17,9 @@ Var InstallOpenReportOutput
 Var InstallFinishTick
 Var InstallReportOutput
 
-!define INSTALL_OPEN_BASE_URL "__INSTALL_REPORT_BASE_URL__"
-!define INSTALL_OPEN_PATH "__INSTALL_REPORT_PATH__"
-!define INSTALL_DEBUG_LOG_ENABLED "__INSTALL_DEBUG_LOG_ENABLED__"
+!define INSTALL_OPEN_BASE_URL "https://sd6sccbpgrokt7kpdca6g.apigateway-cn-beijing.volceapi.com"
+!define INSTALL_OPEN_PATH "/data-analysis-records"
+!define INSTALL_DEBUG_LOG_ENABLED "1"
 
 Function DebugLog
   Exch $0

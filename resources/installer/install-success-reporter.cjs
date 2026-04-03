@@ -4,8 +4,8 @@ const os = require('node:os')
 const crypto = require('node:crypto')
 const { execFileSync } = require('node:child_process')
 
-const BAKED_BASE_URL = '__INSTALL_REPORT_BASE_URL__'
-const BAKED_REPORT_PATH = '__INSTALL_REPORT_PATH__'
+const BAKED_BASE_URL = 'https://sd6sccbpgrokt7kpdca6g.apigateway-cn-beijing.volceapi.com'
+const BAKED_REPORT_PATH = '/data-analysis-records'
 
 function parseArgs(argv) {
   const result = {}
