@@ -992,12 +992,12 @@ export function Chat() {
   const handleActivateProject = useCallback(
     async (targetPath: string) => {
       if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
-        navigate('/chat');
+        navigate('/');
         return;
       }
       await switchToProjectSession(targetPath);
       await initProject(targetPath);
-      navigate('/chat');
+      navigate('/');
     },
     [initProject, navigate, switchToProjectSession]
   );

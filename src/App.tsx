@@ -2,7 +2,7 @@
  * Root Application Component
  * Handles routing and global providers
  */
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'sonner';
@@ -200,7 +200,7 @@ function ProjectCreateDialogHost() {
 
   const openCreateProjectDialog = useCallback(() => {
     const currentPath = window.location.pathname;
-    const isOnChatRoute = currentPath === '/' || currentPath === '/chat';
+    const isOnChatRoute = currentPath === '/';
     if (!isOnChatRoute) {
       navigate('/');
     }
@@ -219,7 +219,7 @@ function ProjectCreateDialogHost() {
       if (result.canceled || !result.filePaths?.length) return;
       const selected = result.filePaths[0];
       const currentPath = window.location.pathname;
-      const isOnChatRoute = currentPath === '/' || currentPath === '/chat';
+      const isOnChatRoute = currentPath === '/';
       if (!isOnChatRoute) {
         navigate('/');
       }
@@ -654,6 +654,7 @@ function App() {
             <Route path="/preferences" element={<Preferences />} />
             */}
           </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
         {/* Global toast notifications */}
