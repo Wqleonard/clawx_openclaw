@@ -23,7 +23,6 @@ import {
   installUv,
   setupManagedPython,
 } from './uv-setup';
-import { getUvMirrorEnv } from './uv-env';
 
 const AGENT_TEMPLATES_DIR = 'agent-templates';
 const DEFAULT_TEMPLATE_ID = 'default';
@@ -86,6 +85,7 @@ const AGENT_BOOTSTRAP_FILES = [
 const AGENT_RUNTIME_FILES = ['auth-profiles.json', 'models.json'];
 const PREINSTALLED_MANIFEST_NAME = 'preinstalled-manifest.json';
 const WORKSPACE_SKILLS_DIR_NAME = 'skills';
+const BUNDLED_WHEELHOUSE_DIR_NAME = 'python-wheelhouse';
 const WORKSPACE_UV_VENV_DIR_NAME = '.venv';
 const WORKSPACE_UV_PYTHON_VERSION = '3.12';
 const WORKSPACE_UV_PACKAGES = [
@@ -310,6 +310,15 @@ async function ensureWorkspaceInjectedSkills(targetWorkspace: string): Promise<v
   }
 }
 
+function resolveBundledWheelhouseDir(): string | null {
+  const candidates = [
+    join(getResourcesDir(), BUNDLED_WHEELHOUSE_DIR_NAME),
+    join(process.cwd(), 'resources', BUNDLED_WHEELHOUSE_DIR_NAME),
+  ];
+  const wheelhouse = candidates.find((dir) => existsSync(dir));
+  return wheelhouse || null;
+}
+
 async function runCommand(
   command: string,
   args: string[],
@@ -379,16 +388,15 @@ async function ensureWorkspaceUvEnvironment(workspacePath: string, agentId: stri
   const { bin: uvBin, source } = getResolvedUvBin();
   const venvDir = join(expandedWorkspace, WORKSPACE_UV_VENV_DIR_NAME);
   const venvPython = getVenvPythonPath(venvDir);
-  const uvEnv = await getUvMirrorEnv();
-  const hasMirror = Object.keys(uvEnv).length > 0;
   const baseEnv: Record<string, string | undefined> = { ...process.env };
+  const wheelhouseDir = resolveBundledWheelhouseDir();
 
   logger.info('Preparing agent workspace uv environment', {
     agentId,
     workspace: expandedWorkspace,
     uv: uvBin,
     source,
-    mirror: hasMirror,
+    wheelhouse: wheelhouseDir || 'not-found',
     venvDir,
   });
 
@@ -401,35 +409,35 @@ async function ensureWorkspaceUvEnvironment(workspacePath: string, agentId: stri
     },
   );
 
-  try {
-    await runCommand(
-      uvBin,
-      ['pip', 'install', '--python', venvPython, ...WORKSPACE_UV_PACKAGES],
-      {
-        cwd: expandedWorkspace,
-        env: { ...baseEnv, ...uvEnv },
-        logPrefix: hasMirror ? `uv:pip:${agentId}:mirror` : `uv:pip:${agentId}:default`,
-      },
-    );
-  } catch (error) {
-    if (!hasMirror) {
-      throw error;
-    }
-    logger.warn('uv pip install with mirror failed, retrying without mirror', {
-      agentId,
-      workspace: expandedWorkspace,
-      error: String(error),
-    });
-    await runCommand(
-      uvBin,
-      ['pip', 'install', '--python', venvPython, ...WORKSPACE_UV_PACKAGES],
-      {
-        cwd: expandedWorkspace,
-        env: baseEnv,
-        logPrefix: `uv:pip:${agentId}:no-mirror`,
-      },
+  if (!wheelhouseDir) {
+    throw new Error(
+      `Bundled wheelhouse not found. Expected: ${join(getResourcesDir(), BUNDLED_WHEELHOUSE_DIR_NAME)}`
     );
   }
+
+  await runCommand(
+    uvBin,
+    [
+      'pip',
+      'install',
+      '--python',
+      venvPython,
+      '--no-index',
+      '--find-links',
+      wheelhouseDir,
+      ...WORKSPACE_UV_PACKAGES,
+    ],
+    {
+      cwd: expandedWorkspace,
+      env: baseEnv,
+      logPrefix: `uv:pip:${agentId}:offline-wheelhouse`,
+    },
+  );
+  logger.info('uv pip install completed via bundled wheelhouse (offline-only mode)', {
+    agentId,
+    workspace: expandedWorkspace,
+    wheelhouseDir,
+  });
 }
 
 function getDefaultWorkspacePath(config: AgentConfigDocument): string {
