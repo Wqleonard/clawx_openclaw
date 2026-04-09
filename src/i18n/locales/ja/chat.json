@@ -48,7 +48,8 @@
     },
     "projectScreen": {
         "tagline": "あなたの物語を世界が待っています",
-        "createNow": "今すぐ作成"
+        "createNow": "今すぐ作成",
+        "gatewayConnecting": "ゲートウェイ接続中です。接続完了まで待ってからプロジェクトを作成してください。"
     },
     "fileTree": {
         "title": "ファイル",

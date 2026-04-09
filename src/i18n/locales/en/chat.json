@@ -48,7 +48,8 @@
     },
     "projectScreen": {
         "tagline": "The world is waiting for your story",
-        "createNow": "Start Creating"
+        "createNow": "Start Creating",
+        "gatewayConnecting": "Gateway is still connecting. Please wait before creating a project."
     },
     "fileTree": {
         "title": "Files",

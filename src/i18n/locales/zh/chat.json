@@ -48,7 +48,8 @@
     },
     "projectScreen": {
         "tagline": "世界正在等待你的故事",
-        "createNow": "立即创作"
+        "createNow": "立即创作",
+        "gatewayConnecting": "网关连接中，请等待连接完成或进入设置手动重启"
     },
     "fileTree": {
         "title": "文件",

@@ -658,7 +658,13 @@ function App() {
         </Routes>
 
         {/* Global toast notifications */}
-        <Toaster position="bottom-right" richColors style={{ zIndex: 99999 }} />
+        <Toaster
+          position="bottom-right"
+          richColors
+          expand
+          visibleToasts={6}
+          style={{ zIndex: 99999 }}
+        />
         <ProjectCreateDialogHost />
       </TooltipProvider>
     </ErrorBoundary>

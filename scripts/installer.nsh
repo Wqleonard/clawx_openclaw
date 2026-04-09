@@ -190,6 +190,26 @@ Function RunInstallSuccessReport
   Call DebugLog
 FunctionEnd
 
+Function un.RemoveDirBestEffort
+  Exch $0
+
+  ; If target path doesn't exist, skip quietly.
+  IfFileExists "$0\*" +2 0
+  IfFileExists "$0" +2 _remove_dir_done
+
+  ; First try NSIS native recursive removal and allow reboot cleanup if locked.
+  RMDir /r /REBOOTOK "$0"
+
+  ; Fallback: use cmd rd for stubborn trees (readonly/hidden edge cases).
+  IfFileExists "$0" 0 _remove_dir_done
+  nsExec::ExecToLog '"$SYSDIR\cmd.exe" /C rd /s /q "$0"'
+  IfFileExists "$0" 0 _remove_dir_done
+  DetailPrint "Cleanup pending or failed for: $0"
+
+  _remove_dir_done:
+  Pop $0
+FunctionEnd
+
 !macro customInstall
   ; Add resources\cli to current user PATH via registry (no PowerShell needed).
   ReadRegStr $0 HKCU "Environment" "PATH"
@@ -208,6 +228,9 @@ FunctionEnd
 !macroend
 
 !macro customUnInstall
+  ; Ensure shell vars resolve to the current user's profile directories.
+  SetShellVarContext current
+
   ; Remove resources\cli from current user PATH via registry.
   ; Use StrCpy/StrLen to strip the entry without WordFunc.nsh dependency.
   ReadRegStr $0 HKCU "Environment" "PATH"
@@ -239,20 +262,26 @@ FunctionEnd
 
   ; Always clear auth/session cache so reinstall requires login again.
   DetailPrint "Clearing login session data..."
-  RMDir /r "$APPDATA\storyclaw\Local Storage"
-  RMDir /r "$APPDATA\storyclaw\Session Storage"
-  RMDir /r "$APPDATA\storyclaw\IndexedDB"
-  RMDir /r "$LOCALAPPDATA\storyclaw\Local Storage"
-  RMDir /r "$LOCALAPPDATA\storyclaw\Session Storage"
-  RMDir /r "$LOCALAPPDATA\storyclaw\IndexedDB"
-  Delete "$APPDATA\storyclaw\Cookies"
-  Delete "$APPDATA\storyclaw\Cookies-journal"
-  Delete "$APPDATA\storyclaw\Network\Cookies"
-  Delete "$APPDATA\storyclaw\Network\Cookies-journal"
-  Delete "$LOCALAPPDATA\storyclaw\Cookies"
-  Delete "$LOCALAPPDATA\storyclaw\Cookies-journal"
-  Delete "$LOCALAPPDATA\storyclaw\Network\Cookies"
-  Delete "$LOCALAPPDATA\storyclaw\Network\Cookies-journal"
+  Push "$APPDATA\storyclaw\Local Storage"
+  Call un.RemoveDirBestEffort
+  Push "$APPDATA\storyclaw\Session Storage"
+  Call un.RemoveDirBestEffort
+  Push "$APPDATA\storyclaw\IndexedDB"
+  Call un.RemoveDirBestEffort
+  Push "$LOCALAPPDATA\storyclaw\Local Storage"
+  Call un.RemoveDirBestEffort
+  Push "$LOCALAPPDATA\storyclaw\Session Storage"
+  Call un.RemoveDirBestEffort
+  Push "$LOCALAPPDATA\storyclaw\IndexedDB"
+  Call un.RemoveDirBestEffort
+  Delete /REBOOTOK "$APPDATA\storyclaw\Cookies"
+  Delete /REBOOTOK "$APPDATA\storyclaw\Cookies-journal"
+  Delete /REBOOTOK "$APPDATA\storyclaw\Network\Cookies"
+  Delete /REBOOTOK "$APPDATA\storyclaw\Network\Cookies-journal"
+  Delete /REBOOTOK "$LOCALAPPDATA\storyclaw\Cookies"
+  Delete /REBOOTOK "$LOCALAPPDATA\storyclaw\Cookies-journal"
+  Delete /REBOOTOK "$LOCALAPPDATA\storyclaw\Network\Cookies"
+  Delete /REBOOTOK "$LOCALAPPDATA\storyclaw\Network\Cookies-journal"
 
   ; Ask whether to remove all remaining user data (current user only).
   MessageBox MB_YESNO|MB_ICONQUESTION \
@@ -260,9 +289,12 @@ FunctionEnd
     /SD IDNO IDYES _cu_removeData IDNO _cu_skipRemove
 
   _cu_removeData:
-    RMDir /r "$PROFILE\.openclaw"
-    RMDir /r "$LOCALAPPDATA\storyclaw"
-    RMDir /r "$APPDATA\storyclaw"
+    Push "$PROFILE\.openclaw"
+    Call un.RemoveDirBestEffort
+    Push "$LOCALAPPDATA\storyclaw"
+    Call un.RemoveDirBestEffort
+    Push "$APPDATA\storyclaw"
+    Call un.RemoveDirBestEffort
 
   _cu_skipRemove:
 !macroend
