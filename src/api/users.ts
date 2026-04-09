@@ -124,6 +124,10 @@ const verifyTicket = async (ticket: string, invitationCode: string = '') => {
   return response;
 };
 
+const logoutReq = () => {
+  return apiClient.post('/auth/logout');
+};
+
 export interface GuideTask {
   code: string;
   taskId: number;
@@ -194,6 +198,7 @@ export {
   updateUserInfo,
   updatePassword,
   verifyTicket,
+  logoutReq,
   postFrozenUserEmailReq,
   getFrozenUserEmailReq,
   getNewbieMission,

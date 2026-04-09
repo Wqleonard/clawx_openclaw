@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { verifyTicket, getNewbieMission, completeNewbieMissionReq, getUserInfoReq, type GuideTask } from '@/api/users'
+import { verifyTicket, logoutReq, getNewbieMission, completeNewbieMissionReq, getUserInfoReq, type GuideTask } from '@/api/users'
 import { getInsiteNotification, type NotificationItem } from '@/api/insite-notification'
 import { useProviderStore } from '@/stores/providers'
 import { useSettingsStore } from '@/stores/settings'
@@ -449,7 +449,7 @@ export const useLoginStore = create<LoginStore>((set, get) => {
       }
     },
 
-    logout: () => {
+    logout: async () => {
       const wasLoggedIn = get().isLoggedIn
       const prevToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
       logClientEvent('info', {
@@ -461,6 +461,21 @@ export const useLoginStore = create<LoginStore>((set, get) => {
           location: typeof window !== 'undefined' ? window.location.href : 'n/a',
         },
       })
+      try {
+        await logoutReq()
+        logClientEvent('info', {
+          source: 'auth.logout',
+          message: 'Remote logout API succeeded',
+        })
+      } catch (error) {
+        logClientEvent('warn', {
+          source: 'auth.logout',
+          message: 'Remote logout API failed; continue local logout',
+          data: {
+            error: error instanceof Error ? error.message : String(error),
+          },
+        })
+      }
       get().saveUserInfo(null)
       localStorage.removeItem('token')
       notifyBusinessAuthTokenChanged(null)
