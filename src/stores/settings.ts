@@ -175,10 +175,28 @@ export const useSettingsStore = create<SettingsState>()(
       setProxyAllServer: (proxyAllServer) => set({ proxyAllServer }),
       setProxyBypassRules: (proxyBypassRules) => set({ proxyBypassRules }),
       setUpdateChannel: (updateChannel) => set({ updateChannel }),
-      setAutoCheckUpdate: (autoCheckUpdate) => set({ autoCheckUpdate }),
-      setAutoDownloadUpdate: (autoDownloadUpdate) => set({ autoDownloadUpdate }),
+      setAutoCheckUpdate: (autoCheckUpdate) => {
+        set({ autoCheckUpdate });
+        void hostApiFetch('/api/settings/autoCheckUpdate', {
+          method: 'PUT',
+          body: JSON.stringify({ value: autoCheckUpdate }),
+        }).catch(() => { });
+      },
+      setAutoDownloadUpdate: (autoDownloadUpdate) => {
+        set({ autoDownloadUpdate });
+        void hostApiFetch('/api/settings/autoDownloadUpdate', {
+          method: 'PUT',
+          body: JSON.stringify({ value: autoDownloadUpdate }),
+        }).catch(() => { });
+      },
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
-      setDevModeUnlocked: (devModeUnlocked) => set({ devModeUnlocked }),
+      setDevModeUnlocked: (devModeUnlocked) => {
+        set({ devModeUnlocked });
+        void hostApiFetch('/api/settings/devModeUnlocked', {
+          method: 'PUT',
+          body: JSON.stringify({ value: devModeUnlocked }),
+        }).catch(() => { });
+      },
       setShowToolCalls: (showToolCalls) => set({ showToolCalls }),
       setSetupComplete: (setupComplete) => set({ setupComplete }),
       setWorkspaceRoots: (workspaceRoots) => {
@@ -192,7 +210,7 @@ export const useSettingsStore = create<SettingsState>()(
       resetSettings: () => set(defaultSettings),
     }),
     {
-      name: 'clawx-settings',
+      name: 'claw-settings',
       version: 2,
       migrate: (persistedState, fromVersion) => {
         const state = persistedState as Partial<typeof defaultSettings>;

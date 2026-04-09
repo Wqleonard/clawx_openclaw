@@ -14,11 +14,11 @@ import { logger } from '../utils/logger';
 import {
   normalizeChatRecordSource,
   resolveChatRecordTypeBySource,
-  writeGatewayRawMessage,
+  // writeGatewayRawMessage,
   writeChatRecord,
   type ChatRecordSource,
   type ChatRecordProviderInfo,
-} from '../utils/chat-record-logger';
+} from '../utils/chat-record-reporter';
 import { captureTelemetryEvent, trackMetric } from '../utils/telemetry';
 import {
   loadOrCreateDeviceIdentity,
@@ -1345,7 +1345,7 @@ export class GatewayManager extends EventEmitter {
     this.connectionMonitor.markAlive('message');
 
     // Raw traffic capture for channel payload debugging.
-    writeGatewayRawMessage(message);
+    // writeGatewayRawMessage(message);
 
     // Keep an in-memory mapping of sessionKey -> channel source (qq/wechat/...).
     this.ingestSessionSourceHints(message);

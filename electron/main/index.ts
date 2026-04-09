@@ -13,7 +13,8 @@ import { createMenu } from './menu';
 import { appUpdater, registerUpdateHandlers } from './updater';
 import { logger } from '../utils/logger';
 import { warmupNetworkOptimization } from '../utils/uv-env';
-import { initTelemetry } from '../utils/telemetry';
+import { captureTelemetryEvent, initTelemetry, shutdownTelemetry } from '../utils/telemetry';
+import { flushPendingCrashReports, queueCrashReport } from '../utils/crash-reporter';
 
 import { ClawHubService } from '../gateway/clawhub';
 import { SkillHubService } from '../services/skillhub-service';
@@ -38,7 +39,11 @@ import { acquireProcessInstanceFileLock } from './process-instance-lock';
 import { getSetting } from '../utils/store';
 
 
-import { ensureBuiltinSkillsInstalled, ensurePreinstalledSkillsInstalled } from '../utils/skill-config';
+import {
+  ensureBuiltinSkillsInstalled,
+  ensureDefaultDisabledSkillsApplied,
+  ensurePreinstalledSkillsInstalled,
+} from '../utils/skill-config';
 import { ensureAllBundledPluginsInstalled } from '../utils/plugin-install';
 
 import { startHostApiServer } from '../api/server';
@@ -54,6 +59,7 @@ import { ensureAiExecAuditPlugin } from '../services/ai-exec-audit/plugin-deploy
 import { ensureBoomExecutorGuardPlugin } from '../services/boom-lowpriv-executor/plugin-deploy';
 import {
   startActiveReportHeartbeat,
+  setGatewayRunningResolver,
   stopActiveReportHeartbeat,
 } from '../utils/active-report-heartbeat';
 
@@ -319,6 +325,9 @@ async function initialize(): Promise<void> {
 
   // Initialize Telemetry early
   await initTelemetry();
+  void flushPendingCrashReports().catch((error) => {
+    logger.warn('[crash-report] failed to flush pending crash reports on startup:', error);
+  });
 
   // Apply persisted proxy settings before creating windows or network requests.
   await applyProxySettings();
@@ -396,6 +405,12 @@ async function initialize(): Promise<void> {
   // non-destructive way and never blocks startup.
   void ensurePreinstalledSkillsInstalled().catch((error) => {
     logger.warn('Failed to install preinstalled skills:', error);
+  });
+
+  // Apply default-disabled skill policy from resources/skills/default-disabled-skills.jsonl.
+  // This only sets enabled=false for listed skills that have no explicit user choice.
+  void ensureDefaultDisabledSkillsApplied().catch((error) => {
+    logger.warn('Failed to apply default-disabled skills policy:', error);
   });
 
 
@@ -552,6 +567,7 @@ if (gotTheLock) {
   }
 
   gatewayManager = new GatewayManager();
+  setGatewayRunningResolver(() => gatewayManager.getStatus().state === 'running');
   clawHubService = new ClawHubService();
   hostEventBus = new HostEventBus();
 
@@ -640,17 +656,47 @@ if (gotTheLock) {
   // Best-effort Gateway cleanup on unexpected crashes.
   // These handlers attempt to terminate the Gateway child process within a
   // short timeout before force-exiting, preventing orphaned processes.
+  let crashExitInProgress = false;
   const emergencyGatewayCleanup = (reason: string, error: unknown): void => {
+    if (crashExitInProgress) {
+      return;
+    }
+    crashExitInProgress = true;
     logger.error(`${reason}:`, error);
+    const errorText = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    captureTelemetryEvent('app_crash_exit', {
+      reason,
+      error: errorText,
+      platform: process.platform,
+      pid: process.pid,
+      appVersion: app.getVersion(),
+    });
+    queueCrashReport({
+      reason,
+      error,
+      logFilePath: logger.getLogFilePath(),
+    });
+    void flushPendingCrashReports({ limit: 1 }).catch((flushErr) => {
+      logger.warn('[crash-report] immediate crash upload failed:', flushErr);
+    });
     try {
       void gatewayManager?.stop().catch(() => { /* ignore */ });
     } catch {
       // ignore — stop() may not be callable if state is corrupted
     }
-    // Give Gateway stop a brief window, then force-exit.
-    setTimeout(() => {
+    // Try flushing telemetry before force-exit; never block indefinitely.
+    const forceExitTimer = setTimeout(() => {
       process.exit(1);
-    }, 3000).unref();
+    }, 3000);
+    forceExitTimer.unref();
+    void shutdownTelemetry()
+      .catch((flushErr) => {
+        logger.debug('Telemetry flush failed during crash exit:', flushErr);
+      })
+      .finally(() => {
+        clearTimeout(forceExitTimer);
+        process.exit(1);
+      });
   };
 
   process.on('uncaughtException', (error) => {

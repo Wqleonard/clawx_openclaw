@@ -5,7 +5,7 @@
  * are in the toolbar; messages render with markdown + streaming.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, FileText, FolderPlus, Loader2, Trash2 } from 'lucide-react';
+import { AlertCircle, FolderPlus, Loader2, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -27,8 +27,7 @@ import {
   useChatLayoutStore,
 } from '@/stores/chat-layout';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { FileTree } from '@/components/filesystem';
-import { MarkdownEditor } from '@/components/markdownEditor';
+import { FileTree } from '@/pages/Chat/filesystem';
 import { Button } from '@/components/ui/button';
 import { useSettingsStore } from '@/stores/settings';
 import { invokeIpc } from '@/lib/api-client';
@@ -36,6 +35,7 @@ import { toast } from 'sonner';
 // import { useLoginStore } from '@/stores/loginStore';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { VisuallyHidden } from '@/components/ui/dialog';
+import { FilePreview } from './FilePreview';
 
 const INITIAL_NOW_MS = Date.now();
 const PROJECTS_RAIL_WIDTH = 12;
@@ -80,6 +80,11 @@ function isMarkdownFile(filePath: string): boolean {
   return lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdx');
 }
 
+function isEditableTextFile(filePath: string): boolean {
+  const lower = filePath.toLowerCase();
+  return isMarkdownFile(filePath) || lower.endsWith('.txt');
+}
+
 function normalizeWorkspacePath(value: string): string {
   return value
     .replace(/[\\/]+/g, '/')
@@ -97,6 +102,12 @@ function getWorkspaceName(workspacePath: string): string {
   const normalized = workspacePath.replace(/[\\/]+$/, '');
   const segments = normalized.split(/[\\/]/).filter(Boolean);
   return segments[segments.length - 1] || workspacePath;
+}
+
+function toComparableTimestampMs(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  // Heuristic: chat timestamps are usually seconds; convert to ms.
+  return value < 1_000_000_000_000 ? value * 1000 : value;
 }
 
 export function Chat() {
@@ -525,7 +536,12 @@ export function Chat() {
 
   const streamMsg =
     streamingMessage && typeof streamingMessage === 'object'
-      ? (streamingMessage as unknown as { role?: string; content?: unknown; timestamp?: number })
+      ? (streamingMessage as unknown as {
+          id?: string;
+          role?: string;
+          content?: unknown;
+          timestamp?: number;
+        })
       : null;
   const streamText = streamMsg
     ? extractText(streamMsg)
@@ -540,13 +556,67 @@ export function Chat() {
   const streamImages = streamMsg ? extractImages(streamMsg) : [];
   const hasStreamImages = streamImages.length > 0;
   const hasStreamToolStatus = streamingTools.length > 0;
+  const renderedMessages = useMemo(() => {
+    const deduped: RawMessage[] = [];
+    const seenIds = new Set<string>();
+    for (const msg of messages) {
+      if (msg.id && seenIds.has(msg.id)) {
+        continue;
+      }
+      if (msg.id) {
+        seenIds.add(msg.id);
+      }
+      const prev = deduped[deduped.length - 1];
+      const prevText = prev ? extractText(prev).trim() : '';
+      const currentText = extractText(msg).trim();
+      const prevTs = prev ? toComparableTimestampMs(prev.timestamp) : null;
+      const currentTs = toComparableTimestampMs(msg.timestamp);
+      const isLikelyAdjacentAssistantDuplicate =
+        !!prev &&
+        prev.role === 'assistant' &&
+        msg.role === 'assistant' &&
+        currentText.length > 0 &&
+        currentText === prevText &&
+        (prevTs == null || currentTs == null || Math.abs(currentTs - prevTs) <= 15_000);
+      if (isLikelyAdjacentAssistantDuplicate) {
+        continue;
+      }
+      deduped.push(msg);
+    }
+    return deduped;
+  }, [messages]);
+  const lastRenderedMessage = renderedMessages[renderedMessages.length - 1];
+  const streamId = streamMsg?.id;
+  const lastRenderedId = lastRenderedMessage?.id;
+  const streamTextTrimmed = streamText.trim();
+  const lastRenderedTextTrimmed = lastRenderedMessage
+    ? extractText(lastRenderedMessage).trim()
+    : '';
+  const streamTs = streamMsg ? toComparableTimestampMs(streamMsg.timestamp) : null;
+  const lastRenderedTs = lastRenderedMessage
+    ? toComparableTimestampMs(lastRenderedMessage.timestamp)
+    : null;
+  const isStreamingDuplicateOfLastMessage =
+    (typeof streamId === 'string' &&
+      streamId.length > 0 &&
+      typeof lastRenderedId === 'string' &&
+      lastRenderedId.length > 0 &&
+      streamId === lastRenderedId) ||
+    (!!lastRenderedMessage &&
+      lastRenderedMessage.role === 'assistant' &&
+      streamTextTrimmed.length > 0 &&
+      streamTextTrimmed === lastRenderedTextTrimmed &&
+      (streamTs == null ||
+        lastRenderedTs == null ||
+        Math.abs(streamTs - lastRenderedTs) <= 15_000));
   const shouldRenderStreaming =
     sending &&
     (hasStreamText ||
       hasStreamThinking ||
       hasStreamTools ||
       hasStreamImages ||
-      hasStreamToolStatus);
+      hasStreamToolStatus) &&
+    !isStreamingDuplicateOfLastMessage;
   const hasAnyStreamContent =
     hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
   const resizeHandleTitle = t('common:actions.resizePanel');
@@ -692,20 +762,20 @@ export function Chat() {
   }, [clampPanelsForViewport]);
 
   const isEmpty = messages.length === 0 && !sending;
-  const activeMarkdownFile = activeFile && isMarkdownFile(activeFile) ? activeFile : null;
-  const activeMarkdownContent = activeMarkdownFile ? (fileContents[activeMarkdownFile] ?? '') : '';
-  const handleMarkdownChange = useCallback(
-    (nextMarkdown: string) => {
-      if (!activeMarkdownFile) return;
-      updateFileContent(activeMarkdownFile, nextMarkdown);
+  const activeEditableFile = activeFile && isEditableTextFile(activeFile) ? activeFile : null;
+  const activeEditableContent = activeEditableFile ? (fileContents[activeEditableFile] ?? '') : '';
+  const handleEditableFileChange = useCallback(
+    (nextContent: string) => {
+      if (!activeEditableFile) return;
+      updateFileContent(activeEditableFile, nextContent);
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
       autoSaveTimerRef.current = setTimeout(() => {
-        void saveFile(activeMarkdownFile);
+        void saveFile(activeEditableFile);
       }, 200);
     },
-    [activeMarkdownFile, saveFile, updateFileContent]
+    [activeEditableFile, saveFile, updateFileContent]
   );
 
   useEffect(() => {
@@ -928,12 +998,12 @@ export function Chat() {
   const handleActivateProject = useCallback(
     async (targetPath: string) => {
       if (!targetPath || targetPath === useFileSystemStore.getState().projectPath) {
-        navigate('/chat');
+        navigate('/');
         return;
       }
       await switchToProjectSession(targetPath);
       await initProject(targetPath);
-      navigate('/chat');
+      navigate('/');
     },
     [initProject, navigate, switchToProjectSession]
   );
@@ -1145,8 +1215,12 @@ export function Chat() {
   );
 
   const openCreateProjectDialog = useCallback(() => {
+    if (!isGatewayRunning) {
+      toast.warning(t('chat:projectScreen.gatewayConnecting'));
+      return;
+    }
     window.dispatchEvent(new CustomEvent('project:create-request'));
-  }, []);
+  }, [isGatewayRunning, t]);
 
   useEffect(() => {
     const handleProjectCreateRequest = () => {
@@ -1216,13 +1290,13 @@ export function Chat() {
             !projectPath && 'pointer-events-none opacity-70'
           )}
         >
-          <div className="w-full px-4 min-w-0 overflow-x-auto">
+          <div className="w-full px-4 min-w-0 overflow-x-hidden">
             <div ref={contentRef} className="mx-auto w-full min-w-0 max-w-4xl space-y-4">
               {isEmpty ? (
                 <WelcomeScreen />
               ) : (
                 <>
-                  {messages.map((msg, idx) => (
+                  {renderedMessages.map((msg, idx) => (
                     <ChatMessage
                       key={msg.id || `msg-${idx}`}
                       message={msg}
@@ -1339,7 +1413,7 @@ export function Chat() {
         </div>
       )}
 
-      {/* Markdown Viewer Panel */}
+      {/* File Preview Panel */}
       <div
         className={cn(
           'group relative border rounded-2xl flex overflow-hidden min-w-0',
@@ -1349,28 +1423,13 @@ export function Chat() {
       >
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden">
-            {!activeMarkdownFile ? (
-              <div className="flex h-full items-center justify-center px-4">
-                <div className="rounded-2xl border border-dashed border-black/10 bg-black/[0.02] px-8 py-7 text-center dark:border-white/10 dark:bg-white/[0.03]">
-                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-black/5 dark:bg-black/20 dark:ring-white/10">
-                    <FileText className="h-5 w-5 text-foreground/60" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    点击文件树中的 `.md` 文件后，会在这里直接显示内容
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full h-full flex flex-col">
-                <MarkdownEditor
-                  className="flex-1 min-h-0"
-                  value={activeMarkdownContent}
-                  mode={mdViewMode}
-                  onModeChange={setMdViewMode}
-                  onChange={handleMarkdownChange}
-                />
-              </div>
-            )}
+            <FilePreview
+              activeFile={activeFile}
+              fileContent={activeEditableContent}
+              mdViewMode={mdViewMode}
+              onMdViewModeChange={setMdViewMode}
+              onMarkdownChange={handleEditableFileChange}
+            />
           </div>
         </div>
       </div>
@@ -1597,13 +1656,16 @@ function ProjectRequiredScreen({ onCreateProject }: { onCreateProject: () => voi
         {/* <h1 className="mt-[15%] font-bold text-[52px]">Story Claw</h1>
         <div className="mt-10 text-sm text-muted-foreground">{t('projectRequired')}</div> */}
         <h1 className="mt-[12%] bg-gradient-to-b from-zinc-400 via-zinc-700 to-black bg-clip-text text-[62px] font-bold text-transparent dark:from-zinc-200 dark:via-zinc-100 dark:to-white">
-          Story 
+          Story
           <span className="inline-block ml-2 bg-gradient-to-b from-[#ed4141] to-[#c02b2b] bg-clip-text text-transparent">
             Claw
           </span>
         </h1>
         <p className="text-[22px] text-muted-foreground">{t('projectScreen.tagline')}</p>
-        <Button className="relative mt-[32px] flex w-fit items-center gap-4 rounded-lg border border-[#c02b2b]/40 bg-gradient-to-r from-[#ed4141] to-[#c02b2b] px-8 py-7 text-xl font-bold text-white shadow-[0_10px_30px_rgba(192,43,43,0.28)] transition-all duration-300 hover:border-[#ed4141]/80 hover:from-[#f05555] hover:to-[#cf3838] hover:shadow-[0_14px_36px_rgba(192,43,43,0.36)]" onClick={onCreateProject}>
+        <Button
+          className="relative mt-[32px] flex w-fit items-center gap-4 rounded-lg border border-[#c02b2b]/40 bg-gradient-to-r from-[#ed4141] to-[#c02b2b] px-8 py-7 text-xl font-bold text-white shadow-[0_10px_30px_rgba(192,43,43,0.28)] transition-all duration-300 hover:border-[#ed4141]/80 hover:from-[#f05555] hover:to-[#cf3838] hover:shadow-[0_14px_36px_rgba(192,43,43,0.36)]"
+          onClick={onCreateProject}
+        >
           <FolderPlus className="size-6" /> {t('projectScreen.createNow')}
         </Button>
       </div>

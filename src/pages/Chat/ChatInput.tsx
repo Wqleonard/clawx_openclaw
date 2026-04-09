@@ -54,6 +54,10 @@ export interface FileAttachment {
   error?: string;
 }
 
+interface ElectronFileWithPath extends globalThis.File {
+  path?: string;
+}
+
 interface ChatInputProps {
   onSend: (text: string, attachments?: FileAttachment[], targetAgentId?: string | null) => void;
   onStop?: () => void;
@@ -98,23 +102,88 @@ function FileIcon({ mimeType, className }: { mimeType: string; className?: strin
  */
 function readFileAsBase64(file: globalThis.File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      if (!dataUrl || !dataUrl.includes(',')) {
-        reject(new Error(`Invalid data URL from FileReader for ${file.name}`));
-        return;
+    const run = async () => {
+      try {
+        const ReaderCtor = (globalThis as { FileReader?: typeof FileReader }).FileReader;
+        if (ReaderCtor) {
+          const reader = new ReaderCtor();
+          if (typeof (reader as FileReader).readAsDataURL === 'function') {
+            (reader as FileReader).onload = () => {
+              const dataUrl = (reader as FileReader).result as string;
+              if (!dataUrl || !dataUrl.includes(',')) {
+                reject(new Error(`Invalid data URL from FileReader for ${file.name}`));
+                return;
+              }
+              const base64 = dataUrl.split(',')[1];
+              if (!base64) {
+                reject(new Error(`Empty base64 data for ${file.name}`));
+                return;
+              }
+              resolve(base64);
+            };
+            (reader as FileReader).onerror = () =>
+              reject(new Error(`Failed to read file: ${file.name}`));
+            (reader as FileReader).readAsDataURL(file);
+            return;
+          }
+        }
+
+        if (typeof file.arrayBuffer === 'function') {
+          const arrayBuffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          const chunkSize = 0x8000;
+          let binary = '';
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, i + chunkSize);
+            binary += String.fromCharCode(...chunk);
+          }
+          resolve(btoa(binary));
+          return;
+        }
+
+        reject(new Error(`No supported file reader API for ${file.name}`));
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
-      const base64 = dataUrl.split(',')[1];
-      if (!base64) {
-        reject(new Error(`Empty base64 data for ${file.name}`));
-        return;
-      }
-      resolve(base64);
     };
-    reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
-    reader.readAsDataURL(file);
+
+    void run();
   });
+}
+
+function normalizeDroppedFileUriPath(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+  if (!value.toLowerCase().startsWith('file://')) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'file:') return null;
+    let decodedPath = decodeURIComponent(url.pathname || '');
+    // Windows file URI format: /C:/path/to/file
+    if (/^\/[a-zA-Z]:\//.test(decodedPath)) {
+      decodedPath = decodedPath.slice(1);
+    }
+    return decodedPath || null;
+  } catch {
+    return null;
+  }
+}
+
+function extractFilePathsFromDropData(dataTransfer: DataTransfer | null): string[] {
+  if (!dataTransfer) return [];
+  const values = [dataTransfer.getData('text/uri-list'), dataTransfer.getData('text/plain')].filter(
+    Boolean
+  );
+  const pathSet = new Set<string>();
+  for (const value of values) {
+    for (const line of value.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const path = normalizeDroppedFileUriPath(trimmed);
+      if (path) pathSet.add(path);
+    }
+  }
+  return Array.from(pathSet);
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -242,16 +311,13 @@ export function ChatInput({
 
   // ── File staging via native dialog ─────────────────────────────
 
-  const pickFiles = useCallback(async () => {
-    try {
-      const result = (await invokeIpc('dialog:open', {
-        properties: ['openFile', 'multiSelections'],
-      })) as { canceled: boolean; filePaths?: string[] };
-      if (result.canceled || !result.filePaths?.length) return;
+  const stagePathFiles = useCallback(async (filePaths: string[]) => {
+    if (!filePaths.length) return;
 
+    try {
       // Add placeholder entries immediately
       const tempIds: string[] = [];
-      for (const filePath of result.filePaths) {
+      for (const filePath of filePaths) {
         const tempId = crypto.randomUUID();
         tempIds.push(tempId);
         // Handle both Unix (/) and Windows (\) path separators
@@ -271,7 +337,7 @@ export function ChatInput({
       }
 
       // Stage all files via IPC
-      console.log('[pickFiles] Staging files:', result.filePaths);
+      console.log('[stagePathFiles] Staging files:', filePaths);
       const staged = await hostApiFetch<
         Array<{
           id: string;
@@ -283,10 +349,10 @@ export function ChatInput({
         }>
       >('/api/files/stage-paths', {
         method: 'POST',
-        body: JSON.stringify({ filePaths: result.filePaths }),
+        body: JSON.stringify({ filePaths }),
       });
       console.log(
-        '[pickFiles] Stage result:',
+        '[stagePathFiles] Stage result:',
         staged?.map((s) => ({
           id: s?.id,
           fileName: s?.fileName,
@@ -308,7 +374,7 @@ export function ChatInput({
               a.id === tempId ? { ...data, status: 'ready' as const } : a
             );
           } else {
-            console.warn(`[pickFiles] No staged data for tempId=${tempId} at index ${i}`);
+            console.warn(`[stagePathFiles] No staged data for tempId=${tempId} at index ${i}`);
             updated = updated.map((a) =>
               a.id === tempId ? { ...a, status: 'error' as const, error: 'Staging failed' } : a
             );
@@ -317,7 +383,7 @@ export function ChatInput({
         return updated;
       });
     } catch (err) {
-      console.error('[pickFiles] Failed to stage files:', err);
+      console.error('[stagePathFiles] Failed to stage files:', err);
       // Mark any stuck 'staging' attachments as 'error' so the user can remove them
       // and the send button isn't permanently blocked
       setAttachments((prev) =>
@@ -327,6 +393,18 @@ export function ChatInput({
       );
     }
   }, []);
+
+  const pickFiles = useCallback(async () => {
+    try {
+      const result = (await invokeIpc('dialog:open', {
+        properties: ['openFile', 'multiSelections'],
+      })) as { canceled: boolean; filePaths?: string[] };
+      if (result.canceled || !result.filePaths?.length) return;
+      await stagePathFiles(result.filePaths);
+    } catch (err) {
+      console.error('[pickFiles] Failed to pick files:', err);
+    }
+  }, [stagePathFiles]);
 
   // ── Stage browser File objects (paste / drag-drop) ─────────────
 
@@ -492,10 +570,35 @@ export function ChatInput({
       e.stopPropagation();
       setDragOver(false);
       if (e.dataTransfer?.files?.length) {
-        stageBufferFiles(Array.from(e.dataTransfer.files));
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        const directPathFiles: string[] = [];
+        const bufferFiles: globalThis.File[] = [];
+
+        for (const file of droppedFiles) {
+          const path = (file as ElectronFileWithPath).path;
+          if (path) {
+            directPathFiles.push(path);
+          } else {
+            bufferFiles.push(file);
+          }
+        }
+
+        const parsedDropPaths = extractFilePathsFromDropData(e.dataTransfer);
+        const mergedPathFiles = Array.from(new Set([...directPathFiles, ...parsedDropPaths]));
+
+        if (mergedPathFiles.length > 0) {
+          void stagePathFiles(mergedPathFiles);
+        }
+        if (directPathFiles.length === 0 && mergedPathFiles.length > 0) {
+          // Some Electron versions hide File.path under drag-drop; URI data still contains paths.
+          return;
+        }
+        if (bufferFiles.length > 0 && mergedPathFiles.length === 0) {
+          void stageBufferFiles(bufferFiles);
+        }
       }
     },
-    [stageBufferFiles]
+    [stageBufferFiles, stagePathFiles]
   );
 
   const handleProviderModelChange = useCallback(

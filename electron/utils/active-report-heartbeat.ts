@@ -1,5 +1,9 @@
 import { getSetting } from './store';
 import { logger } from './logger';
+import {
+  reportGatewayUsage,
+  type GatewayUsageReportReason,
+} from './gateway-usage-reporter';
 
 const ACTIVE_REPORT_INTERVAL_MS = 30 * 60 * 1000;
 
@@ -7,6 +11,12 @@ let heartbeatTimer: NodeJS.Timeout | null = null;
 let inFlight = false;
 let missingBaseUrlLogged = false;
 let missingTokenLogged = false;
+let isGatewayRunningResolver: (() => boolean) | null = null;
+
+async function captureGatewayUsageForDev(reason: GatewayUsageReportReason): Promise<void> {
+  if (!isGatewayRunningResolver || !isGatewayRunningResolver()) return;
+  await reportGatewayUsage(reason);
+}
 
 function resolveBusinessBaseUrl(): string {
   const raw = (
@@ -19,8 +29,11 @@ function resolveBusinessBaseUrl(): string {
 
 async function reportActive(reason: 'startup' | 'interval' | 'token-updated'): Promise<void> {
   if (inFlight) return;
+  // Dev-phase validation only: capture local recent-token-history snapshot into jsonl.
   try {
     const configuredBaseUrl = (await getSetting('businessApiBaseUrl')).trim();
+    await captureGatewayUsageForDev(reason);
+
     const baseUrl = (configuredBaseUrl || resolveBusinessBaseUrl()).replace(/\/+$/, '');
     if (!baseUrl) {
       if (!missingBaseUrlLogged) {
@@ -81,6 +94,10 @@ export function startActiveReportHeartbeat(): void {
   heartbeatTimer = setInterval(() => {
     void reportActive('interval');
   }, ACTIVE_REPORT_INTERVAL_MS);
+}
+
+export function setGatewayRunningResolver(resolver: (() => boolean) | null): void {
+  isGatewayRunningResolver = resolver;
 }
 
 export function triggerActiveReportHeartbeatNow(): void {

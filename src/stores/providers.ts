@@ -3,16 +3,17 @@
  * 统一管理模型提供商账户配置
  */
 import { create } from 'zustand';
-import type {
+import {
   BaowenmaoPresetAccount,
+  BAOWENMAO_PRESET_ACCOUNTS,
+  ManagedGooglePresetAccount,
   ProviderAccount,
   ProviderConfig,
   ProviderVendorInfo,
   ProviderWithKeyInfo,
+  MANAGED_GOOGLE_PRESET_ACCOUNTS,
 } from '@/lib/providers';
-import {
-  BAOWENMAO_PRESET_ACCOUNTS,
-} from '@/lib/providers';
+import { getModels } from '@/api/users';
 import { hostApiFetch } from '@/lib/host-api';
 import {
   buildEnabledProviderModels,
@@ -92,9 +93,12 @@ interface ProviderState {
    * 对预置账号执行 upsert、启用，并设置预置默认账号。
    */
   ensureBaowenmaoPresetAccounts: (apiKey: string) => Promise<void>;
+  /** 登录后把业务 token 同步到 Google 受管代理账号。 */
+  ensureManagedGoogleProxyAccount: (apiKey: string) => Promise<void>;
 }
 
 const BAOWENMAO_PROTOCOL: ProviderAccount['apiProtocol'] = 'openai-completions';
+const MANAGED_GOOGLE_PROTOCOL: ProviderAccount['apiProtocol'] = 'google-generative-ai';
 
 function resolveBusinessApiBaseUrl(): string {
   const raw = (import.meta.env.VITE_BUSINESS_API_BASE_URL as string | undefined)?.trim() ?? '';
@@ -118,6 +122,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     
     try {
       const snapshot = await fetchProviderSnapshot();
+      console.log('snapshot', snapshot);
       
       set({ 
         statuses: snapshot.statuses ?? [],
@@ -404,11 +409,114 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     await get().setDefaultAccount(accountId);
   },
 
+  ensureManagedGoogleProxyAccount: async (apiKey) => {
+    const baseUrl = resolveBusinessApiBaseUrl();
+    if (!baseUrl) {
+      throw new Error('VITE_BUSINESS_API_BASE_URL is not configured');
+    }
+
+    const modelsResponse = await getModels();
+    const availableModelIds = new Set(
+      (modelsResponse?.data ?? [])
+        .map((model) => model.id.trim())
+        .filter((id) => id.length > 0)
+    );
+    const syncedPresets = MANAGED_GOOGLE_PRESET_ACCOUNTS.filter((preset) =>
+      availableModelIds.has(preset.model)
+    );
+
+    const now = new Date().toISOString();
+    const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts');
+    const upsertPreset = async (preset: ManagedGooglePresetAccount): Promise<void> => {
+      const existing = accounts.find((account) => account.id === preset.id);
+      const payload: ProviderAccount = {
+        id: preset.id,
+        vendorId: 'google',
+        label: preset.label,
+        authMode: 'api_key',
+        baseUrl,
+        apiProtocol: MANAGED_GOOGLE_PROTOCOL,
+        model: preset.model,
+        enabled: true,
+        isDefault: false,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+
+      if (existing) {
+        const updateResult = await hostApiFetch<{ success: boolean; error?: string }>(
+          `/api/provider-accounts/${encodeURIComponent(preset.id)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              updates: {
+                label: payload.label,
+                authMode: payload.authMode,
+                baseUrl: payload.baseUrl,
+                apiProtocol: payload.apiProtocol,
+                model: payload.model,
+                enabled: payload.enabled,
+              },
+              apiKey,
+            }),
+          }
+        );
+        if (!updateResult.success) {
+          throw new Error(updateResult.error || `Failed to update managed Google provider ${preset.id}`);
+        }
+      } else {
+        const createResult = await hostApiFetch<{ success: boolean; error?: string }>('/api/provider-accounts', {
+          method: 'POST',
+          body: JSON.stringify({ account: payload, apiKey }),
+        });
+        if (!createResult.success) {
+          throw new Error(createResult.error || `Failed to create managed Google provider ${preset.id}`);
+        }
+      }
+    };
+
+    for (const preset of syncedPresets) {
+      await upsertPreset(preset);
+    }
+
+    const LEGACY_MANAGED_GOOGLE_IDS = new Set(['google:managed-business']);
+    const staleLegacyAccounts = accounts.filter((account) => LEGACY_MANAGED_GOOGLE_IDS.has(account.id));
+    for (const stale of staleLegacyAccounts) {
+      await hostApiFetch<{ success: boolean }>(`/api/provider-accounts/${encodeURIComponent(stale.id)}`, {
+        method: 'DELETE',
+      });
+    }
+
+    const currentPresetIds = new Set(syncedPresets.map((p) => p.id));
+    const staleManagedAccounts = accounts.filter(
+      (account) => account.vendorId === 'google'
+        && account.id.endsWith(':managed-google')
+        && !currentPresetIds.has(account.id)
+    );
+    for (const stale of staleManagedAccounts) {
+      await hostApiFetch<{ success: boolean }>(`/api/provider-accounts/${encodeURIComponent(stale.id)}`, {
+        method: 'DELETE',
+      });
+    }
+
+    await get().refreshProviderSnapshot();
+  },
+
   ensureBaowenmaoPresetAccounts: async (apiKey) => {
     const baseUrl = resolveBusinessApiBaseUrl();
     if (!baseUrl) {
       throw new Error('VITE_BUSINESS_API_BASE_URL is not configured');
     }
+
+    const modelsResponse = await getModels();
+    const availableModelIds = new Set(
+      (modelsResponse?.data ?? [])
+        .map((model) => model.id.trim())
+        .filter((id) => id.length > 0)
+    );
+    console.log('availableModelIds', availableModelIds);
+    const syncedPresets = BAOWENMAO_PRESET_ACCOUNTS.filter((preset) => availableModelIds.has(preset.model));
+    console.log('syncedPresets', syncedPresets);
 
     const now = new Date().toISOString();
     const accounts = await hostApiFetch<ProviderAccount[]>('/api/provider-accounts');
@@ -461,12 +569,12 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       }
     };
 
-    for (const preset of BAOWENMAO_PRESET_ACCOUNTS) {
+    for (const preset of syncedPresets) {
       await upsertPreset(preset);
     }
 
-    // 清理不再属于当前 preset 列表的旧 baowenmao 账号
-    const currentPresetIds = new Set(BAOWENMAO_PRESET_ACCOUNTS.map((p) => p.id));
+    // 清理不再属于后端模型列表的旧 baowenmao 账号
+    const currentPresetIds = new Set(syncedPresets.map((p) => p.id));
     const staleAccounts = accounts.filter(
       (account) => account.vendorId === 'baowenmao' && !currentPresetIds.has(account.id)
     );
@@ -476,16 +584,18 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       });
     }
 
-    const defaultPreset = BAOWENMAO_PRESET_ACCOUNTS.find((preset) => preset.isDefault) ?? BAOWENMAO_PRESET_ACCOUNTS[0];
-    const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
-      '/api/provider-accounts/default',
-      {
-        method: 'PUT',
-        body: JSON.stringify({ accountId: defaultPreset.id }),
+    const defaultPreset = syncedPresets.find((preset) => preset.isDefault) ?? syncedPresets[0];
+    if (defaultPreset) {
+      const defaultResult = await hostApiFetch<{ success: boolean; error?: string }>(
+        '/api/provider-accounts/default',
+        {
+          method: 'PUT',
+          body: JSON.stringify({ accountId: defaultPreset.id }),
+        }
+      );
+      if (!defaultResult.success) {
+        throw new Error(defaultResult.error || 'Failed to set default Baowenmao provider');
       }
-    );
-    if (!defaultResult.success) {
-      throw new Error(defaultResult.error || 'Failed to set default Baowenmao provider');
     }
 
     await get().refreshProviderSnapshot();

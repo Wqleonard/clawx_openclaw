@@ -135,9 +135,9 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const handleSwitchProject = useCallback(
     (targetPath: string) => {
       if (!targetPath) return;
-      const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+      const isOnChatRoute = location.pathname === '/';
       if (!isOnChatRoute) {
-        navigate('/chat');
+        navigate('/');
         window.setTimeout(() => {
           window.dispatchEvent(
             new CustomEvent('project:switch-request', {
@@ -159,9 +159,9 @@ function MacTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   );
 
   const handleCreateProject = useCallback(() => {
-    const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+    const isOnChatRoute = location.pathname === '/';
     if (!isOnChatRoute) {
-      navigate('/chat');
+      navigate('/');
       window.setTimeout(() => {
         window.dispatchEvent(new CustomEvent('project:create-request'));
       }, 0);
@@ -452,9 +452,9 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const handleSwitchProject = useCallback(
     (targetPath: string) => {
       if (!targetPath) return;
-      const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+      const isOnChatRoute = location.pathname === '/';
       if (!isOnChatRoute) {
-        navigate('/chat');
+        navigate('/');
         window.setTimeout(() => {
           window.dispatchEvent(
             new CustomEvent('project:switch-request', {
@@ -476,9 +476,9 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   );
 
   const handleCreateProject = useCallback(() => {
-    const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+    const isOnChatRoute = location.pathname === '/';
     if (!isOnChatRoute) {
-      navigate('/chat');
+      navigate('/');
       window.setTimeout(() => {
         window.dispatchEvent(new CustomEvent('project:create-request'));
       }, 0);
@@ -496,9 +496,9 @@ function WindowsTitleBar({ showPanelToggles }: { showPanelToggles: boolean }) {
   const handleRequestCloseProject = useCallback(
     (targetPath: string) => {
       if (!targetPath) return;
-      const isOnChatRoute = location.pathname === '/' || location.pathname === '/chat';
+      const isOnChatRoute = location.pathname === '/';
       if (!isOnChatRoute) {
-        navigate('/chat');
+        navigate('/');
         window.setTimeout(() => {
           window.dispatchEvent(
             new CustomEvent('project:close-request', {

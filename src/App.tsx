@@ -2,7 +2,7 @@
  * Root Application Component
  * Handles routing and global providers
  */
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'sonner';
@@ -10,7 +10,6 @@ import i18n from './i18n';
 import { MainLayout } from './components/layout/MainLayout';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Chat } from './pages/Chat';
-import { Setup } from './pages/Setup';
 import { Login } from './pages/Login';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
@@ -201,9 +200,9 @@ function ProjectCreateDialogHost() {
 
   const openCreateProjectDialog = useCallback(() => {
     const currentPath = window.location.pathname;
-    const isOnChatRoute = currentPath === '/' || currentPath === '/chat';
+    const isOnChatRoute = currentPath === '/';
     if (!isOnChatRoute) {
-      navigate('/chat');
+      navigate('/');
     }
     setPendingOpenProjectPath(null);
     setShowAddProjectDialog(true);
@@ -220,9 +219,9 @@ function ProjectCreateDialogHost() {
       if (result.canceled || !result.filePaths?.length) return;
       const selected = result.filePaths[0];
       const currentPath = window.location.pathname;
-      const isOnChatRoute = currentPath === '/' || currentPath === '/chat';
+      const isOnChatRoute = currentPath === '/';
       if (!isOnChatRoute) {
-        navigate('/chat');
+        navigate('/');
       }
       setPendingProjectBaseName('');
       setPendingOpenProjectPath(selected);
@@ -316,7 +315,7 @@ function ProjectCreateDialogHost() {
         setPendingOpenProjectPath(null);
         setPendingProjectBaseName('');
         setNewProjectName('');
-        navigate('/chat');
+        navigate('/');
         toast.success(t('common:status.agentCreated'));
       } catch (error) {
         console.error(error);
@@ -414,7 +413,7 @@ function ProjectCreateDialogHost() {
       setPendingOpenProjectPath(null);
       setPendingProjectBaseName('');
       setNewProjectName('');
-      navigate('/chat');
+      navigate('/');
       toast.success(t('common:status.agentCreated'));
     } catch (error) {
       console.error(error);
@@ -566,40 +565,25 @@ function App() {
   useEffect(() => {
     const path = location.pathname;
 
-    // 1. 未登录 → 强制登录页（/login 和 /setup 除外，setup 不应在未登录时访问，但不强制跳走避免死循环）
+    // 1. 未登录 → 强制登录页
     if (!isLoggedIn && !path.startsWith('/login')) {
       logClientEvent('info', {
         source: 'app.route-guard',
         message: 'Redirect unauthenticated user to /login',
         data: { path, isLoggedIn, setupComplete },
       });
-      navigate('/login');
+      navigate('/login', { replace: true });
       return;
     }
 
-    // Setup flow is currently disabled:
-    // - OpenClaw preset/provider setup is performed automatically after login.
-    // - Keep this block commented for potential future re-enable.
-    //
-    // // 2. 已登录但 setup 未完成 → 强制 setup
-    // if (isLoggedIn && !setupComplete && !path.startsWith('/setup')) {
-    //   logClientEvent('info', {
-    //     source: 'app.route-guard',
-    //     message: 'Redirect authenticated user to /setup',
-    //     data: { path, isLoggedIn, setupComplete },
-    //   });
-    //   navigate('/setup');
-    //   return;
-    // }
-
-    // 2. 已登录后，不再展示 setup。访问 /login 或 /setup 统一回到主界面
-    if (isLoggedIn && (path.startsWith('/login') || path.startsWith('/setup'))) {
+    // 2. 已登录访问 /login 时回到主界面
+    if (isLoggedIn && path.startsWith('/login')) {
       logClientEvent('info', {
         source: 'app.route-guard',
         message: 'Redirect authenticated user to /',
         data: { path, isLoggedIn, setupComplete },
       });
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [isLoggedIn, setupComplete, location.pathname, navigate]);
 
@@ -653,29 +637,34 @@ function App() {
     <ErrorBoundary>
       <TooltipProvider delayDuration={300}>
         <Routes>
-          {/* Setup wizard (shown on first launch) */}
-          <Route path="/setup/*" element={<Setup />} />
-
           {/* Login page */}
           <Route path="/login" element={<Login />} />
 
           {/* Main application routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Chat />} />
+            {/*
             <Route path="/chat" element={<Chat />} />
-
-            {/* <Route path="/models" element={<Models />} />
+            <Route path="/models" element={<Models />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/channels" element={<Channels />} />
             <Route path="/skills" element={<Skills />} />
             <Route path="/cron" element={<Cron />} />
             <Route path="/settings/*" element={<Settings />} />
-            <Route path="/preferences" element={<Preferences />} /> */}
+            <Route path="/preferences" element={<Preferences />} />
+            */}
           </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
         {/* Global toast notifications */}
-        <Toaster position="bottom-right" richColors closeButton style={{ zIndex: 99999 }} />
+        <Toaster
+          position="bottom-right"
+          richColors
+          expand
+          visibleToasts={6}
+          style={{ zIndex: 99999 }}
+        />
         <ProjectCreateDialogHost />
       </TooltipProvider>
     </ErrorBoundary>

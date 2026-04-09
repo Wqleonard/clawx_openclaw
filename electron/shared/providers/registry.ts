@@ -56,6 +56,11 @@ export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     supportedAuthModes: ['api_key', 'oauth_browser'],
     defaultAuthMode: 'api_key',
     supportsMultipleAccounts: true,
+    providerConfig: {
+      baseUrl: 'https://generativelanguage.googleapis.com',
+      api: 'google-generative-ai',
+      apiKeyEnv: 'GEMINI_API_KEY',
+    },
   },
   {
     id: 'openrouter',

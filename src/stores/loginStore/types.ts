@@ -52,7 +52,7 @@ export interface LoginActions {
   updateMessages: () => Promise<Message[]>
   loadMoreMessages: () => Promise<void>
   loginWithTicket: (ticket: string) => Promise<{ success: boolean; message: string }>
-  logout: () => void
+  logout: () => Promise<void>
   initUserInfo: () => void
   requireLogin: <T extends unknown[]>(action: (...args: T) => void | Promise<void>, ...args: T) => Promise<void>
   clearInterceptedActions: () => void

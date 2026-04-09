@@ -1,6 +1,7 @@
-import { access, copyFile, mkdir, readdir, readFile, rm } from 'fs/promises';
+import { access, copyFile, cp, mkdir, readdir, readFile, rm } from 'fs/promises';
 import { constants, existsSync } from 'fs';
 import { join, normalize } from 'path';
+import { spawn } from 'child_process';
 import {
   deleteAgentChannelAccounts,
   listConfiguredChannels,
@@ -8,9 +9,20 @@ import {
   writeOpenClawConfig,
 } from './channel-config';
 import { withConfigLock } from './config-mutex';
-import { expandPath, getOpenClawConfigDir, getResourcesDir } from './paths';
+import {
+  expandPath,
+  getOpenClawConfigDir,
+  getResourcesDir,
+  prepareWinSpawn,
+} from './paths';
 import * as logger from './logger';
 import { toUiChannelType } from './channel-alias';
+import {
+  checkUvInstalled,
+  getResolvedUvBin,
+  installUv,
+  setupManagedPython,
+} from './uv-setup';
 
 const AGENT_TEMPLATES_DIR = 'agent-templates';
 const DEFAULT_TEMPLATE_ID = 'default';
@@ -71,6 +83,19 @@ const AGENT_BOOTSTRAP_FILES = [
   'BOOT.md',
 ];
 const AGENT_RUNTIME_FILES = ['auth-profiles.json', 'models.json'];
+const PREINSTALLED_MANIFEST_NAME = 'preinstalled-manifest.json';
+const WORKSPACE_SKILLS_DIR_NAME = 'skills';
+const BUNDLED_WHEELHOUSE_DIR_NAME = 'python-wheelhouse';
+const WORKSPACE_UV_VENV_DIR_NAME = '.venv';
+const WORKSPACE_UV_PYTHON_VERSION = '3.12';
+const WORKSPACE_UV_PACKAGES = [
+  'reportlab',
+  'pypdf',
+  'matplotlib',
+  'pandas',
+  'openpyxl',
+  'markitdown[pptx]',
+] as const;
 
 interface AgentModelConfig {
   primary?: string;
@@ -121,6 +146,15 @@ interface AgentConfigDocument extends Record<string, unknown> {
     mainKey?: string;
     [key: string]: unknown;
   };
+}
+
+interface WorkspaceInjectedSkillSpec {
+  slug: string;
+  injectToWorkspace?: boolean;
+}
+
+interface WorkspaceInjectedSkillManifest {
+  skills?: WorkspaceInjectedSkillSpec[];
 }
 
 export interface AgentSummary {
@@ -192,6 +226,218 @@ async function ensureDir(path: string): Promise<void> {
   if (!(await fileExists(path))) {
     await mkdir(path, { recursive: true });
   }
+}
+
+async function readWorkspaceInjectedSkillsFromManifest(): Promise<string[]> {
+  const candidates = [
+    join(getResourcesDir(), 'skills', PREINSTALLED_MANIFEST_NAME),
+    join(process.cwd(), 'resources', 'skills', PREINSTALLED_MANIFEST_NAME),
+  ];
+  const manifestPath = candidates.find((p) => existsSync(p));
+  if (!manifestPath) {
+    return [];
+  }
+
+  try {
+    const raw = await readFile(manifestPath, 'utf-8');
+    const parsed = JSON.parse(raw) as WorkspaceInjectedSkillManifest;
+    if (!Array.isArray(parsed.skills)) {
+      return [];
+    }
+    return parsed.skills
+      .filter((spec) => Boolean(spec?.slug) && spec.injectToWorkspace === true)
+      .map((spec) => spec.slug.trim())
+      .filter(Boolean);
+  } catch (error) {
+    logger.warn('Failed to read workspace-injected skills from manifest', {
+      manifestPath,
+      error: String(error),
+    });
+    return [];
+  }
+}
+
+function resolvePreinstalledSkillsSourceRoot(): string | null {
+  const candidates = [
+    join(getResourcesDir(), 'preinstalled-skills'),
+    join(process.cwd(), 'build', 'preinstalled-skills'),
+    join(__dirname, '../../build/preinstalled-skills'),
+  ];
+  const root = candidates.find((dir) => existsSync(dir));
+  return root || null;
+}
+
+async function ensureWorkspaceInjectedSkills(targetWorkspace: string): Promise<void> {
+  const injectedSlugs = await readWorkspaceInjectedSkillsFromManifest();
+  if (injectedSlugs.length === 0) {
+    return;
+  }
+
+  const sourceRoot = resolvePreinstalledSkillsSourceRoot();
+  if (!sourceRoot) {
+    logger.warn('Workspace skill injection skipped: preinstalled skills source not found');
+    return;
+  }
+
+  const workspaceSkillsDir = join(targetWorkspace, WORKSPACE_SKILLS_DIR_NAME);
+  await ensureDir(workspaceSkillsDir);
+
+  for (const slug of injectedSlugs) {
+    const sourceDir = join(sourceRoot, slug);
+    const sourceManifest = join(sourceDir, 'SKILL.md');
+    if (!existsSync(sourceManifest)) {
+      logger.warn('Workspace skill injection skipped: source skill missing SKILL.md', {
+        slug,
+        sourceDir,
+      });
+      continue;
+    }
+
+    const targetDir = join(workspaceSkillsDir, slug);
+    try {
+      await rm(targetDir, { recursive: true, force: true });
+      await ensureDir(targetDir);
+      await cp(sourceDir, targetDir, { recursive: true, force: true });
+      logger.info('Injected skill into agent workspace', { slug, targetDir });
+    } catch (error) {
+      logger.warn('Failed to inject skill into agent workspace', {
+        slug,
+        sourceDir,
+        targetDir,
+        error: String(error),
+      });
+    }
+  }
+}
+
+function resolveBundledWheelhouseDir(): string | null {
+  const candidates = [
+    join(getResourcesDir(), BUNDLED_WHEELHOUSE_DIR_NAME),
+    join(process.cwd(), 'resources', BUNDLED_WHEELHOUSE_DIR_NAME),
+  ];
+  const wheelhouse = candidates.find((dir) => existsSync(dir));
+  return wheelhouse || null;
+}
+
+async function runCommand(
+  command: string,
+  args: string[],
+  options?: { cwd?: string; env?: Record<string, string | undefined>; logPrefix?: string },
+): Promise<void> {
+  const spawnSpec = prepareWinSpawn(command, args);
+  const logPrefix = options?.logPrefix ?? 'cmd';
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(spawnSpec.command, spawnSpec.args, {
+      shell: spawnSpec.shell,
+      cwd: options?.cwd,
+      env: options?.env ?? process.env,
+      windowsHide: true,
+    });
+
+    const stderrChunks: string[] = [];
+    const stdoutChunks: string[] = [];
+    child.stdout?.on('data', (data) => {
+      const line = data.toString().trim();
+      if (line) {
+        stdoutChunks.push(line);
+        logger.info(`[${logPrefix}] ${line}`);
+      }
+    });
+    child.stderr?.on('data', (data) => {
+      const line = data.toString().trim();
+      if (line) {
+        stderrChunks.push(line);
+        logger.warn(`[${logPrefix}] ${line}`);
+      }
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error(
+          `${logPrefix} failed with code ${code}\n` +
+            `command: ${command} ${args.join(' ')}\n` +
+            `stdout: ${stdoutChunks.join('\n') || '(empty)'}\n` +
+            `stderr: ${stderrChunks.join('\n') || '(empty)'}`,
+        ),
+      );
+    });
+    child.on('error', (error) => reject(error));
+  });
+}
+
+function getVenvPythonPath(venvDir: string): string {
+  return process.platform === 'win32'
+    ? join(venvDir, 'Scripts', 'python.exe')
+    : join(venvDir, 'bin', 'python');
+}
+
+async function ensureWorkspaceUvEnvironment(workspacePath: string, agentId: string): Promise<void> {
+  const expandedWorkspace = expandPath(workspacePath);
+  await ensureDir(expandedWorkspace);
+
+  const uvReady = await checkUvInstalled();
+  if (!uvReady) {
+    await installUv();
+  }
+  await setupManagedPython();
+
+  const { bin: uvBin, source } = getResolvedUvBin();
+  const venvDir = join(expandedWorkspace, WORKSPACE_UV_VENV_DIR_NAME);
+  const venvPython = getVenvPythonPath(venvDir);
+  const baseEnv: Record<string, string | undefined> = { ...process.env };
+  const wheelhouseDir = resolveBundledWheelhouseDir();
+
+  logger.info('Preparing agent workspace uv environment', {
+    agentId,
+    workspace: expandedWorkspace,
+    uv: uvBin,
+    source,
+    wheelhouse: wheelhouseDir || 'not-found',
+    venvDir,
+  });
+
+  await runCommand(
+    uvBin,
+    ['venv', venvDir, '--python', WORKSPACE_UV_PYTHON_VERSION],
+    {
+      cwd: expandedWorkspace,
+      logPrefix: `uv:venv:${agentId}`,
+    },
+  );
+
+  if (!wheelhouseDir) {
+    throw new Error(
+      `Bundled wheelhouse not found. Expected: ${join(getResourcesDir(), BUNDLED_WHEELHOUSE_DIR_NAME)}`
+    );
+  }
+
+  await runCommand(
+    uvBin,
+    [
+      'pip',
+      'install',
+      '--python',
+      venvPython,
+      '--no-index',
+      '--find-links',
+      wheelhouseDir,
+      ...WORKSPACE_UV_PACKAGES,
+    ],
+    {
+      cwd: expandedWorkspace,
+      env: baseEnv,
+      logPrefix: `uv:pip:${agentId}:offline-wheelhouse`,
+    },
+  );
+  logger.info('uv pip install completed via bundled wheelhouse (offline-only mode)', {
+    agentId,
+    workspace: expandedWorkspace,
+    wheelhouseDir,
+  });
 }
 
 function getDefaultWorkspacePath(config: AgentConfigDocument): string {
@@ -531,6 +777,8 @@ async function provisionAgentFilesystem(
   if (targetAgentDir !== sourceAgentDir) {
     await copyRuntimeFiles(sourceAgentDir, targetAgentDir);
   }
+
+  await ensureWorkspaceInjectedSkills(targetWorkspace);
 }
 
 export function resolveAccountIdForAgent(agentId: string): string {
@@ -696,6 +944,7 @@ export async function createAgent(
       list: nextEntries,
     };
     await provisionAgentFilesystem(config, newAgent, options);
+    await ensureWorkspaceUvEnvironment(resolvedWorkspace, nextId);
     await writeOpenClawConfig(config);
     logger.info('Created agent config entry', { agentId: nextId, ...options });
     return buildSnapshotFromConfig(config);
@@ -745,6 +994,11 @@ export async function updateAgentWorkspace(
     const prevWorkspace =
       typeof entries[index].workspace === 'string' ? entries[index].workspace.trim() : '';
     const changed = prevWorkspace !== nextWorkspace;
+
+    // Always ensure workspace runtime, even when the workspace value is unchanged.
+    // This covers "select existing agent" flows where frontend re-applies the same
+    // workspace path and still expects uv + dependencies to be present.
+    await ensureWorkspaceUvEnvironment(nextWorkspace, agentId);
 
     if (changed) {
       entries[index] = {

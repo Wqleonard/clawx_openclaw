@@ -124,6 +124,10 @@ const verifyTicket = async (ticket: string, invitationCode: string = '') => {
   return response;
 };
 
+const logoutReq = () => {
+  return apiClient.post('/auth/logout');
+};
+
 export interface GuideTask {
   code: string;
   taskId: number;
@@ -138,6 +142,19 @@ export interface GuideTask {
 
 export interface GetNewbieMissionData {
   tasks: GuideTask[];
+}
+
+export interface BusinessModel {
+  id: string;
+  object: 'model';
+  created: number;
+  owned_by: string;
+  model_id: string;
+}
+
+export interface GetModelsResponse {
+  object: 'list';
+  data: BusinessModel[];
 }
 
 const getNewbieMission = () => {
@@ -165,6 +182,10 @@ const visitorPost = () => {
   });
 };
 
+const getModels = () => {
+  return apiClient.get<GetModelsResponse>('/models');
+};
+
 export {
   getUserBalanceReq,
   createNewUserReq,
@@ -177,6 +198,7 @@ export {
   updateUserInfo,
   updatePassword,
   verifyTicket,
+  logoutReq,
   postFrozenUserEmailReq,
   getFrozenUserEmailReq,
   getNewbieMission,
@@ -184,4 +206,5 @@ export {
   visitorPost,
   loginWithTestReq,
   postRedeemPointsReq,
+  getModels
 };
