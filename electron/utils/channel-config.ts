@@ -359,8 +359,30 @@ async function ensurePluginAllowlist(currentConfig: OpenClawConfig, channelType:
         const allow = Array.isArray(currentConfig.plugins.allow)
             ? currentConfig.plugins.allow as string[]
             : [];
-        if (!allow.includes('qqbot')) {
-            currentConfig.plugins.allow = [...allow, 'qqbot'];
+        const normalizedAllow = allow.filter((pluginId) => pluginId !== 'openclaw-qqbot');
+        if (!normalizedAllow.includes('qqbot')) {
+            currentConfig.plugins.allow = [...normalizedAllow, 'qqbot'];
+        } else if (normalizedAllow.length !== allow.length) {
+            currentConfig.plugins.allow = normalizedAllow;
+        }
+
+        if (!currentConfig.plugins.entries) {
+            currentConfig.plugins.entries = {};
+        }
+        if (currentConfig.plugins.entries['openclaw-qqbot']) {
+            const legacyEntry = currentConfig.plugins.entries['openclaw-qqbot'];
+            currentConfig.plugins.entries.qqbot = {
+                ...(typeof legacyEntry === 'object' && legacyEntry ? legacyEntry as Record<string, unknown> : {}),
+                ...(typeof currentConfig.plugins.entries.qqbot === 'object' && currentConfig.plugins.entries.qqbot
+                    ? currentConfig.plugins.entries.qqbot as Record<string, unknown>
+                    : {}),
+                enabled: true,
+            };
+            delete currentConfig.plugins.entries['openclaw-qqbot'];
+        } else if (!currentConfig.plugins.entries.qqbot) {
+            currentConfig.plugins.entries.qqbot = { enabled: true };
+        } else {
+            currentConfig.plugins.entries.qqbot.enabled = true;
         }
     }
 
