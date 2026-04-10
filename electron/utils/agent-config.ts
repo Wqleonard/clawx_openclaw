@@ -409,35 +409,86 @@ async function ensureWorkspaceUvEnvironment(workspacePath: string, agentId: stri
     },
   );
 
-  if (!wheelhouseDir) {
-    throw new Error(
-      `Bundled wheelhouse not found. Expected: ${join(getResourcesDir(), BUNDLED_WHEELHOUSE_DIR_NAME)}`
+  const runOnlineInstall = async (): Promise<void> => {
+    await runCommand(
+      uvBin,
+      [
+        'pip',
+        'install',
+        '--python',
+        venvPython,
+        ...WORKSPACE_UV_PACKAGES,
+      ],
+      {
+        cwd: expandedWorkspace,
+        env: baseEnv,
+        logPrefix: `uv:pip:${agentId}:online`,
+      },
     );
+    logger.info('uv pip install completed via online index fallback', {
+      agentId,
+      workspace: expandedWorkspace,
+    });
+  };
+
+  if (!wheelhouseDir) {
+    logger.warn(
+      `Bundled wheelhouse not found (${join(getResourcesDir(), BUNDLED_WHEELHOUSE_DIR_NAME)}). ` +
+      'Falling back to online install.'
+    );
+    try {
+      await runOnlineInstall();
+    } catch (onlineError) {
+      logger.warn('Workspace dependency install failed (no wheelhouse + online fallback failed). Continuing anyway.', {
+        agentId,
+        workspace: expandedWorkspace,
+        error: String(onlineError),
+      });
+    }
+    return;
   }
 
-  await runCommand(
-    uvBin,
-    [
-      'pip',
-      'install',
-      '--python',
-      venvPython,
-      '--no-index',
-      '--find-links',
+  try {
+    await runCommand(
+      uvBin,
+      [
+        'pip',
+        'install',
+        '--python',
+        venvPython,
+        '--no-index',
+        '--find-links',
+        wheelhouseDir,
+        ...WORKSPACE_UV_PACKAGES,
+      ],
+      {
+        cwd: expandedWorkspace,
+        env: baseEnv,
+        logPrefix: `uv:pip:${agentId}:offline-wheelhouse`,
+      },
+    );
+    logger.info('uv pip install completed via bundled wheelhouse (offline-only mode)', {
+      agentId,
+      workspace: expandedWorkspace,
       wheelhouseDir,
-      ...WORKSPACE_UV_PACKAGES,
-    ],
-    {
-      cwd: expandedWorkspace,
-      env: baseEnv,
-      logPrefix: `uv:pip:${agentId}:offline-wheelhouse`,
-    },
-  );
-  logger.info('uv pip install completed via bundled wheelhouse (offline-only mode)', {
-    agentId,
-    workspace: expandedWorkspace,
-    wheelhouseDir,
-  });
+    });
+  } catch (offlineError) {
+    logger.warn('Offline wheelhouse install failed; retrying via online index.', {
+      agentId,
+      workspace: expandedWorkspace,
+      wheelhouseDir,
+      error: String(offlineError),
+    });
+    try {
+      await runOnlineInstall();
+    } catch (onlineError) {
+      logger.warn('Workspace dependency install failed after offline+online attempts. Continuing anyway.', {
+        agentId,
+        workspace: expandedWorkspace,
+        error: String(onlineError),
+      });
+    }
+  }
 }
 
 function getDefaultWorkspacePath(config: AgentConfigDocument): string {

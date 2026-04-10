@@ -51,6 +51,7 @@ coverage/
 *.deb
 *.rpm
 
+resources/python-wheelhouse
 resources/bin/**
 !resources/bin/
 !resources/bin/win32-x64/
