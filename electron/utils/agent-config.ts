@@ -491,6 +491,18 @@ async function ensureWorkspaceUvEnvironment(workspacePath: string, agentId: stri
   }
 }
 
+async function tryEnsureWorkspaceUvEnvironment(workspacePath: string, agentId: string): Promise<void> {
+  try {
+    await ensureWorkspaceUvEnvironment(workspacePath, agentId);
+  } catch (error) {
+    logger.warn('Workspace uv setup failed; skipping without blocking agent flow', {
+      agentId,
+      workspace: workspacePath,
+      error: String(error),
+    });
+  }
+}
+
 function getDefaultWorkspacePath(config: AgentConfigDocument): string {
   const defaults =
     config.agents && typeof config.agents === 'object'
@@ -995,7 +1007,7 @@ export async function createAgent(
       list: nextEntries,
     };
     await provisionAgentFilesystem(config, newAgent, options);
-    await ensureWorkspaceUvEnvironment(resolvedWorkspace, nextId);
+    await tryEnsureWorkspaceUvEnvironment(resolvedWorkspace, nextId);
     await writeOpenClawConfig(config);
     logger.info('Created agent config entry', { agentId: nextId, ...options });
     return buildSnapshotFromConfig(config);
@@ -1049,7 +1061,7 @@ export async function updateAgentWorkspace(
     // Always ensure workspace runtime, even when the workspace value is unchanged.
     // This covers "select existing agent" flows where frontend re-applies the same
     // workspace path and still expects uv + dependencies to be present.
-    await ensureWorkspaceUvEnvironment(nextWorkspace, agentId);
+    await tryEnsureWorkspaceUvEnvironment(nextWorkspace, agentId);
 
     if (changed) {
       entries[index] = {
