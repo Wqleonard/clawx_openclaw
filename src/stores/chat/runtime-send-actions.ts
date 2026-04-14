@@ -49,7 +49,7 @@ export function createRuntimeSendActions(set: ChatSet, get: ChatGet): Pick<Runti
       const trimmed = text.trim();
       if (!trimmed && (!attachments || attachments.length === 0)) return;
 
-      const currentSessionKey = get().currentSessionKey;
+      let currentSessionKey = get().currentSessionKey;
       const currentAgentId = normalizeAgentId(getAgentIdFromSessionKey(currentSessionKey));
       const normalizedTargetAgentId = targetAgentId ? normalizeAgentId(targetAgentId) : null;
       const targetSessionKey =
@@ -85,7 +85,7 @@ export function createRuntimeSendActions(set: ChatSet, get: ChatGet): Pick<Runti
         await get().loadHistory(true);
       }
 
-      const currentSessionKey = targetSessionKey;
+      currentSessionKey = targetSessionKey;
 
       // Add user message optimistically (with local file metadata for UI display)
       const nowMs = Date.now();

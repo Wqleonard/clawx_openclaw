@@ -291,6 +291,8 @@ function ProjectCreateDialogHost() {
         const selected = pendingOpenProjectPath;
         const beforeIds = new Set(useAgentsStore.getState().agents.map((agent) => agent.id));
         await createAgent(name, { ...options, workspacePath: selected });
+        // Restart gateway so it picks up the new agent config before the user starts chatting.
+        await useGatewayStore.getState().restart();
         const afterAgents = useAgentsStore.getState().agents;
         const createdAgent =
           afterAgents.find((agent) => !beforeIds.has(agent.id)) ??
@@ -378,6 +380,8 @@ function ProjectCreateDialogHost() {
 
       const beforeIds = new Set(useAgentsStore.getState().agents.map((agent) => agent.id));
       await createAgent(name, { ...options, workspacePath: selected });
+      // Restart gateway so it picks up the new agent config before the user starts chatting.
+      await useGatewayStore.getState().restart();
       const afterAgents = useAgentsStore.getState().agents;
       const createdAgent =
         afterAgents.find((agent) => !beforeIds.has(agent.id)) ??
