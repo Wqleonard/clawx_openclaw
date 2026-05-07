@@ -116,17 +116,17 @@ async function main() {
     fileNames.includes(`StoryClaw-${version}-mac-x64.zip`)
     && fileNames.includes(`StoryClaw-${version}-mac-arm64.zip`)
   );
-  const hasCompleteWinArtifacts = (version) => (
+  const hasWinArtifacts = (version) => (
     fileNames.includes(`StoryClaw-${version}-win-x64.exe`)
-    && fileNames.includes(`StoryClaw-${version}-win-arm64.exe`)
+    || fileNames.includes(`StoryClaw-${version}-win-arm64.exe`)
   );
 
   const macVersion = explicitVersion
     ? (hasCompleteMacArtifacts(explicitVersion) ? explicitVersion : null)
     : pickNewestCompleteVersion([...knownMacVersions], hasCompleteMacArtifacts);
   const winVersion = explicitVersion
-    ? (hasCompleteWinArtifacts(explicitVersion) ? explicitVersion : null)
-    : pickNewestCompleteVersion([...knownWinVersions], hasCompleteWinArtifacts);
+    ? (hasWinArtifacts(explicitVersion) ? explicitVersion : null)
+    : pickNewestCompleteVersion([...knownWinVersions], hasWinArtifacts);
 
   if (!macVersion && !winVersion) {
     throw new Error(`No release artifacts found in ${releaseDir}`);
@@ -138,7 +138,9 @@ async function main() {
   const winArm64Exe = winVersion ? `StoryClaw-${winVersion}-win-arm64.exe` : null;
 
   const hasMac = !!(macX64Zip && macArm64Zip && fileNames.includes(macX64Zip) && fileNames.includes(macArm64Zip));
-  const hasWin = !!(winX64Exe && winArm64Exe && fileNames.includes(winX64Exe) && fileNames.includes(winArm64Exe));
+  const hasWinX64 = !!(winX64Exe && fileNames.includes(winX64Exe));
+  const hasWinArm64 = !!(winArm64Exe && fileNames.includes(winArm64Exe));
+  const hasWin = hasWinX64 || hasWinArm64;
 
   if (!hasMac && !hasWin) {
     throw new Error(`No mac or win release artifacts found in ${releaseDir}`);
@@ -188,23 +190,28 @@ async function main() {
   }
 
   if (hasWin) {
-    const [winX64Meta, winArm64Meta] = await Promise.all([
-      getFileMeta(path.join(releaseDir, winX64Exe)),
-      getFileMeta(path.join(releaseDir, winArm64Exe)),
-    ]);
-    const winFiles = [
-      { url: winX64Exe, ...winX64Meta },
-      { url: winArm64Exe, ...winArm64Meta },
-    ];
+    const winFiles = [];
+    let winX64Meta = null;
+    let winArm64Meta = null;
+    if (hasWinX64) {
+      winX64Meta = await getFileMeta(path.join(releaseDir, winX64Exe));
+      winFiles.push({ url: winX64Exe, ...winX64Meta });
+    }
+    if (hasWinArm64) {
+      winArm64Meta = await getFileMeta(path.join(releaseDir, winArm64Exe));
+      winFiles.push({ url: winArm64Exe, ...winArm64Meta });
+    }
     if (winUniversalName && fileNames.includes(winUniversalName)) {
       winFiles.push({ url: winUniversalName, ...await getFileMeta(path.join(releaseDir, winUniversalName)) });
     }
+    const preferredPrimaryWinFile = hasWinX64 ? winX64Exe : winArm64Exe;
+    const preferredPrimaryWinMeta = hasWinX64 ? winX64Meta : winArm64Meta;
     const dedupedWinFiles = dedupeFilesByUrl(winFiles);
     await fs.writeFile(winOutputPath, toYaml({
       version: winVersion,
       files: dedupedWinFiles,
-      pathValue: winX64Exe,
-      topSha512: winX64Meta.sha512,
+      pathValue: preferredPrimaryWinFile,
+      topSha512: preferredPrimaryWinMeta.sha512,
       releaseDate,
     }), 'utf8');
     written.push(path.relative(PROJECT_ROOT, winOutputPath));
