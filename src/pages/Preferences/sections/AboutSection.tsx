@@ -12,7 +12,6 @@ import { APP_DISPLAY_NAME } from '@electron/shared/app-brand';
 import { cn } from '@/lib/utils';
 import { logClientEvent } from '@/lib/client-log';
 import { Terminal } from 'lucide-react';
-import { href } from 'react-router-dom';
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
@@ -182,7 +181,11 @@ export function AboutSection() {
               value: '浙ICP备17039406号-19',
               href: 'https://beian.miit.gov.cn/',
             },
-            // { label: t('compliance.algorithmRegistration'), value: 'XXXXXXXXXXXXXXXXXX' },
+            {
+              label: t('compliance.algorithmRegistration'),
+              value: '330604561891801260011号',
+              href: 'https://www.cac.gov.cn/2026-05/06/c_1779809434590762.htm',
+            },
             // { label: t('compliance.llmRegistration'), value: 'XXXXXXXXXXXXXXXXXX' },
           ].map((item) => (
             <div

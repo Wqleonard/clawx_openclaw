@@ -326,7 +326,7 @@
   "compliance": {
     "title": "备案信息",
     "icpLicense": "ICP 备案/许可证号",
-    "algorithmRegistration": "算法备案",
+    "algorithmRegistration": "模型算法备案",
     "llmRegistration": "大模型备案登记",
     "privacyPolicy": "隐私政策",
     "termsOfService": "用户协议"
